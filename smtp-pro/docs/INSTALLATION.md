@@ -56,8 +56,8 @@ sudo chown haraka:haraka /var/mail
 
 \`\`\`bash
 # Clone repository
-git clone https://github.com/your-org/ditmail-smtp.git
-cd ditmail-smtp
+git clone https://github.com/DishIs/ditmail.git
+cd ditmail/smtp-pro
 
 # Install dependencies
 npm install
