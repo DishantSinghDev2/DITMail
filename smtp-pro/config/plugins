@@ -1,5 +1,6 @@
 # Core plugins
 process_title
+
 # Logging
 log.syslog
 
@@ -11,7 +12,6 @@ ditmail_customer_domains
 tls
 max_unrecognized_commands
 early_talker
-;relay.force_routing
 
 # Authentication
 auth/auth_base
@@ -19,27 +19,26 @@ ditmail_auth
 
 # Anti-spam and security
 spf
+ditmail_spf
 dkim_verify
 dkim_sign
 ditmail_dkim
-ditmail_spf
-rcpt_to.routes
 mail_from.is_resolvable
 
 # Content filtering
 data.headers
 attachment
-clamd
+
+# User and domain management
+ditmail_users
+ditmail_domains
+
+# Custom routing (replaces rcpt_to.routes)
+ditmail_routing
 
 # Queue and delivery
-queue/smtp_forward
-queue/smtp_proxy
 ditmail_queue
 ditmail_delivery
-
-# Custom domain handling
-ditmail_domains
-ditmail_users
 
 # Monitoring
 watch
