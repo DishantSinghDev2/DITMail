@@ -7,7 +7,7 @@ log.syslog
 tls
 max_unrecognized_commands
 early_talker
-relay.force_routing
+;relay.force_routing
 
 # Authentication
 auth/auth_base
