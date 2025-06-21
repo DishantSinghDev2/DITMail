@@ -1,17 +1,18 @@
 {
-  "name": "ditmail-api",
+  "name": "ditmail-smtp",
   "version": "1.0.0",
-  "description": "DITMail API Server - Enterprise Email Service",
+  "description": "DITMail SMTP Server - Enterprise Email Service",
   "main": "api/server.js",
   "scripts": {
+    "install-deps": "chmod +x scripts/install-dependencies.sh && ./scripts/install-dependencies.sh",
+    "setup": "node scripts/setup-haraka.js",
     "start": "node api/server.js",
+    "start-haraka": "node scripts/start-haraka.js",
+    "test-haraka": "node scripts/test-haraka.js",
+    "test-smtp": "chmod +x scripts/test-smtp.sh && ./scripts/test-smtp.sh",
     "dev": "nodemon api/server.js",
-    "test": "jest",
     "lint": "eslint api/",
-    "setup": "node scripts/setup.js",
-    "add-domain": "node scripts/add-domain.js",
-    "generate-dkim": "node scripts/generate-dkim.js",
-    "haraka": "haraka -c ./config"
+    "add-domain": "node scripts/add-domain.js"
   },
   "dependencies": {
     "express": "^4.18.2",
@@ -26,17 +27,13 @@
     "nodemailer": "^6.9.7",
     "speakeasy": "^2.0.0",
     "dotenv": "^16.3.1",
-    "haraka": "latest",
-    "dns-packet": "^5.6.1",
-    "sharp": "^0.32.6"
+    "haraka": "^3.0.3"
   },
   "devDependencies": {
     "nodemon": "^3.0.1",
-    "jest": "^29.7.0",
-    "eslint": "^8.52.0",
-    "supertest": "^6.3.3"
+    "eslint": "^8.52.0"
   },
-  "keywords": ["email", "smtp", "api", "haraka", "mail-server", "enterprise"],
+  "keywords": ["email", "smtp", "haraka", "mail-server"],
   "author": "DITMail Team",
   "license": "MIT",
   "engines": {
