@@ -1,166 +1,116 @@
 "use client"
 
-import { useState } from "react"
-import Link from "next/link"
-import { CheckIcon } from "@heroicons/react/20/solid"
-import clsx from "clsx"
+import { Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 const plans = [
   {
     name: "Basic",
-    id: "basic",
-    price: { monthly: 3, yearly: 30 },
-    description: "Perfect for small teams and startups",
+    price: 5,
+    description: "Perfect for individuals and small teams",
     features: [
-      "5 email accounts",
-      "1 custom domain",
-      "5GB storage per account",
+      "5 Email accounts",
+      "10GB Storage per account",
+      "Custom domain",
+      "Basic spam protection",
       "IMAP/POP3 access",
-      "Mobile apps",
-      "Basic support",
-      "Spam protection",
-      "SSL encryption",
+      "Mobile app access",
+      "24/7 support",
     ],
-    mostPopular: false,
+    popular: false,
   },
   {
     name: "Professional",
-    id: "professional",
-    price: { monthly: 6, yearly: 60 },
+    price: 12,
     description: "Ideal for growing businesses",
     features: [
-      "25 email accounts",
-      "5 custom domains",
-      "50GB storage per account",
-      "Everything in Basic",
-      "Calendar integration",
-      "Contact management",
-      "Advanced security",
+      "25 Email accounts",
+      "50GB Storage per account",
+      "Multiple custom domains",
+      "Advanced spam protection",
+      "IMAP/POP3 access",
+      "Mobile app access",
+      "Calendar & contacts sync",
+      "Team collaboration tools",
       "Priority support",
-      "Email aliases",
-      "Auto-responders",
     ],
-    mostPopular: true,
+    popular: true,
   },
   {
     name: "Enterprise",
-    id: "enterprise",
-    price: { monthly: 12, yearly: 120 },
+    price: 25,
     description: "For large organizations",
     features: [
       "Unlimited email accounts",
-      "Unlimited domains",
-      "1TB storage per account",
-      "Everything in Professional",
-      "Advanced admin controls",
+      "100GB Storage per account",
+      "Unlimited custom domains",
+      "Enterprise security",
+      "IMAP/POP3 access",
+      "Mobile app access",
+      "Advanced calendar features",
+      "Team collaboration tools",
+      "Admin dashboard",
       "API access",
-      "SSO integration",
-      "24/7 phone support",
-      "Custom integrations",
-      "Dedicated account manager",
+      "Dedicated support",
     ],
-    mostPopular: false,
+    popular: false,
   },
 ]
 
 export function PricingSection() {
-  const [billingCycle, setBillingCycle] = useState<"monthly" | "yearly">("monthly")
-
   return (
-    <div id="pricing" className="bg-gray-50 py-24 sm:py-32">
-      <div className="mx-auto max-w-7xl px-6 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <h2 className="text-base font-semibold leading-7 text-blue-600">Pricing</h2>
-          <p className="mt-2 text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl">
-            Choose the right plan for your business
+    <section id="pricing" className="py-24 bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="text-center mb-16">
+          <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">Simple, transparent pricing</h2>
+          <p className="mt-4 text-xl text-gray-600 max-w-3xl mx-auto">
+            Choose the perfect plan for your needs. All plans include a 7-day free trial.
           </p>
         </div>
-        <p className="mx-auto mt-6 max-w-2xl text-center text-lg leading-8 text-gray-600">
-          Start with a 7-day free trial. No credit card required. Cancel anytime.
-        </p>
 
-        {/* Billing toggle */}
-        <div className="mt-16 flex justify-center">
-          <div className="grid grid-cols-2 gap-x-1 rounded-full p-1 text-center text-xs font-semibold leading-5 ring-1 ring-inset ring-gray-200">
-            <button
-              type="button"
-              className={clsx(
-                billingCycle === "monthly" ? "bg-blue-600 text-white" : "text-gray-500",
-                "cursor-pointer rounded-full px-2.5 py-1",
-              )}
-              onClick={() => setBillingCycle("monthly")}
-            >
-              Monthly billing
-            </button>
-            <button
-              type="button"
-              className={clsx(
-                billingCycle === "yearly" ? "bg-blue-600 text-white" : "text-gray-500",
-                "cursor-pointer rounded-full px-2.5 py-1",
-              )}
-              onClick={() => setBillingCycle("yearly")}
-            >
-              Yearly billing
-            </button>
-          </div>
-        </div>
-
-        {billingCycle === "yearly" && (
-          <div className="mt-4 text-center">
-            <span className="inline-flex items-center rounded-full bg-green-100 px-3 py-0.5 text-sm font-medium text-green-800">
-              Save 17% with yearly billing
-            </span>
-          </div>
-        )}
-
-        <div className="isolate mx-auto mt-10 grid max-w-md grid-cols-1 gap-8 lg:mx-0 lg:max-w-none lg:grid-cols-3">
-          {plans.map((plan) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {plans.map((plan, index) => (
             <div
-              key={plan.id}
-              className={clsx(
-                plan.mostPopular ? "ring-2 ring-blue-600" : "ring-1 ring-gray-200",
-                "rounded-3xl p-8 xl:p-10",
-                "bg-white",
-              )}
+              key={index}
+              className={`relative rounded-2xl border ${
+                plan.popular ? "border-blue-500 shadow-lg scale-105" : "border-gray-200 shadow-sm"
+              } bg-white p-8`}
             >
-              <div className="flex items-center justify-between gap-x-4">
-                <h3 className={clsx("text-lg font-semibold leading-8", "text-gray-900")}>{plan.name}</h3>
-                {plan.mostPopular ? (
-                  <p className="rounded-full bg-blue-600/10 px-2.5 py-1 text-xs font-semibold leading-5 text-blue-600">
-                    Most popular
-                  </p>
-                ) : null}
+              {plan.popular && (
+                <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                  <span className="bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium">
+                    Most Popular
+                  </span>
+                </div>
+              )}
+
+              <div className="text-center mb-8">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h3>
+                <p className="text-gray-600 mb-4">{plan.description}</p>
+                <div className="flex items-center justify-center">
+                  <span className="text-4xl font-bold text-gray-900">${plan.price}</span>
+                  <span className="text-gray-600 ml-2">/month</span>
+                </div>
               </div>
-              <p className="mt-4 text-sm leading-6 text-gray-600">{plan.description}</p>
-              <p className="mt-6 flex items-baseline gap-x-1">
-                <span className="text-4xl font-bold tracking-tight text-gray-900">${plan.price[billingCycle]}</span>
-                <span className="text-sm font-semibold leading-6 text-gray-600">
-                  /{billingCycle === "monthly" ? "month" : "year"}
-                </span>
-              </p>
-              <Link
-                href={`/auth/signup?plan=${plan.id}&billing=${billingCycle}`}
-                className={clsx(
-                  plan.mostPopular
-                    ? "bg-blue-600 text-white shadow-sm hover:bg-blue-500"
-                    : "text-blue-600 ring-1 ring-inset ring-blue-200 hover:ring-blue-300",
-                  "mt-6 block rounded-md px-3 py-2 text-center text-sm font-semibold leading-6 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600",
-                )}
-              >
-                Start free trial
-              </Link>
-              <ul role="list" className="mt-8 space-y-3 text-sm leading-6 text-gray-600">
-                {plan.features.map((feature) => (
-                  <li key={feature} className="flex gap-x-3">
-                    <CheckIcon className="h-6 w-5 flex-none text-blue-600" aria-hidden="true" />
-                    {feature}
+
+              <ul className="space-y-4 mb-8">
+                {plan.features.map((feature, featureIndex) => (
+                  <li key={featureIndex} className="flex items-center">
+                    <Check className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" />
+                    <span className="text-gray-700">{feature}</span>
                   </li>
                 ))}
               </ul>
+
+              <Button
+                className={`w-full ${plan.popular ? "bg-blue-600 hover:bg-blue-700" : "bg-gray-900 hover:bg-gray-800"}`}
+              >
+                Start 7-day free trial
+              </Button>
             </div>
           ))}
         </div>
       </div>
-    </div>
+    </section>
   )
 }
