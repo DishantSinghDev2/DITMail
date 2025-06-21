@@ -28,6 +28,14 @@ const authenticateToken = (req, res, next) => {
   })
 }
 
+// Check if user has one of the required roles
+const requireRole = (roles) => (req, res, next) => {
+  if (!req.user || !roles.includes(req.user.role)) {
+    return res.status(403).json({ error: "Access denied" })
+  }
+  next()
+}
+
 // Check if user is admin
 const requireAdmin = (req, res, next) => {
   if (!req.user || req.user.role !== "admin") {
@@ -75,6 +83,7 @@ const sensitiveRateLimit = require("express-rate-limit")({
 
 module.exports = {
   authenticateToken,
+  requireRole,
   requireAdmin,
   requireSuperAdmin,
   checkDomainOwnership,
