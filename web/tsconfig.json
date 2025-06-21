@@ -20,7 +20,11 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "baseUrl": ".", // Set the base URL for module resolution
+    "paths": {
+      "@/*": ["./*"] // Add alias for @
+    }
   },
   "include": [
     "next-env.d.ts",

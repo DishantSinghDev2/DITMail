@@ -28,7 +28,7 @@ export class SmtpClient {
     user: string
     password: string
   }) {
-    this.transporter = nodemailer.createTransporter({
+    this.transporter = nodemailer.createTransport({
       host: config.host,
       port: config.port,
       secure: config.secure,
