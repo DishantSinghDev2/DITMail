@@ -3,6 +3,10 @@ process_title
 # Logging
 log.syslog
 
+# Hostname and domain handling
+ditmail_hostname
+ditmail_customer_domains
+
 # Connection handling
 tls
 max_unrecognized_commands
