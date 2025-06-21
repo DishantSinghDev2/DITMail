@@ -6,11 +6,6 @@ import { Toaster } from "react-hot-toast"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-  title: "DITMail - Enterprise Email Platform",
-  description: "Professional email hosting with custom domains, advanced security, and seamless integration.",
-}
-
 export default function RootLayout({
   children,
 }: {

@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -11,153 +8,425 @@ datasource db {
 }
 
 model User {
-  id                String   @id @default(cuid())
-  email             String   @unique
-  name              String?
-  password          String
-  avatar            String?
-  timezone          String   @default("UTC")
-  language          String   @default("en")
-  emailVerified     DateTime?
+  id                     String          @id @default(cuid())
+  email                  String          @unique
+  name                   String?
+  password               String
+  avatar                 String?
+  timezone               String          @default("UTC")
+  language               String          @default("en")
+  emailVerified          DateTime?
   emailVerificationToken String?
-  passwordResetToken String?
-  passwordResetExpires DateTime?
-  twoFactorEnabled  Boolean  @default(false)
-  twoFactorSecret   String?
-  backupCodes       Json?
-  lastLoginAt       DateTime?
-  lastLoginIp       String?
-  isActive          Boolean  @default(true)
-  role              UserRole @default(USER)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  passwordResetToken     String?
+  passwordResetExpires   DateTime?
+  twoFactorEnabled       Boolean         @default(false)
+  twoFactorSecret        String?
+  backupCodes            Json?
+  lastLoginAt            DateTime?
+  lastLoginIp            String?
+  isActive               Boolean         @default(true)
+  role                   UserRole        @default(USER)
+  createdAt              DateTime        @default(now())
+  updatedAt              DateTime        @updatedAt
+  organizationId         String?
+  auditLogs              AuditLog[]
+  calendarEvents         CalendarEvent[]
+  contacts               Contact[]
+  emailAccounts          EmailAccount[]
+  files                  File[]
+  ownedOrganizations     Organization[]  @relation("OrganizationOwner")
+  sessions               Session[]
+  organization           Organization?   @relation(fields: [organizationId], references: [id])
 
-  // Relationships
-  organizationId    String?
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  ownedOrganizations Organization[] @relation("OrganizationOwner")
-  emailAccounts     EmailAccount[]
-  contacts          Contact[]
-  calendarEvents    CalendarEvent[]
-  files             File[]
-  auditLogs         AuditLog[]
-  sessions          Session[]
-
+  @@index([organizationId], map: "users_organizationId_fkey")
   @@map("users")
+}
+
+model Organization {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String         @unique
+  logo          String?
+  website       String?
+  industry      String?
+  size          String?
+  country       String?
+  timezone      String         @default("UTC")
+  isActive      Boolean        @default(true)
+  trialEndsAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ownerId       String
+  auditLogs     AuditLog[]
+  domains       Domain[]
+  emailAccounts EmailAccount[]
+  owner         User           @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  subscription  Subscription?
+  users         User[]
+
+  @@index([ownerId], map: "organizations_ownerId_fkey")
+  @@map("organizations")
+}
+
+model Domain {
+  id                  String         @id @default(cuid())
+  name                String         @unique
+  isVerified          Boolean        @default(false)
+  verificationToken   String?
+  dkimSelector        String         @default("default")
+  dkimPublicKey       String?
+  dkimPrivateKey      String?
+  spfRecord           String?
+  dmarcRecord         String?
+  mxRecord            String?
+  verificationResults Json?
+  lastVerifiedAt      DateTime?
+  isActive            Boolean        @default(true)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  organizationId      String
+  organization        Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  emailAccounts       EmailAccount[]
+
+  @@index([organizationId], map: "domains_organizationId_fkey")
+  @@map("domains")
+}
+
+model EmailAccount {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  displayName      String?
+  password         String
+  quota            BigInt           @default(1073741824)
+  usedQuota        BigInt           @default(0)
+  isActive         Boolean          @default(true)
+  imapEnabled      Boolean          @default(true)
+  pop3Enabled      Boolean          @default(true)
+  smtpEnabled      Boolean          @default(true)
+  forwardingEmail  String?
+  autoReply        Boolean          @default(false)
+  autoReplyMessage String?
+  signature        String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  userId           String
+  domainId         String
+  organizationId   String
+  domain           Domain           @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aliases          EmailAlias[]
+  folders          EmailFolder[]
+  receivedEmails   EmailRecipient[]
+  sentEmails       Email[]          @relation("SentEmails")
+
+  @@index([domainId], map: "email_accounts_domainId_fkey")
+  @@index([organizationId], map: "email_accounts_organizationId_fkey")
+  @@index([userId], map: "email_accounts_userId_fkey")
+  @@map("email_accounts")
+}
+
+model EmailFolder {
+  id             String        @id @default(cuid())
+  name           String
+  type           FolderType
+  parentId       String?
+  messageCount   Int           @default(0)
+  unreadCount    Int           @default(0)
+  isSystem       Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  emailAccountId String
+  emailAccount   EmailAccount  @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+  parent         EmailFolder?  @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children       EmailFolder[] @relation("FolderHierarchy")
+  emails         Email[]
+
+  @@unique([emailAccountId, name])
+  @@index([parentId], map: "email_folders_parentId_fkey")
+  @@map("email_folders")
+}
+
+model Email {
+  id           String            @id @default(cuid())
+  messageId    String            @unique
+  subject      String?
+  bodyText     String?           @db.LongText
+  bodyHtml     String?           @db.LongText
+  fromEmail    String
+  fromName     String?
+  replyToEmail String?
+  priority     EmailPriority     @default(NORMAL)
+  isRead       Boolean           @default(false)
+  isStarred    Boolean           @default(false)
+  isImportant  Boolean           @default(false)
+  isDraft      Boolean           @default(false)
+  inReplyTo    String?
+  references   String?
+  headers      Json?
+  size         Int               @default(0)
+  receivedAt   DateTime          @default(now())
+  sentAt       DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  senderId     String?
+  folderId     String
+  attachments  EmailAttachment[]
+  labels       EmailLabel[]
+  recipients   EmailRecipient[]
+  folder       EmailFolder       @relation(fields: [folderId], references: [id])
+  sender       EmailAccount?     @relation("SentEmails", fields: [senderId], references: [id])
+
+  @@index([folderId], map: "emails_folderId_fkey")
+  @@index([senderId], map: "emails_senderId_fkey")
+  @@map("emails")
+}
+
+model EmailRecipient {
+  id             String        @id @default(cuid())
+  email          String
+  name           String?
+  type           RecipientType
+  emailId        String
+  emailAccountId String?
+  emailAccount   EmailAccount? @relation(fields: [emailAccountId], references: [id])
+  email_message  Email         @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailAccountId], map: "email_recipients_emailAccountId_fkey")
+  @@index([emailId], map: "email_recipients_emailId_fkey")
+  @@map("email_recipients")
+}
+
+model EmailAttachment {
+  id          String   @id @default(cuid())
+  filename    String
+  contentType String
+  size        Int
+  contentId   String?
+  isInline    Boolean  @default(false)
+  filePath    String
+  createdAt   DateTime @default(now())
+  emailId     String
+  email       Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId], map: "email_attachments_emailId_fkey")
+  @@map("email_attachments")
+}
+
+model EmailLabel {
+  id      String @id @default(cuid())
+  name    String
+  color   String @default("#3B82F6")
+  emailId String
+  email   Email  @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@unique([emailId, name])
+  @@map("email_labels")
+}
+
+model EmailAlias {
+  id             String       @id @default(cuid())
+  alias          String       @unique
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  emailAccountId String
+  emailAccount   EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
+
+  @@index([emailAccountId], map: "email_aliases_emailAccountId_fkey")
+  @@map("email_aliases")
+}
+
+model Contact {
+  id           String         @id @default(cuid())
+  firstName    String
+  lastName     String?
+  email        String
+  phone        String?
+  company      String?
+  title        String?
+  address      Json?
+  notes        String?
+  avatar       String?
+  birthday     DateTime?
+  customFields Json?
+  isStarred    Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  userId       String
+  groups       ContactGroup[]
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, email])
+  @@map("contacts")
+}
+
+model ContactGroup {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  color       String  @default("#3B82F6")
+  contactId   String
+  contact     Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  @@index([contactId], map: "contact_groups_contactId_fkey")
+  @@map("contact_groups")
+}
+
+model CalendarEvent {
+  id          String          @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  isAllDay    Boolean         @default(false)
+  location    String?
+  attendees   Json?
+  reminders   Json?
+  recurrence  Json?
+  status      EventStatus     @default(CONFIRMED)
+  visibility  EventVisibility @default(PRIVATE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "calendar_events_userId_fkey")
+  @@map("calendar_events")
+}
+
+model File {
+  id            String   @id @default(cuid())
+  filename      String
+  originalName  String
+  mimeType      String
+  size          Int
+  path          String
+  isPublic      Boolean  @default(false)
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "files_userId_fkey")
+  @@map("files")
+}
+
+model Plan {
+  id            String         @id @default(cuid())
+  name          String         @unique
+  description   String?
+  price         Decimal        @db.Decimal(10, 2)
+  yearlyPrice   Decimal?       @db.Decimal(10, 2)
+  currency      String         @default("USD")
+  features      Json
+  limits        Json
+  isActive      Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  trialDays     Int            @default(7)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                            String             @id @default(cuid())
+  status                        SubscriptionStatus
+  currentPeriodStart            DateTime
+  currentPeriodEnd              DateTime
+  cancelAtPeriodEnd             Boolean            @default(false)
+  canceledAt                    DateTime?
+  trialStart                    DateTime?
+  trialEnd                      DateTime?
+  isYearly                      Boolean            @default(false)
+  paymentMethod                 PaymentMethod?
+  paymentProviderId             String?
+  paymentProviderSubscriptionId String?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime           @updatedAt
+  organizationId                String             @unique
+  planId                        String
+  payments                      Payment[]
+  organization                  Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan                          Plan               @relation(fields: [planId], references: [id])
+
+  @@index([planId], map: "subscriptions_planId_fkey")
+  @@map("subscriptions")
+}
+
+model Payment {
+  id                       String        @id @default(cuid())
+  amount                   Decimal       @db.Decimal(10, 2)
+  currency                 String
+  status                   PaymentStatus
+  paymentMethod            PaymentMethod
+  paymentProviderId        String
+  paymentProviderPaymentId String?
+  description              String?
+  metadata                 Json?
+  paidAt                   DateTime?
+  failedAt                 DateTime?
+  refundedAt               DateTime?
+  refundAmount             Decimal?      @db.Decimal(10, 2)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+  subscriptionId           String
+  subscription             Subscription  @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId], map: "payments_subscriptionId_fkey")
+  @@map("payments")
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  action         String
+  resource       String
+  resourceId     String?
+  details        Json?
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime      @default(now())
+  userId         String?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+
+  @@index([organizationId], map: "audit_logs_organizationId_fkey")
+  @@index([userId], map: "audit_logs_userId_fkey")
+  @@map("audit_logs")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  expires      DateTime
+  ipAddress    String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "sessions_userId_fkey")
+  @@map("sessions")
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.LongText
+  description String?
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
 }
 
 enum UserRole {
   SUPER_ADMIN
   ADMIN
   USER
-}
-
-model Organization {
-  id              String   @id @default(cuid())
-  name            String
-  slug            String   @unique
-  logo            String?
-  website         String?
-  industry        String?
-  size            String?
-  country         String?
-  timezone        String   @default("UTC")
-  isActive        Boolean  @default(true)
-  trialEndsAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  ownerId         String
-  owner           User     @relation("OrganizationOwner", fields: [ownerId], references: [id])
-  users           User[]
-  domains         Domain[]
-  subscription    Subscription?
-  emailAccounts   EmailAccount[]
-  auditLogs       AuditLog[]
-
-  @@map("organizations")
-}
-
-model Domain {
-  id                String   @id @default(cuid())
-  name              String   @unique
-  isVerified        Boolean  @default(false)
-  verificationToken String?
-  dkimSelector      String   @default("default")
-  dkimPublicKey     String?
-  dkimPrivateKey    String?
-  spfRecord         String?
-  dmarcRecord       String?
-  mxRecord          String?
-  verificationResults Json?
-  lastVerifiedAt    DateTime?
-  isActive          Boolean  @default(true)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  // Relationships
-  organizationId    String
-  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  emailAccounts     EmailAccount[]
-
-  @@map("domains")
-}
-
-model EmailAccount {
-  id              String   @id @default(cuid())
-  email           String   @unique
-  displayName     String?
-  password        String
-  quota           BigInt   @default(1073741824) // 1GB in bytes
-  usedQuota       BigInt   @default(0)
-  isActive        Boolean  @default(true)
-  imapEnabled     Boolean  @default(true)
-  pop3Enabled     Boolean  @default(true)
-  smtpEnabled     Boolean  @default(true)
-  forwardingEmail String?
-  autoReply       Boolean  @default(false)
-  autoReplyMessage String?
-  signature       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  domainId        String
-  domain          Domain   @relation(fields: [domainId], references: [id], onDelete: Cascade)
-  organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  
-  folders         EmailFolder[]
-  sentEmails      Email[] @relation("SentEmails")
-  receivedEmails  EmailRecipient[]
-  aliases         EmailAlias[]
-
-  @@map("email_accounts")
-}
-
-model EmailFolder {
-  id              String   @id @default(cuid())
-  name            String
-  type            FolderType
-  parentId        String?
-  parent          EmailFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
-  children        EmailFolder[] @relation("FolderHierarchy")
-  messageCount    Int      @default(0)
-  unreadCount     Int      @default(0)
-  isSystem        Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  emailAccountId  String
-  emailAccount    EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
-  emails          Email[]
-
-  @@unique([emailAccountId, name])
-  @@map("email_folders")
 }
 
 enum FolderType {
@@ -169,172 +438,16 @@ enum FolderType {
   CUSTOM
 }
 
-model Email {
-  id              String   @id @default(cuid())
-  messageId       String   @unique
-  subject         String?
-  bodyText        String?  @db.LongText
-  bodyHtml        String?  @db.LongText
-  fromEmail       String
-  fromName        String?
-  replyToEmail    String?
-  priority        EmailPriority @default(NORMAL)
-  isRead          Boolean  @default(false)
-  isStarred       Boolean  @default(false)
-  isImportant     Boolean  @default(false)
-  isDraft         Boolean  @default(false)
-  inReplyTo       String?
-  references      String?
-  headers         Json?
-  size            Int      @default(0)
-  receivedAt      DateTime @default(now())
-  sentAt          DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  senderId        String?
-  sender          EmailAccount? @relation("SentEmails", fields: [senderId], references: [id])
-  folderId        String
-  folder          EmailFolder @relation(fields: [folderId], references: [id])
-  
-  recipients      EmailRecipient[]
-  attachments     EmailAttachment[]
-  labels          EmailLabel[]
-
-  @@map("emails")
-}
-
 enum EmailPriority {
   LOW
   NORMAL
   HIGH
 }
 
-model EmailRecipient {
-  id              String   @id @default(cuid())
-  email           String
-  name            String?
-  type            RecipientType
-  
-  // Relationships
-  emailId         String
-  email_message   Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
-  emailAccountId  String?
-  emailAccount    EmailAccount? @relation(fields: [emailAccountId], references: [id])
-
-  @@map("email_recipients")
-}
-
 enum RecipientType {
   TO
   CC
   BCC
-}
-
-model EmailAttachment {
-  id              String   @id @default(cuid())
-  filename        String
-  contentType     String
-  size            Int
-  contentId       String?
-  isInline        Boolean  @default(false)
-  filePath        String
-  createdAt       DateTime @default(now())
-
-  // Relationships
-  emailId         String
-  email           Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
-
-  @@map("email_attachments")
-}
-
-model EmailLabel {
-  id              String   @id @default(cuid())
-  name            String
-  color           String   @default("#3B82F6")
-  
-  // Relationships
-  emailId         String
-  email           Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
-
-  @@unique([emailId, name])
-  @@map("email_labels")
-}
-
-model EmailAlias {
-  id              String   @id @default(cuid())
-  alias           String   @unique
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-
-  // Relationships
-  emailAccountId  String
-  emailAccount    EmailAccount @relation(fields: [emailAccountId], references: [id], onDelete: Cascade)
-
-  @@map("email_aliases")
-}
-
-model Contact {
-  id              String   @id @default(cuid())
-  firstName       String
-  lastName        String?
-  email           String
-  phone           String?
-  company         String?
-  title           String?
-  address         Json?
-  notes           String?
-  avatar          String?
-  birthday        DateTime?
-  customFields    Json?
-  isStarred       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  groups          ContactGroup[]
-
-  @@unique([userId, email])
-  @@map("contacts")
-}
-
-model ContactGroup {
-  id              String   @id @default(cuid())
-  name            String
-  description     String?
-  color           String   @default("#3B82F6")
-  
-  // Relationships
-  contactId       String
-  contact         Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
-
-  @@map("contact_groups")
-}
-
-model CalendarEvent {
-  id              String   @id @default(cuid())
-  title           String
-  description     String?
-  startTime       DateTime
-  endTime         DateTime
-  isAllDay        Boolean  @default(false)
-  location        String?
-  attendees       Json?
-  reminders       Json?
-  recurrence      Json?
-  status          EventStatus @default(CONFIRMED)
-  visibility      EventVisibility @default(PRIVATE)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("calendar_events")
 }
 
 enum EventStatus {
@@ -347,72 +460,6 @@ enum EventVisibility {
   PUBLIC
   PRIVATE
   CONFIDENTIAL
-}
-
-model File {
-  id              String   @id @default(cuid())
-  filename        String
-  originalName    String
-  mimeType        String
-  size            Int
-  path            String
-  isPublic        Boolean  @default(false)
-  downloadCount   Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("files")
-}
-
-model Plan {
-  id              String   @id @default(cuid())
-  name            String   @unique
-  description     String?
-  price           Decimal  @db.Decimal(10, 2)
-  yearlyPrice     Decimal? @db.Decimal(10, 2)
-  currency        String   @default("USD")
-  features        Json
-  limits          Json
-  isActive        Boolean  @default(true)
-  sortOrder       Int      @default(0)
-  trialDays       Int      @default(7)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  subscriptions   Subscription[]
-
-  @@map("plans")
-}
-
-model Subscription {
-  id              String   @id @default(cuid())
-  status          SubscriptionStatus
-  currentPeriodStart DateTime
-  currentPeriodEnd DateTime
-  cancelAtPeriodEnd Boolean @default(false)
-  canceledAt      DateTime?
-  trialStart      DateTime?
-  trialEnd        DateTime?
-  isYearly        Boolean  @default(false)
-  paymentMethod   PaymentMethod?
-  paymentProviderId String?
-  paymentProviderSubscriptionId String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  organizationId  String   @unique
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  planId          String
-  plan            Plan     @relation(fields: [planId], references: [id])
-  payments        Payment[]
-
-  @@map("subscriptions")
 }
 
 enum SubscriptionStatus {
@@ -430,79 +477,10 @@ enum PaymentMethod {
   BANK_TRANSFER
 }
 
-model Payment {
-  id              String   @id @default(cuid())
-  amount          Decimal  @db.Decimal(10, 2)
-  currency        String
-  status          PaymentStatus
-  paymentMethod   PaymentMethod
-  paymentProviderId String
-  paymentProviderPaymentId String?
-  description     String?
-  metadata        Json?
-  paidAt          DateTime?
-  failedAt        DateTime?
-  refundedAt      DateTime?
-  refundAmount    Decimal? @db.Decimal(10, 2)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  // Relationships
-  subscriptionId  String
-  subscription    Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-
-  @@map("payments")
-}
-
 enum PaymentStatus {
   PENDING
   COMPLETED
   FAILED
   REFUNDED
   CANCELLED
-}
-
-model AuditLog {
-  id              String   @id @default(cuid())
-  action          String
-  resource        String
-  resourceId      String?
-  details         Json?
-  ipAddress       String?
-  userAgent       String?
-  createdAt       DateTime @default(now())
-
-  // Relationships
-  userId          String?
-  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  organizationId  String?
-  organization    Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-
-  @@map("audit_logs")
-}
-
-model Session {
-  id              String   @id @default(cuid())
-  sessionToken    String   @unique
-  expires         DateTime
-  ipAddress       String?
-  userAgent       String?
-  createdAt       DateTime @default(now())
-
-  // Relationships
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("sessions")
-}
-
-model SystemSetting {
-  id              String   @id @default(cuid())
-  key             String   @unique
-  value           String   @db.LongText
-  description     String?
-  isPublic        Boolean  @default(false)
-  updatedAt       DateTime @updatedAt
-
-  @@map("system_settings")
 }

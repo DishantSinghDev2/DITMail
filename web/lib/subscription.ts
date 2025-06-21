@@ -39,7 +39,7 @@ export class SubscriptionService {
     trialEnd.setDate(trialEnd.getDate() + plan.trialDays)
 
     // Calculate subscription amount
-    const amount = isYearly ? plan.yearlyPrice || plan.price * 12 : plan.price
+    const amount = isYearly ? Number(plan.yearlyPrice) || Number(plan.price) * 12 : Number(plan.price)
 
     let paymentProviderId: string
     let paymentUrl: string
@@ -146,11 +146,11 @@ export class SubscriptionService {
       data: {
         subscriptionId,
         amount: subscription.isYearly
-          ? subscription.plan.yearlyPrice || subscription.plan.price * 12
+          ? Number(subscription.plan.yearlyPrice) || Number(subscription.plan.price) * 12
           : subscription.plan.price,
         currency: subscription.plan.currency,
         status: "COMPLETED",
-        paymentMethod: subscription.paymentMethod,
+        paymentMethod: subscription.paymentMethod as PaymentMethod,
         paymentProviderId: subscription.paymentProviderId!,
         paymentProviderPaymentId: paymentDetails?.id,
         paidAt: new Date(),

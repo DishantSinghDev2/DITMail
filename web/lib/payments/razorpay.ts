@@ -74,7 +74,7 @@ export class RazorpayService {
         name: customer.name,
         email: customer.email,
         contact: customer.contact,
-        fail_existing: "0",
+        fail_existing: 0,
       })
 
       return razorpayCustomer.id
@@ -95,15 +95,11 @@ export class RazorpayService {
     try {
       const razorpaySubscription = await razorpay.subscriptions.create({
         plan_id: subscription.planId,
-        customer_id: subscription.customerId,
         total_count: subscription.totalCount || 0, // 0 means infinite
         start_at: subscription.startAt ? Math.floor(subscription.startAt.getTime() / 1000) : undefined,
         expire_by: subscription.expireBy ? Math.floor(subscription.expireBy.getTime() / 1000) : undefined,
         notes: subscription.notes,
-        notify: {
-          email: true,
-          sms: true,
-        },
+        customer_notify: true,
       })
 
       return {
@@ -148,7 +144,7 @@ export class RazorpayService {
         currency: payment.currency,
         description: payment.description,
         customer: {
-          id: payment.customerId,
+          name: payment.customerId, // Replace with a valid property if needed
         },
         callback_url: payment.callbackUrl,
         callback_method: payment.callbackMethod || "get",

@@ -167,7 +167,7 @@ export class ImapClient {
                 })),
                 date: parsed.date || new Date(),
                 bodyText: parsed.text,
-                bodyHtml: parsed.html,
+                bodyHtml: typeof parsed.html === "string" ? parsed.html : undefined,
                 attachments:
                   parsed.attachments?.map((att) => ({
                     filename: att.filename || "attachment",
