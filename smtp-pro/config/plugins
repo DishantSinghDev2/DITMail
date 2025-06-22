@@ -18,6 +18,7 @@ auth/auth_base
 ditmail_auth
 
 # Anti-spam and security
+asn
 spf
 ditmail_spf
 dkim_verify
