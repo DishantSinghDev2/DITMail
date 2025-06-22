@@ -15,7 +15,7 @@ COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Copy application source code and package files
 RUN mkdir -p /DITMail/smtp-pro
-COPY smtp-pro /DITMail/smtp-pro
+COPY src /DITMail/smtp-pro
 COPY package.json /DITMail/smtp-pro/
 COPY package-lock.json /DITMail/smtp-pro/
 
