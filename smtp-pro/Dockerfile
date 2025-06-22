@@ -6,6 +6,9 @@ RUN apt-get update
 # Install necessary packages including Node.js and npm
 RUN apt-get -y install libarchive-tools dnsutils bind9 supervisor sed nodejs npm
 
+# Install Haraka globally
+RUN npm install -g Haraka
+
 # Copy BIND configuration
 COPY --chown=root:bind named.conf.options /etc/bind/
 
