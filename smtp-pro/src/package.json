@@ -1,6 +1,6 @@
 {
   "name": "haraka_local",
-  "description": "An SMTP Server",
+  "description": "An SMTP Server for DITMail",
   "version": "0.0.1",
   "dependencies": {},
   "repository": "",
