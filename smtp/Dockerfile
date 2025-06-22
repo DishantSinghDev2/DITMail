@@ -14,24 +14,24 @@ RUN mkdir -p /var/log/supervisor
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 # Copy application source code and package files
-RUN mkdir -p /maildrop/src
-COPY src /maildrop/src
-COPY package.json /maildrop/
-COPY package-lock.json /maildrop/
+RUN mkdir -p /DITMail/src
+COPY src /DITMail/src
+COPY package.json /DITMail/
+COPY package-lock.json /DITMail/
 
 # Install Node.js dependencies
-RUN cd /maildrop && npm i
+RUN cd /DITMail && npm i
 
 # Copy entrypoint scripts and give them execute permissions
-COPY entrypoint.sh /maildrop/
-COPY stop-supervisor.sh /maildrop/
-RUN chmod a+rx /maildrop/entrypoint.sh /maildrop/stop-supervisor.sh
+COPY entrypoint.sh /DITMail/
+COPY stop-supervisor.sh /DITMail/
+RUN chmod a+rx /DITMail/entrypoint.sh /DITMail/stop-supervisor.sh
 
 # Expose necessary ports
 EXPOSE 25/tcp 8081/tcp
 
 # Set working directory
-WORKDIR /maildrop
+WORKDIR /DITMail
 
 # Set the entrypoint script
 ENTRYPOINT ["./entrypoint.sh"]
