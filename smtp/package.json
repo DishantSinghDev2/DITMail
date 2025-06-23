@@ -1,7 +1,7 @@
 {
-  "name": "maildrop-smtp",
+  "name": "ditmail-smtp",
   "version": "3.0.0",
-  "description": "Maildrop SMTP server in Javascript",
+  "description": "DITMail SMTP server in Javascript",
   "main": "index.js",
   "scripts": {
     "start": "node_modules/.bin/haraka -c src",
