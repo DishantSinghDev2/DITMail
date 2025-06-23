@@ -59,6 +59,7 @@ headers
 uribl
 attachment
 clamd
+tls
 #spamassassin
 # dkim_sign
 dkim
