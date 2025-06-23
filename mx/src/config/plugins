@@ -41,7 +41,7 @@ helo.checks
 mail_from.is_resolvable
 spf
 greylist
-tarpit ; slow down spam
+tarpit
 
 # RCPT TO
 # At least one rcpt_to plugin is REQUIRED for inbound email. The simplest

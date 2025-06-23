@@ -9,8 +9,8 @@ fcrdns
 dns-list
 early_talker
 helo.checks
-tls  ; important for AUTH
-tarpit  ; slow down spam bots
+tls
+tarpit
 
 # --- AUTH ---
 auth/auth_bridge
@@ -22,7 +22,7 @@ spf
 greylist
 
 # --- RCPT TO ---
-altinbox  ; custom user mapping
+altinbox
 
 # --- DATA VALIDATION ---
 headers
@@ -33,13 +33,13 @@ uribl
 limit
 
 # --- DKIM ---
-dkim  ; enable only for signing (check dkim_sign.ini)
+dkim 
 
 # --- RELAY ---
-relay  ; needed to allow authenticated users to send
+relay
 
 # --- QUEUE ---
-queue/smtp_bridge  ; relays to destination SMTP
+queue/smtp_bridge
 # Or use queue.redis.mongo for storing first
 
 # --- LOGGING / METRICS ---
