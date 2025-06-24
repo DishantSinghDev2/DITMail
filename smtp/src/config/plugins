@@ -24,11 +24,11 @@ dkim
 
 # --- RELAY ---
 relay
-track_status
+track.status
 
 # --- QUEUE ---
 queue/smtp_bridge
-# or use: queue/redis.mongo if saving in Redis+Mongo
+queue.redis.mongo
 
 # --- LOGGING / METRICS ---
 stats.redis

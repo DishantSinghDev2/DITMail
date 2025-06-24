@@ -1,7 +1,6 @@
 const mongodb = require('mongodb');
 
 exports.register = function () {
-  this.inherits('queue');
   this.register_hook('delivered', 'update_status');
   this.register_hook('bounce', 'update_status');
   this.register_hook('deferred', 'update_status');
