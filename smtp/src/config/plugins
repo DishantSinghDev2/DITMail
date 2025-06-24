@@ -2,24 +2,12 @@
 redis
 xclient
 
-# --- HELO / CONNECT ---
-geoip
-asn
-fcrdns
-dns-list
-early_talker
-helo.checks
-tls
-tarpit
-
 # --- AUTH ---
 auth/auth_bridge
 prevent_credential_leaks
 
 # --- MAIL FROM ---
 mail_from.is_resolvable
-spf
-greylist
 
 # --- RCPT TO ---
 altinbox
@@ -29,18 +17,18 @@ headers
 clamd
 attachment
 bounce
-uribl
 limit
 
 # --- DKIM ---
-dkim 
+dkim
 
 # --- RELAY ---
 relay
+track_status
 
 # --- QUEUE ---
 queue/smtp_bridge
-# Or use queue.redis.mongo for storing first
+# or use: queue/redis.mongo if saving in Redis+Mongo
 
 # --- LOGGING / METRICS ---
 stats.redis

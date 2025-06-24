@@ -52,7 +52,6 @@ rcpt_to.mongodb
 #rcpt_to.routes
 
 # DATA
-maildrop.deny
 bounce
 # Check mail headers are valid
 headers
