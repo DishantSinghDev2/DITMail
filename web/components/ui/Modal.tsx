@@ -11,16 +11,15 @@ interface ModalProps {
   onClose: () => void
   title: string
   children: React.ReactNode
-  size?: "sm" | "md" | "lg" | "xl" | "2xl"
+  size?: "small" | "medium" | "large" | "xl"
 }
 
-export default function Modal({ isOpen, onClose, title, children, size = "md" }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, size = "medium" }: ModalProps) {
   const sizeClasses = {
-    sm: "max-w-md",
-    md: "max-w-lg",
-    lg: "max-w-2xl",
+    small: "max-w-md",
+    medium: "max-w-lg",
+    large: "max-w-2xl",
     xl: "max-w-4xl",
-    "2xl": "max-w-6xl",
   }
 
   return (
@@ -58,9 +57,9 @@ export default function Modal({ isOpen, onClose, title, children, size = "md" }:
                   </Dialog.Title>
                   <button
                     onClick={onClose}
-                    className="rounded-md p-2 text-gray-400 hover:text-gray-500 hover:bg-gray-100"
+                    className="rounded-md text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <XMarkIcon className="h-5 w-5" />
+                    <XMarkIcon className="h-6 w-6" />
                   </button>
                 </div>
                 {children}

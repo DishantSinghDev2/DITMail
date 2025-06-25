@@ -1,5 +1,7 @@
 {
-  "name": "my-v0-project",
+  "name": "ditmail-web",
+  "description": "DITMail Web Application",
+  "author": "DITMail Team",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -71,7 +73,6 @@
     "nodemailer": "latest",
     "react": "^19",
     "react-chartjs-2": "latest",
-    "react-day-picker": "8.10.1",
     "react-dom": "^19",
     "react-hook-form": "^7.54.1",
     "react-resizable-panels": "^2.1.7",
@@ -84,11 +85,12 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "util": "latest",
-    "vaul": "^0.9.6",
     "winston": "latest",
     "zod": "latest"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/lodash": "^4.17.18",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

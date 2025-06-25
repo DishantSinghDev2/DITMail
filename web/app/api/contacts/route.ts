@@ -63,8 +63,7 @@ export async function GET(request: NextRequest) {
         { $unwind: "$emails" },
         {
           $match: {
-            "emails.email": { $ne: user.email }, // Exclude self
-            "emails.email": { $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }, // Valid email format
+            "emails.email": { $ne: user.email, $regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/ }, // Exclude self
           },
         },
         {
