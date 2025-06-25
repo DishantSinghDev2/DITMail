@@ -5,7 +5,6 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { PaperClipIcon, PaperAirplaneIcon } from "@heroicons/react/24/outline"
 import { debounce } from "lodash"
 import Modal from "./ui/Modal"
-import { notificationService } from "@/lib/notifications"
 
 interface ComposeModalProps {
   onClose: () => void
@@ -109,7 +108,25 @@ export default function ComposeModal({ onClose, onSent, replyTo, forwardMessage,
         }
       } catch (error) {
         console.error("Auto-save error:", error)
-        await notificationService.notifySecurityAlert("auto_save_failed", { error: error.message })
+        // Send notification via API instead of direct service call
+        try {
+          const token = localStorage.getItem("accessToken")
+          await fetch("/api/notifications", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              type: "security",
+              title: "Auto-save Failed",
+              message: "Failed to auto-save draft",
+              data: { error: error.message },
+            }),
+          })
+        } catch (notifError) {
+          console.error("Failed to send notification:", notifError)
+        }
       } finally {
         setAutoSaving(false)
       }
@@ -307,9 +324,19 @@ export default function ComposeModal({ onClose, onSent, replyTo, forwardMessage,
           })
         }
 
-        await notificationService.notifyNewEmail("email_sent", {
-          subject: formData.subject,
-          recipients: formData.to.split(",").length,
+        // Send success notification via API
+        await fetch("/api/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: "email",
+            title: "Email Sent",
+            message: `Email "${formData.subject}" sent successfully`,
+            data: { subject: formData.subject, recipients: formData.to.split(",").length },
+          }),
         })
 
         onSent()
