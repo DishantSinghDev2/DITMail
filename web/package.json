@@ -55,6 +55,7 @@
     "date-fns": "latest",
     "dns": "latest",
     "embla-carousel-react": "8.5.1",
+    "framer-motion": "^12.19.1",
     "fs": "latest",
     "gcp-metadata": "latest",
     "input-otp": "1.4.1",

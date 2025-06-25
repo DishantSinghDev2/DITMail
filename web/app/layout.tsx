@@ -13,8 +13,7 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "DITMail - Enterprise Webmail",
-  description: "Professional email management for your organization",
-    generator: 'v0.dev'
+  description: "Professional email management for your organization"
 }
 
 export default function RootLayout({
