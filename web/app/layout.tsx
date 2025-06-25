@@ -1,10 +1,21 @@
 import type React from "react"
 import "./globals.css"
+import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { Providers } from "./providers"
-import { Toaster } from "react-hot-toast"
+import { AuthProvider } from "@/contexts/AuthContext"
+import { RealtimeProvider } from "@/contexts/RealtimeContext"
+import { initSentry } from "@/lib/sentry"
+
+// Initialize Sentry
+initSentry()
 
 const inter = Inter({ subsets: ["latin"] })
+
+export const metadata: Metadata = {
+  title: "DITMail - Enterprise Webmail",
+  description: "Professional email management for your organization",
+    generator: 'v0.dev'
+}
 
 export default function RootLayout({
   children,
@@ -14,33 +25,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <Providers>
-          {children}
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              duration: 4000,
-              style: {
-                background: "#363636",
-                color: "#fff",
-              },
-              success: {
-                duration: 3000,
-                iconTheme: {
-                  primary: "#10b981",
-                  secondary: "#fff",
-                },
-              },
-              error: {
-                duration: 5000,
-                iconTheme: {
-                  primary: "#ef4444",
-                  secondary: "#fff",
-                },
-              },
-            }}
-          />
-        </Providers>
+        <AuthProvider>
+          <RealtimeProvider>{children}</RealtimeProvider>
+        </AuthProvider>
       </body>
     </html>
   )
