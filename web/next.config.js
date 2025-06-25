@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ["mongoose", "bcryptjs"],
-  },
   env: {
     MONGODB_URI: process.env.MONGODB_URI,
     REDIS_URL: process.env.REDIS_URL,
