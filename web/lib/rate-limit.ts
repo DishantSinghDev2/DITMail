@@ -1,5 +1,4 @@
 import type { NextRequest } from "next/server"
-import { redis } from "./redis"
 
 interface RateLimitOptions {
   windowMs: number
@@ -7,42 +6,66 @@ interface RateLimitOptions {
   keyGenerator?: (request: NextRequest) => string
 }
 
+// Simple in-memory rate limiting for Edge Runtime
+const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+
+// Clean up expired entries periodically
+setInterval(() => {
+  const now = Date.now()
+  for (const [key, value] of rateLimitStore.entries()) {
+    if (now > value.resetTime) {
+      rateLimitStore.delete(key)
+    }
+  }
+}, 60000) // Clean up every minute
+
 export async function rateLimit(
   request: NextRequest,
   options: RateLimitOptions,
 ): Promise<{ success: boolean; remaining: number; resetTime: number }> {
   const key = options.keyGenerator ? options.keyGenerator(request) : request.headers.get("x-forwarded-for") || "unknown"
-
-  const rateLimitKey = `rate_limit:${key}`
-  const windowStart = Math.floor(Date.now() / options.windowMs) * options.windowMs
+  const now = Date.now()
+  const windowStart = Math.floor(now / options.windowMs) * options.windowMs
+  const resetTime = windowStart + options.windowMs
+  const rateLimitKey = `${key}:${windowStart}`
 
   try {
-    const current = await redis.get(`${rateLimitKey}:${windowStart}`)
-    const requests = current ? Number.parseInt(current) : 0
+    const current = rateLimitStore.get(rateLimitKey)
 
-    if (requests >= options.maxRequests) {
+    if (!current || now > current.resetTime) {
+      // Reset or initialize counter
+      rateLimitStore.set(rateLimitKey, { count: 1, resetTime })
       return {
-        success: false,
-        remaining: 0,
-        resetTime: windowStart + options.windowMs,
+        success: true,
+        remaining: options.maxRequests - 1,
+        resetTime,
       }
     }
 
-    await redis.incr(`${rateLimitKey}:${windowStart}`)
-    await redis.expire(`${rateLimitKey}:${windowStart}`, Math.ceil(options.windowMs / 1000))
+    if (current.count >= options.maxRequests) {
+      return {
+        success: false,
+        remaining: 0,
+        resetTime: current.resetTime,
+      }
+    }
+
+    // Increment counter
+    current.count++
+    rateLimitStore.set(rateLimitKey, current)
 
     return {
       success: true,
-      remaining: options.maxRequests - requests - 1,
-      resetTime: windowStart + options.windowMs,
+      remaining: options.maxRequests - current.count,
+      resetTime: current.resetTime,
     }
   } catch (error) {
     console.error("Rate limiting error:", error)
-    // Allow request if Redis is down
+    // Allow request if there's an error
     return {
       success: true,
       remaining: options.maxRequests - 1,
-      resetTime: windowStart + options.windowMs,
+      resetTime,
     }
   }
 }

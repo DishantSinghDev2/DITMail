@@ -117,14 +117,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Log audit event
     await logAuditEvent({
-      userId: decoded.userId,
-      organizationId: decoded.organizationId,
+      user_id: decoded.userId,
+      org_id: decoded.organizationId,
       action: "user.removed_from_organization",
-      resource: "user",
-      resourceId: params.userId,
+      resource_type: "user",
+      resource_id: params.userId,
       details: { removedUser: user.email },
-      ipAddress: request.headers.get("x-forwarded-for") || "unknown",
-      userAgent: request.headers.get("user-agent") || "unknown",
+      ip: request.headers.get("x-forwarded-for") || "unknown",
+      user_agent: request.headers.get("user-agent") || "unknown",
     })
 
     return NextResponse.json({ message: "User removed successfully" })

@@ -10,7 +10,7 @@ import ComposeModal from "./ComposeModal"
 import SearchBar from "./SearchBar"
 import NotificationPanel from "./NotificationPanel"
 import { MagnifyingGlassIcon, Cog6ToothIcon, BellIcon, PlusIcon, ViewColumnsIcon } from "@heroicons/react/24/outline"
-import { notificationService } from "@/lib/notifications"
+import { clientNotificationService } from "@/lib/notifications-client"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -64,11 +64,10 @@ export default function MailInterface() {
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
-      await notificationService.notifySecurityAlert(user._id, "fetch_messages_failed", { error: error.message })
     } finally {
       setLoading(false)
     }
-  }, [selectedFolder, searchQuery, filters, user])
+  }, [selectedFolder, searchQuery, filters])
 
   // Fetch thread messages
   const fetchThreadMessages = useCallback(async (threadId: string) => {
@@ -87,19 +86,12 @@ export default function MailInterface() {
     }
   }, [])
 
-  // Fetch notifications
+  // Fetch notifications using client service
   const fetchNotifications = useCallback(async () => {
     try {
-      const token = localStorage.getItem("accessToken")
-      const response = await fetch("/api/notifications", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setNotifications(data.notifications)
-        setUnreadNotifications(data.unreadCount)
-      }
+      const data = await clientNotificationService.getUserNotifications()
+      setNotifications(data.notifications)
+      setUnreadNotifications(data.unreadCount)
     } catch (error) {
       console.error("Error fetching notifications:", error)
     }

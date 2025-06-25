@@ -1,5 +1,5 @@
 import { Server } from "socket.io"
-import { redis } from "./redis"
+import { getRedisClient } from "./redis-server"
 import { verifyToken } from "./auth"
 
 let io: Server
@@ -39,7 +39,7 @@ export function initializeWebSocket(server: any) {
       socket.join(`org:${socket.orgId}`)
 
       // Subscribe to Redis events for this user
-      const subscriber = redis.duplicate()
+      const subscriber = getRedisClient().duplicate()
       subscriber.subscribe(`mailbox:events:${socket.userEmail}`)
 
       subscriber.on("message", (channel, message) => {
@@ -72,7 +72,7 @@ export function initializeWebSocket(server: any) {
     })
 
     // Redis subscriber for system-wide events
-    const systemSubscriber = redis.duplicate()
+    const systemSubscriber = getRedisClient().duplicate()
     systemSubscriber.subscribe("system:events")
 
     systemSubscriber.on("message", (channel, message) => {

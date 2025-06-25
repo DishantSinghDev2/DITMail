@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { createRateLimiter } from "./lib/rate-limit"
-import { logWarning } from "./lib/logger"
 
 // Rate limiters for different endpoints
 const authRateLimit = createRateLimiter({
@@ -38,7 +37,7 @@ export async function middleware(request: NextRequest) {
     const ip = forwarded ? forwarded.split(",")[0] : request.headers.get("x-real-ip") || "127.0.0.1"
 
     if (ip !== "127.0.0.1" && ip !== "::1") {
-      logWarning("Unauthorized access attempt to SMTP endpoint", { ip, pathname })
+      console.warn("Unauthorized access attempt to SMTP endpoint", { ip, pathname })
       return new NextResponse("Forbidden", { status: 403 })
     }
 
