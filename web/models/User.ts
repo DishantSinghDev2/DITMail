@@ -8,6 +8,10 @@ export interface IUser extends Document {
   org_id: mongoose.Types.ObjectId
   role: "owner" | "admin" | "user"
   dkim_selector: string
+  onboarding: {
+    completed: boolean
+    startedAt: Date
+  }
   created_at: Date
   comparePassword(password: string): Promise<boolean>
 }
@@ -19,6 +23,10 @@ const UserSchema = new Schema<IUser>({
   org_id: { type: Schema.Types.ObjectId, ref: "Organization", required: true },
   role: { type: String, enum: ["owner", "admin", "user"], default: "user" },
   dkim_selector: { type: String, default: () => Math.random().toString(36).substring(7) },
+  onboarding: {
+    completed: { type: Boolean, default: false },
+    startedAt: { type: Date, default: Date.now },
+  },
   created_at: { type: Date, default: Date.now },
 })
 
