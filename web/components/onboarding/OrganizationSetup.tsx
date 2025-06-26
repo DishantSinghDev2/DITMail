@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { BuildingOfficeIcon } from "@heroicons/react/24/outline"
 
@@ -35,6 +35,37 @@ export default function OrganizationSetup({ onNext, onPrevious, data }: Organiza
     "Other",
   ]
 
+  // fetch organization details from api on mount
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      try {
+        const token = localStorage.getItem("accessToken")
+        const response = await fetch("/api/organizations", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+            const { organization } = await response.json()
+            setFormData({
+            name: organization.name || "",
+            description: organization.description || "",
+            industry: organization.industry || "",
+            size: organization.size || "",
+            country: organization.country || "",
+            })
+        } else {
+          console.error("Failed to fetch organization details")
+        }
+      } catch (error) {
+        console.error("Error fetching organization details:", error)
+      }
+    }
+    
+    fetchOrganization()
+  }, [])
+
   const sizes = ["1-10", "11-50", "51-200", "201-1000", "1000+"]
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,8 +74,9 @@ export default function OrganizationSetup({ onNext, onPrevious, data }: Organiza
 
     try {
       const token = localStorage.getItem("accessToken")
+
       const response = await fetch("/api/organizations", {
-        method: "POST",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,

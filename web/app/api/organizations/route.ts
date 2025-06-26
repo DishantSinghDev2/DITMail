@@ -52,36 +52,36 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const user = await getAuthUser(request)
-    if (!user || user.role !== "owner") {
-      return NextResponse.json({ error: "Only owners can create organizations" }, { status: 403 })
-    }
+// export async function POST(request: NextRequest) {
+//   try {
+//     const user = await getAuthUser(request)
+//     if (!user || user.role !== "owner") {
+//       return NextResponse.json({ error: "Only owners can create organizations" }, { status: 403 })
+//     }
 
-    const data = await request.json()
-    const { name, description, industry, size, country } = data
+//     const data = await request.json()
+//     const { name, description, industry, size, country } = data
 
-    if (!name || !industry || !size || !country) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-    }
+//     if (!name || !industry || !size || !country) {
+//       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+//     }
 
-    await connectDB()
+//     await connectDB()
 
-    const newOrganization = new Organization({
-      name,
-      description,
-      industry,
-      size,
-      country,
-      owner_id: user._id,
-    })
+//     const newOrganization = new Organization({
+//       name,
+//       description,
+//       industry,
+//       size,
+//       country,
+//       owner_id: user._id,
+//     })
 
-    await newOrganization.save()
+//     await newOrganization.save()
 
-    return NextResponse.json({ organization: newOrganization }, { status: 201 })
-  } catch (error) {
-    console.error("Organization creation error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
-  }
-}
+//     return NextResponse.json({ organization: newOrganization }, { status: 201 })
+//   } catch (error) {
+//     console.error("Organization creation error:", error)
+//     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+//   }
+// }
