@@ -39,7 +39,7 @@ export default function AuthForm() {
       const data = await response.json()
 
       if (response.ok) {
-        await login(data.accessToken, data.refreshToken, data.user)
+        await login(formData.email, formData.password)
 
         // Check if user needs onboarding
         if (!isLogin && data.redirectTo === "/onboarding") {
