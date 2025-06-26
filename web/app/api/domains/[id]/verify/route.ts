@@ -5,7 +5,7 @@ import { getAuthUser } from "@/lib/auth"
 import { verifyDNSRecords } from "@/lib/dns"
 import { logAuditEvent } from "@/lib/audit"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await getAuthUser(request)
     if (!user || !["owner", "admin"].includes(user.role)) {
