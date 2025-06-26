@@ -4,6 +4,7 @@ import Organization from "@/models/Organization"
 import User from "@/models/User"
 import Domain from "@/models/Domain"
 import { getAuthUser } from "@/lib/auth"
+import "@/models/Plan" // Ensure Plan model is imported to avoid issues
 
 export async function GET(request: NextRequest) {
   try {

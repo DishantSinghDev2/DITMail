@@ -25,7 +25,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/")
+      router.push("/mail")
     }
   }, [user, loading, router])
 
