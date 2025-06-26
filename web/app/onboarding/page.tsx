@@ -33,6 +33,7 @@ export default function OnboardingPage() {
     { id: "welcome", title: "Welcome", component: OnboardingWelcome },
     { id: "organization", title: "Organization", component: OrganizationSetup },
     { id: "domain", title: "Domain", component: DomainSetup },
+    {id: "domainVerification", title: "Domain Verification", component: DomainVerification },
     { id: "users", title: "Users", component: UserSetup },
     { id: "profile", title: "Profile", component: ProfileSetup },
     { id: "complete", title: "Complete", component: OnboardingComplete },
