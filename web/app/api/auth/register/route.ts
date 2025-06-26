@@ -53,6 +53,10 @@ export async function POST(request: NextRequest) {
       password_hash: password, // Will be hashed in pre-save hook
       org_id: organization._id,
       role: userRole,
+      onboarding: {
+        completed: false,
+        startedAt: new Date(),
+      },
     })
 
     await user.save()
@@ -71,8 +75,10 @@ export async function POST(request: NextRequest) {
         email: user.email,
         role: user.role,
         org_id: user.org_id,
+        onboarding: user.onboarding,
       },
       ...tokens,
+      redirectTo: "/onboarding", // Redirect to onboarding
     })
   } catch (error) {
     console.error("Registration error:", error)

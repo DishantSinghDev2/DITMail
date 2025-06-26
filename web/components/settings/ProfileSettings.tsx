@@ -1,9 +1,7 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { notificationService } from "@/lib/notifications"
 
 export default function ProfileSettings({ user }: { user: any }) {
   const [formData, setFormData] = useState({
@@ -102,8 +100,20 @@ export default function ProfileSettings({ user }: { user: any }) {
           newPassword: "",
           confirmPassword: "",
         }))
-        await notificationService.notifySecurityAlert(user._id, "profile_updated", {
-          changes: Object.keys(updateData),
+
+        // Create security alert notification via API
+        await fetch("/api/notifications", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            type: "security",
+            title: "Profile Updated",
+            message: "Your profile settings have been updated successfully",
+            data: { changes: Object.keys(updateData) },
+          }),
         })
       } else {
         const errorData = await response.json()

@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
+import "@/models/Organization" // ✅ Just import it — even if you don't use it directly
 
 export async function GET(request: NextRequest) {
   try {
