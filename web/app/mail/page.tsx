@@ -4,6 +4,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import AuthForm from "@/components/AuthForm"
 import ResponsiveMailInterface from "@/components/ResponsiveMailInterface"
 import LoadingSpinner from "@/components/ui/LoadingSpinner"
+import { redirect } from "next/navigation"
 
 export default function MailPage() {
   const { user, loading } = useAuth()
@@ -14,6 +15,10 @@ export default function MailPage() {
         <LoadingSpinner size="lg" />
       </div>
     )
+  }
+
+  if (user && user.onboarding && !user.onboarding.completed) {
+    redirect("/onboarding")
   }
 
   if (!user) {

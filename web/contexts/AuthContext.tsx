@@ -9,6 +9,9 @@ interface User {
   email: string
   role: string
   org_id: string
+  onboarding: {
+    completed: boolean
+  }
 }
 
 interface AuthContextType {

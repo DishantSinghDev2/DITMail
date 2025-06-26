@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
         email: user.email,
         role: user.role,
         org_id: user.org_id,
+        onboarding: user.onboarding,
       },
     })
   } catch (error) {
