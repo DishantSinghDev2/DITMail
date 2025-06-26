@@ -132,7 +132,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
         <div className="mt-6">
           <p className="mb-2 font-medium">Expected {activeTab} Record:</p>
           <pre className="bg-gray-100 p-3 rounded text-sm overflow-x-auto">
-            {dnsRecords[recordMapping[activeTab]]}
+            {dnsRecords[recordMapping[activeTab]] || 'No record found'}
           </pre>
 
           <p className="mt-4 font-medium">Propagation Status:</p>
