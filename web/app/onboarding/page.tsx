@@ -10,6 +10,7 @@ import UserSetup from "@/components/onboarding/UserSetup"
 import ProfileSetup from "@/components/onboarding/ProfileSetup"
 import OnboardingComplete from "@/components/onboarding/OnboardingComplete"
 import LoadingSpinner from "@/components/ui/LoadingSpinner"
+import DomainVerification from "@/components/onboarding/DomainVerification"
 
 export default function OnboardingPage() {
   const { user, loading } = useAuth()

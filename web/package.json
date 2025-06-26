@@ -46,6 +46,7 @@
     "@radix-ui/react-tooltip": "1.1.6",
     "@sentry/nextjs": "latest",
     "autoprefixer": "^10.4.20",
+    "axios": "^1.10.0",
     "bcryptjs": "latest",
     "chart.js": "latest",
     "child_process": "latest",
