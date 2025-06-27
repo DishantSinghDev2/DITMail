@@ -27,18 +27,29 @@ export async function generateDKIMKeys() {
 }
 
 export async function verifyDNSRecords(domain: string) {
-  const results = {
-    mx: false,
-    spf: false,
-    dkim: false,
-    dmarc: false,
-    details: {
-      mx: [],
-      spf: [],
-      dkim: [],
-      dmarc: [],
-    },
-  }
+  const results: {
+      mx: boolean,
+      spf: boolean,
+      dkim: boolean,
+      dmarc: boolean,
+      details: {
+        mx: string[],
+        spf: string[],
+        dkim: string[],
+        dmarc: string[],
+      },
+    } = {
+      mx: false,
+      spf: false,
+      dkim: false,
+      dmarc: false,
+      details: {
+        mx: [],
+        spf: [],
+        dkim: [],
+        dmarc: [],
+      },
+    }
 
   try {
     logInfo("Starting DNS verification", { domain })
