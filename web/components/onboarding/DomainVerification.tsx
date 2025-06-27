@@ -108,7 +108,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
             console.error('Failed to fetch DNS records');
         }
     };
-
+    
     const verifyDomain = async (domainId: string) => {
         setLoading(true);
         setError(null);
