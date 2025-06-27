@@ -5,6 +5,7 @@ import AuthForm from "@/components/AuthForm"
 import ResponsiveMailInterface from "@/components/ResponsiveMailInterface"
 import LoadingSpinner from "@/components/ui/LoadingSpinner"
 import { redirect } from "next/navigation"
+import { useEffect } from "react"
 
 export default function MailPage() {
   const { user, loading } = useAuth()
@@ -17,9 +18,11 @@ export default function MailPage() {
     )
   }
 
-  if (user && user.onboarding && !user.onboarding.completed) {
-    redirect("/onboarding")
-  }
+  useEffect(() => {
+    if (user && user.onboarding && !user.onboarding.completed) {
+      redirect("/onboarding")
+    }
+  }, [user])
 
   if (!user) {
     return <AuthForm />
