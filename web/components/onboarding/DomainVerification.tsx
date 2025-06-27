@@ -114,7 +114,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
         setError(null);
         try {
             const token = localStorage.getItem('accessToken');
-            const res = await axios.get<VerificationResult>(`/api/domain/${domainId}/verify`, {
+            const res = await axios.get<VerificationResult>(`/api/domains/${domainId}/verify`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setVerification(res.data);
