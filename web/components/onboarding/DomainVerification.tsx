@@ -108,7 +108,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
             console.error('Failed to fetch DNS records');
         }
     };
-    
+
     const verifyDomain = async (domainId: string) => {
         setLoading(true);
         setError(null);
@@ -137,7 +137,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
             { type: 'TXT', name: `default._domainkey.${zone}`, content: `v=DKIM1; k=rsa; p=${domain.dkim_public_key}` },
             { type: 'TXT', name: `_dmarc.${zone}`, content: 'v=DMARC1; p=reject; rua=mailto:dmarc@' + zone },
         ];
-        const cloudflareLink = `https://dash.cloudflare.com/?to=/:account/:zone/dns/add-set&records=${encodeURIComponent(JSON.stringify(records))}`;
+        const cloudflareLink = `https://dash.cloudflare.com/?to=/:account/:zone/dns/add-set&domain=${zone}&records=${encodeURIComponent(JSON.stringify(records))}`;
         window.open(cloudflareLink, '_blank');
     };
 
