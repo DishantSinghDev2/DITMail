@@ -279,7 +279,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
                                     <div>
                                         <p className="font-medium mb-1">Live DNS Value(s) Detected:</p>
                                         <ul className="text-sm list-disc ml-5">
-                                            {(verification?.details[record]?.length ?? 0) > 0 ? (
+                                            {verification?.details && (verification?.details[record]?.length ?? 0) > 0 ? (
                                                 verification?.details[record]?.map((liveRecordStr, idx) => {
                                                     const parsedLiveRecord = parseDnsRecordString(liveRecordStr);
                                                     return parsedLiveRecord ? (
