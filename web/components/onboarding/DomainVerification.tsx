@@ -20,6 +20,8 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import copy from 'copy-to-clipboard';
+import { useToast } from '@/hooks/use-toast';
 
 interface Domain {
     _id: string;
@@ -114,6 +116,8 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
     const [error, setError] = useState<string | null>(null);
     const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
 
+    const { toast } = useToast();
+
     const { domain, dnsRecords: expDnsRecords } = data.domain;
 
     useEffect(() => {
@@ -162,12 +166,12 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
     };
 
     const copyToClipboard = (text: string) => {
-        if (typeof navigator !== 'undefined' && navigator.clipboard) {
-            navigator.clipboard.writeText(text).catch((err) => {
-                console.error('Failed to copy text:', err);
+        if (copy(text)) {
+            toast({
+                title: 'Copied to clipboard',
+                description: 'The DNS record has been copied successfully.',
+                variant: 'default',
             });
-        } else {
-            console.error('Clipboard API is not available.');
         }
     };
 
