@@ -1,3 +1,4 @@
+"use client";
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -185,7 +186,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
                 <TabsList className="grid w-full grid-cols-4">
                     {recordTypes.map((record) => (
                         <TabsTrigger key={record} value={record} className="capitalize">
-                            {record}
+                            {record.toUpperCase()}
                             {verification && (
                                 <span className={`ml-2 text-lg ${verification[record] ? 'text-green-500' : 'text-red-500'}`}>
                                     {verification[record] ? '✅' : '❌'}
