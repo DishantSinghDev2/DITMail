@@ -150,7 +150,7 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
         setError(null);
         try {
             const token = localStorage.getItem('accessToken');
-            const res = await axios.get<VerificationResult>(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/domains/${domainId}/verify`, {
+            const res = await axios.get<VerificationResult>(`/api/domains/${domainId}/verify`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             setVerification(res.data);
@@ -162,7 +162,13 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
     };
 
     const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            navigator.clipboard.writeText(text).catch((err) => {
+                console.error('Failed to copy text:', err);
+            });
+        } else {
+            console.error('Clipboard API is not available.');
+        }
     };
 
     return (
@@ -251,16 +257,6 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
                                                                 </div>
                                                             </TableCell>
                                                         )}
-                                                        <TableCell className="text-right">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => copyToClipboard(expDnsRecords?.[record] || '')}
-                                                                aria-label="Copy full record"
-                                                            >
-                                                                <Copy size={16} />
-                                                            </Button>
-                                                        </TableCell>
                                                     </TableRow>
                                                 </TableBody>
                                             </Table>
