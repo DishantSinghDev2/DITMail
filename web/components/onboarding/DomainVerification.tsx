@@ -325,7 +325,7 @@ export default function DomainVerification({ data, onNext, onPrevious, user, cur
 
             <div className="mt-6 flex justify-between">
                 <Button variant="outline" onClick={onPrevious}>Previous</Button>
-                <Button onClick={() => onNext(data.domain)}>Next</Button>
+                <Button onClick={() => onNext({ domain: data.domain })}>Next</Button>
             </div>
 
             {/* DNS Guidance Dialog */}

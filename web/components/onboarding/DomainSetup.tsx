@@ -59,7 +59,8 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
     }
     
     if (existingDomain) {
-      onNext({ domain: { domain: existingDomain.domain, dnsRecords: existingDomain.dnsRecords } })
+      onNext({ domain: existingDomain })
+      return
     }
 
     setLoading(true)
