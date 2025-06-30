@@ -38,10 +38,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Check plans limits
-    const orgDomainsCount = await Domain.countDocuments({ org_id: user.org_id, ownership_verified: true })
-    if (orgDomainsCount >= user.org_id.plan_id.limits.domains) {
-      return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 403 })
-    }
+    // const orgDomainsCount = await Domain.countDocuments({ org_id: user.org_id, ownership_verified: true })
+    // if (orgDomainsCount >= user.org_id.plan_id.limits.domains) {
+    //   return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 403 })
+    // }
 
     // Generate DKIM keys
     const { publicKey, privateKey } = await generateDKIMKeys()
