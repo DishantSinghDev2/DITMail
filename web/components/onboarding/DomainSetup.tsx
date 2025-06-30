@@ -44,7 +44,9 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
         onNext({ domain: domainData })
       } else {
         const error = await response.json()
-        throw new Error(error.message || "Failed to add domain")
+        if (error.error) {
+          setError(error.error)
+        }
       }
     } catch (error: any) {
       console.error("Error adding domain:", error)
