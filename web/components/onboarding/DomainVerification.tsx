@@ -221,7 +221,6 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
                                                         <TableHead>Name/Host</TableHead>
                                                         <TableHead>Value/Content</TableHead>
                                                         {requiredRecord.type === 'MX' && <TableHead className="w-[80px]">Priority</TableHead>}
-                                                        <TableHead className="w-[50px] text-right">Copy</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>

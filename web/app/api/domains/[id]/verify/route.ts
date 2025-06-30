@@ -26,8 +26,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       spf_verified: verification.spf,
       dkim_verified: verification.dkim,
       dmarc_verified: verification.dmarc,
-      ownership_verified: verification.ownershipVerified,
-      status: verification.mx && verification.spf && verification.dkim && verification.dmarc ? "verified" : "pending",
+      ownership_verified: verification.txt,
+      status: verification.txt && verification.mx && verification.spf && verification.dkim && verification.dmarc  ? "verified" : "pending",
     }
 
     const updatedDomain = await Domain.findByIdAndUpdate(params.id, updates, { new: true })

@@ -77,12 +77,6 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
       logError(error as Error, { context: "TXT record lookup", domain })
     }
 
-    // If ownership is not verified, skip further checks
-    if (!results.txt) {
-      logInfo("Domain ownership not verified, skipping further DNS checks", { domain })
-      return results
-    }
-
     // Check MX record
     try {
       const mxRecords = await dns.promises.resolveMx(domain)
