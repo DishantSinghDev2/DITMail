@@ -50,12 +50,9 @@ interface DNSRecords {
 interface DomainVerificationProps {
     onNext: (data: any) => void;
     onPrevious: () => void;
-    data: {
-        domain: {
-            domain: Domain;
-            dnsRecords: DNSRecords;
-        };
-    }
+    data: any
+    user: any
+    currentStep?: number;
 }
 
 interface VerificationResult {
@@ -116,7 +113,7 @@ const parseDnsRecordString = (recordString: string): ParsedRecord | null => {
 const recordTypes = ['txt', 'mx', 'spf', 'dkim', 'dmarc'] as const;
 type RecordType = typeof recordTypes[number];
 
-export default function DomainVerification({ data, onNext, onPrevious }: DomainVerificationProps) {
+export default function DomainVerification({ data, onNext, onPrevious, user, currentStep }: DomainVerificationProps) {
     const [verification, setVerification] = useState<VerificationResult | null>(null);
     const [dnsProvider, setDnsProvider] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);

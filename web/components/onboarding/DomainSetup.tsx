@@ -10,9 +10,10 @@ interface DomainSetupProps {
   onNext: (data: any) => void
   onPrevious: () => void
   data: any
+  currentStep?: number
 }
 
-export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupProps) {
+export default function DomainSetup({ onNext, onPrevious, data, currentStep }: DomainSetupProps) {
   const [domain, setDomain] = useState(data.domain?.domain || "")
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
