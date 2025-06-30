@@ -35,7 +35,7 @@ export default function OnboardingPage() {
     { id: "welcome", title: "Welcome", component: OnboardingWelcome },
     { id: "organization", title: "Organization", component: OrganizationSetup },
     { id: "domain", title: "Domain", component: DomainSetup },
-    {id: "domainVerification", title: "Domain Verification", component: DomainVerification },
+    { id: "domainVerification", title: "Domain Verification", component: DomainVerification },
     { id: "users", title: "Users", component: UserSetup },
     { id: "profile", title: "Profile", component: ProfileSetup },
     { id: "complete", title: "Complete", component: OnboardingComplete },
@@ -87,7 +87,7 @@ export default function OnboardingPage() {
               style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
             />
           </div>
-          <div className="flex justify-between mt-2">
+          <div className="sm:flex hidden justify-between mt-2">
             {steps.map((step, index) => (
               <div
                 key={step.id}
@@ -97,6 +97,14 @@ export default function OnboardingPage() {
               </div>
             ))}
           </div>
+          <div className="flex sm:hidden justify-center mt-2">
+            <div
+              className={`text-xs text-blue-600 font-medium`}
+            >
+              {steps[currentStep].title}
+            </div>
+          </div>
+
         </div>
       </div>
 

@@ -48,7 +48,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
       }
     } catch (error: any) {
       console.error("Error adding domain:", error)
-      setError(error.message || "An unexpected error occurred")
+      setError(error.error || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }
