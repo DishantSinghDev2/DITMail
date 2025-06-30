@@ -26,24 +26,28 @@ export async function generateDKIMKeys() {
   }
 }
 
-export async function verifyDNSRecords(domain: string) {
+export async function verifyDNSRecords(domain: string, verificationCode: string) {
   const results: {
+    ownershipVerified: boolean,
       mx: boolean,
       spf: boolean,
       dkim: boolean,
       dmarc: boolean,
       details: {
+        txt?: string[], // Added TXT record for verification
         mx: string[],
         spf: string[],
         dkim: string[],
         dmarc: string[],
       },
     } = {
+    ownershipVerified: false,
       mx: false,
       spf: false,
       dkim: false,
       dmarc: false,
       details: {
+        txt: [],
         mx: [],
         spf: [],
         dkim: [],
@@ -53,6 +57,31 @@ export async function verifyDNSRecords(domain: string) {
 
   try {
     logInfo("Starting DNS verification", { domain })
+
+    // Verify domain ownership with TXT record (ditmail-verification)
+    try {
+      const txtRecords = await dns.promises.resolveTxt(domain)
+      const verificationRecord = txtRecords.find((record) =>
+        record.join("").includes(`ditmail-verification=${verificationCode}`),
+      )
+
+      results.ownershipVerified = !!verificationRecord
+      results.details.txt = txtRecords.map((r) => r.join(""))
+
+      if (results.ownershipVerified) {
+        logInfo("Domain ownership verified", { domain })
+      } else {
+        logInfo("Domain ownership not verified", { domain })
+      }
+    } catch (error) {
+      logError(error as Error, { context: "TXT record lookup", domain })
+    }
+
+    // If ownership is not verified, skip further checks
+    if (!results.ownershipVerified) {
+      logInfo("Domain ownership not verified, skipping further DNS checks", { domain })
+      return results
+    }
 
     // Check MX record
     try {

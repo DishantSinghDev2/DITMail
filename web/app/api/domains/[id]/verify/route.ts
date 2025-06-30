@@ -19,13 +19,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Domain not found" }, { status: 404 })
     }
 
-    const verification = await verifyDNSRecords(domain.domain)
+    const verification = await verifyDNSRecords(domain.domain, domain.verification_code)
 
     const updates = {
       mx_verified: verification.mx,
       spf_verified: verification.spf,
       dkim_verified: verification.dkim,
       dmarc_verified: verification.dmarc,
+      ownership_verified: verification.ownershipVerified,
       status: verification.mx && verification.spf && verification.dkim && verification.dmarc ? "verified" : "pending",
     }
 

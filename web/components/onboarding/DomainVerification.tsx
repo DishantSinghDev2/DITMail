@@ -40,6 +40,7 @@ interface Domain {
 }
 
 interface DNSRecords {
+    txt: string;
     mx: string;
     spf: string;
     dkim: string;
@@ -63,6 +64,7 @@ interface VerificationResult {
     dkim: boolean;
     dmarc: boolean;
     details: {
+        txt: string[];
         mx: string[];
         spf: string[];
         dkim: string[];
@@ -107,7 +109,7 @@ const parseDnsRecordString = (recordString: string): ParsedRecord | null => {
 };
 
 
-const recordTypes = ['mx', 'spf', 'dkim', 'dmarc'] as const;
+const recordTypes = ['txt','mx', 'spf', 'dkim', 'dmarc'] as const;
 type RecordType = typeof recordTypes[number];
 
 export default function DomainVerification({ data, onNext, onPrevious }: DomainVerificationProps) {

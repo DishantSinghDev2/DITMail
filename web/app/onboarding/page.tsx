@@ -109,7 +109,7 @@ export default function OnboardingPage() {
       </div>
 
       {/* Main Content */}
-      <div className="pt-24 pb-12">
+      <div className="pt-28 pb-12">
         <div className="max-w-4xl mx-auto px-6">
           <CurrentStepComponent
             onNext={handleNext}

@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB()
-    const domains = await Domain.find({ org_id: user.org_id })
+    const domains = await Domain.find({ org_id: user.org_id, ownership_verified: true })
 
     return NextResponse.json({ domains })
   } catch (error) {
@@ -32,19 +32,23 @@ export async function POST(request: NextRequest) {
     await connectDB()
 
     // Check if domain already exists
-    const existingDomain = await Domain.findOne({ domain, status: "verified" })
+    const existingDomain = await Domain.findOne({ domain, ownership_verified: true, org_id: user.org_id })
     if (existingDomain) {
       return NextResponse.json({ error: "Domain already exists and verified" }, { status: 400 })
     }
 
     // Generate DKIM keys
     const { publicKey, privateKey } = await generateDKIMKeys()
+  
+    // Generate a verification code random
+    const verificationCode = Math.random().toString(36).substring(2, 15)
 
     const newDomain = new Domain({
       domain,
       org_id: user.org_id,
       dkim_public_key: publicKey,
       dkim_private_key: privateKey,
+      verification_code: verificationCode,
     })
 
     await newDomain.save()
@@ -52,6 +56,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       domain: newDomain,
       dnsRecords: {
+        txt: `${domain} IN TXT "ditmail-verification=${verificationCode}"`,
         mx: `${domain} IN MX 10 mx.freecustom.email.`,
         spf: `${domain} IN TXT "v=spf1 mx include:smtp.freecustom.email -all"`,
         dkim: `default._domainkey.${domain} IN TXT "v=DKIM1; k=rsa; p=${publicKey}"`,
