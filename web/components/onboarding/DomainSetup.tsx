@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { GlobeAltIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline"
 
@@ -17,6 +17,37 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingDomain, setExistingDomain] = useState(null)
+
+  // Fetch existing domain if available
+  useEffect(() => {
+    const fetchDomain = async () => {
+      try {
+        const token = localStorage.getItem("accessToken")
+        const response = await fetch("/api/domains", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const domainData = await response.json()
+          if (domainData && domainData.domain) {
+            setExistingDomain(domainData)
+            setDomain(domainData.domain)
+          }
+        } else {
+          const error = await response.json()
+          setError(error.error || "Failed to fetch existing domain")
+        }
+      } catch (error: any) {
+        console.error("Error fetching domain:", error)
+        setError(error.message || "An unexpected error occurred")
+      }
+    }
+
+    fetchDomain()
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -24,6 +55,10 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
     if (skipDomain) {
       onNext({ domain: null })
       return
+    }
+    
+    if (existingDomain) {
+      onNext({ domain: existingDomain })
     }
 
     setLoading(true)

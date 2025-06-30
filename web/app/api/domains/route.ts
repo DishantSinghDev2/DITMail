@@ -12,9 +12,18 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB()
-    const domains = await Domain.find({ org_id: user.org_id, ownership_verified: true })
+    const domain = await Domain.findOne({ org_id: user.org_id, verification_code: { $exists: true } })
 
-    return NextResponse.json({ domains })
+    return NextResponse.json({ 
+      domain: domain || null,
+      dnsRecords: domain ? {
+        txt: `${domain.domain} IN TXT "ditmail-verification=${domain.verification_code}"`,
+        mx: `${domain.domain} IN MX 10 mx.freecustom.email.`,
+        spf: `${domain.domain} IN TXT "v=spf1 mx include:smtp.freecustom.email -all"`,
+        dkim: `default._domainkey.${domain.domain} IN TXT "v=DKIM1; k=rsa; p=${domain.dkim_public_key}"`,
+        dmarc: `_dmarc.${domain.domain} IN TXT "v=DMARC1; p=reject; rua=mailto:dmarc@${domain.domain}"`,
+      } : null,
+    })
   } catch (error) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
