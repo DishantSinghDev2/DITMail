@@ -17,7 +17,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [existingDomain, setExistingDomain] = useState(null)
+  const [existingDomain, setExistingDomain] = useState({ domain: "", dnsRecords: {} })
 
   // Fetch existing domain if available
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
     }
     
     if (existingDomain) {
-      onNext({ domain: existingDomain })
+      onNext({ domain: { domain: existingDomain.domain, dnsRecords: existingDomain.dnsRecords } })
     }
 
     setLoading(true)
