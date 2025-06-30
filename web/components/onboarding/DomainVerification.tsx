@@ -59,17 +59,21 @@ interface DomainVerificationProps {
 }
 
 interface VerificationResult {
-    mx: boolean;
-    spf: boolean;
-    dkim: boolean;
-    dmarc: boolean;
-    details: {
-        txt: string[];
-        mx: string[];
-        spf: string[];
-        dkim: string[];
-        dmarc: string[];
-    };
+    domain: Domain;
+    verification: {
+        txt: boolean;
+        mx: boolean;
+        spf: boolean;
+        dkim: boolean;
+        dmarc: boolean;
+        details: {
+            txt: string[];
+            mx: string[];
+            spf: string[];
+            dkim: string[];
+            dmarc: string[];
+        };
+    }
 }
 
 interface ParsedRecord {
@@ -109,7 +113,7 @@ const parseDnsRecordString = (recordString: string): ParsedRecord | null => {
 };
 
 
-const recordTypes = ['txt','mx', 'spf', 'dkim', 'dmarc'] as const;
+const recordTypes = ['txt', 'mx', 'spf', 'dkim', 'dmarc'] as const;
 type RecordType = typeof recordTypes[number];
 
 export default function DomainVerification({ data, onNext, onPrevious }: DomainVerificationProps) {
@@ -184,14 +188,14 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
             {error && <p className="text-red-500 mb-2">{error}</p>}
             <p className="mb-4">Detected DNS Provider: <span className="font-medium">{dnsProvider}</span></p>
 
-            <Tabs defaultValue="mx">
-                <TabsList className="grid w-full grid-cols-4">
+            <Tabs defaultValue="txt">
+                <TabsList className="grid w-full grid-cols-5">
                     {recordTypes.map((record) => (
                         <TabsTrigger key={record} value={record} className="capitalize">
                             {record.toUpperCase()}
                             {verification && (
-                                <span className={`ml-2 text-lg ${verification[record] ? 'text-green-500' : 'text-red-500'}`}>
-                                    {verification[record] ? '✅' : '❌'}
+                                <span className={`ml-2 text-lg ${verification.verification[record] ? 'text-green-500' : 'text-red-500'}`}>
+                                    {verification.verification[record] ? '✅' : '❌'}
                                 </span>
                             )}
                         </TabsTrigger>
@@ -275,14 +279,14 @@ export default function DomainVerification({ data, onNext, onPrevious }: DomainV
                                 <div>
                                     <h2 className="text-lg font-semibold mb-3">Current Verification Status</h2>
                                     <p className="font-medium mb-2">
-                                        Status: {verification?.[record] ? '✅ Verified' : '❌ Not Verified'}
+                                        Status: {verification?.verification[record] ? '✅ Verified' : '❌ Not Verified'}
                                     </p>
 
                                     <div>
                                         <p className="font-medium mb-1">Live DNS Value(s) Detected:</p>
                                         <ul className="text-sm list-disc ml-5">
-                                            {verification?.details && (verification?.details[record]?.length ?? 0) > 0 ? (
-                                                verification?.details[record]?.map((liveRecordStr, idx) => {
+                                            {verification?.verification.details && (verification?.verification.details[record]?.length ?? 0) > 0 ? (
+                                                verification?.verification.details[record]?.map((liveRecordStr, idx) => {
                                                     const parsedLiveRecord = parseDnsRecordString(liveRecordStr);
                                                     return parsedLiveRecord ? (
                                                         <li key={idx} className="flex items-center gap-2 mb-1">

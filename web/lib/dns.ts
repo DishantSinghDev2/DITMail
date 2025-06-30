@@ -28,7 +28,7 @@ export async function generateDKIMKeys() {
 
 export async function verifyDNSRecords(domain: string, verificationCode: string) {
   const results: {
-    ownershipVerified: boolean,
+    txt: boolean,
       mx: boolean,
       spf: boolean,
       dkim: boolean,
@@ -41,7 +41,7 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
         dmarc: string[],
       },
     } = {
-    ownershipVerified: false,
+    txt: false,
       mx: false,
       spf: false,
       dkim: false,
@@ -65,10 +65,10 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
         record.join("").includes(`ditmail-verification=${verificationCode}`),
       )
 
-      results.ownershipVerified = !!verificationRecord
+      results.txt = !!verificationRecord
       results.details.txt = txtRecords.map((r) => r.join(""))
 
-      if (results.ownershipVerified) {
+      if (results.txt) {
         logInfo("Domain ownership verified", { domain })
       } else {
         logInfo("Domain ownership not verified", { domain })
@@ -78,7 +78,7 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
     }
 
     // If ownership is not verified, skip further checks
-    if (!results.ownershipVerified) {
+    if (!results.txt) {
       logInfo("Domain ownership not verified, skipping further DNS checks", { domain })
       return results
     }

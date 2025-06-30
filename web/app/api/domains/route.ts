@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     const { publicKey, privateKey } = await generateDKIMKeys()
   
     // Generate a verification code random
-    const verificationCode = Math.random().toString(36).substring(2, 15)
+    const verificationCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 
     const newDomain = new Domain({
       domain,
