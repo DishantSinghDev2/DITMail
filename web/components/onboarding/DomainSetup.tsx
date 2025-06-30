@@ -35,7 +35,7 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
           const domainData = await response.json()
           if (domainData && domainData.domain) {
             setExistingDomain(domainData)
-            setDomain(domainData.domain)
+            setDomain(domainData.domain.domain || "")
           }
         } else {
           const error = await response.json()
