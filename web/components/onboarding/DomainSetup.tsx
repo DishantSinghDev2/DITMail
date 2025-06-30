@@ -16,6 +16,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
   const [domain, setDomain] = useState(data.domain?.domain || "")
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -45,9 +46,9 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
         const error = await response.json()
         throw new Error(error.message || "Failed to add domain")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error adding domain:", error)
-      alert(`Failed to add domain: ${error.message}`)
+      setError(error.message || "An unexpected error occurred")
     } finally {
       setLoading(false)
     }
@@ -85,11 +86,21 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
             <input
               type="text"
               value={domain}
-              onChange={(e) => setDomain(e.target.value)}
+              onChange={(e) => {
+                // Basic validation to allow only valid domain characters
+                const validDomain = e.target.value.replace(/[^a-zA-Z0-9.-]/g, "")
+                setDomain(validDomain)
+              }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="yourcompany.com"
               disabled={skipDomain}
             />
+            {error && (
+              <div className="mt-2 text-sm text-red-600">
+                <ExclamationTriangleIcon className="inline w-4 h-4 mr-1" />
+                {error}
+              </div>
+            )}
             {domain && <div className="mt-2 text-sm text-gray-600">Email addresses will be: user@{domain}</div>}
           </div>
 

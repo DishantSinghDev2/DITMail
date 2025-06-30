@@ -30,6 +30,7 @@ export default function OnboardingPage() {
     }
   }, [user, loading, router])
 
+
   const steps = [
     { id: "welcome", title: "Welcome", component: OnboardingWelcome },
     { id: "organization", title: "Organization", component: OrganizationSetup },
