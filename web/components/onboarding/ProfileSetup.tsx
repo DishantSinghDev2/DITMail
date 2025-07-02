@@ -13,7 +13,7 @@ interface ProfileSetupProps {
   user: any
 }
 
-export default function ProfileSetup({ onNext, onPrevious, data, user }: ProfileSetupProps) {
+export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) {
   const [profile, setProfile] = useState({
     timezone: "UTC",
     language: "en",

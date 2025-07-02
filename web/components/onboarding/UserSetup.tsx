@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { UsersIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
+import { useToast } from "@/hooks/use-toast"
 
 interface UserSetupProps {
   onNext: (data: any) => void
@@ -35,6 +36,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         ],
   )
   const [loading, setLoading] = useState(false)
+  const {toast} = useToast()
 
   const addUser = () => {
     setUsers([
@@ -89,7 +91,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           },
           body: JSON.stringify({
             ...user,
-            email: data.domain ? `${user.email}@${data.domain.domain}` : user.email,
+            email: data.domain.domain ? `${user.email}@${data.domain.domain.domain}` : user.email,
           }),
         })
 
@@ -102,7 +104,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
       onNext({ users: createdUsers })
     } catch (error) {
       console.error("Error creating users:", error)
-      alert(`Failed to create users: ${error.message}`)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
@@ -118,8 +124,8 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Add team members</h2>
         <p className="text-gray-600">Create email accounts for your team members</p>
-        {data.domain && (
-          <p className="text-sm text-blue-600 mt-2">Email addresses will use your domain: @{data.domain.domain}</p>
+        {data.domain.domain && (
+          <p className="text-sm text-blue-600 mt-2">Email addresses will use your domain: @{data.domain.domain.domain}</p>
         )}
       </div>
 
@@ -170,7 +176,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email {data.domain ? "Username" : "Address"} *
+                    Email {data.domain.domain ? "Username" : "Address"} *
                   </label>
                   <div className="flex">
                     <input
@@ -178,11 +184,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                       value={user.email}
                       onChange={(e) => updateUser(index, "email", e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      placeholder={data.domain ? "john.doe" : "john.doe@company.com"}
+                      placeholder={data.domain.domain ? "john.doe" : "john.doe@company.com"}
                     />
                     {data.domain && (
                       <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-600">
-                        @{data.domain.domain}
+                        @{data.domain.domain.domain}
                       </span>
                     )}
                   </div>
