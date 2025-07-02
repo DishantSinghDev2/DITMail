@@ -4,6 +4,7 @@ import User from "@/models/User"
 import Organization from "@/models/Organization"
 import { getAuthUser } from "@/lib/auth"
 import { logAuditEvent } from "@/lib/audit"
+import Domain from "@/models/Domain"
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,11 +67,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Check organization limits
-    const org = await Organization.findById(user.org_id).populate("plan_id")
-    const userCount = await User.countDocuments({ org_id: user.org_id })
+    try {
+      const org = await Organization.findById(user.org_id).populate("plan_id");
+      if (!org || !org.plan_id || !org.plan_id.limits?.users) {
+        return NextResponse.json({ error: "Invalid organization or plan data" }, { status: 400 });
+      }
 
-    if (userCount >= org.plan_id.limits.users) {
-      return NextResponse.json({ error: "User limit reached for your plan" }, { status: 400 })
+      const domains = await Domain.find({ org_id: user.org_id, ownership_verified: true }).distinct("domain");
+      const orgDomains = domains.map(domain => domain.split('.').slice(-2).join('.'));
+
+      if (orgDomains.length === 0) {
+        return NextResponse.json({ error: "No verified domains found for your organization" }, { status: 400 });
+      }
+
+      const userCount = await User.countDocuments({
+        org_id: user.org_id,
+        email: { $regex: `@(${orgDomains.join('|')})$`, $options: "i" },
+      });
+
+      if (userCount >= org.plan_id.limits.users) {
+        return NextResponse.json({ error: "User limit reached for your plan" }, { status: 400 });
+      }
+    } catch (error) {
+      console.error(error);
+      return NextResponse.json({ error: "An unexpected error occurred" }, { status: 500 });
     }
 
     const newUser = new User({
