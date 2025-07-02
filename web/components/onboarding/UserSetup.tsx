@@ -6,6 +6,7 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import { UsersIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
 import { useToast } from "@/hooks/use-toast"
+import { Eye } from "lucide-react"
 
 interface UserSetupProps {
   onNext: (data: any) => void
@@ -19,6 +20,7 @@ interface User {
   lastName: string
   role: string
   password: string
+  showPassword?: boolean // Optional field to toggle password visibility
 }
 
 export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) {
@@ -32,6 +34,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
             lastName: "",
             role: "user",
             password: "",
+            showPassword: false, // Added to toggle password visibility
           },
         ],
   )
@@ -47,6 +50,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         lastName: "",
         role: "user",
         password: "",
+        showPassword: false, // Added to toggle password visibility
       },
     ])
   }
@@ -59,6 +63,12 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
   const updateUser = (index: number, field: keyof User, value: string) => {
     const updatedUsers = [...users]
+    if (field === "firstName" || field === "lastName") {
+      // update the email based on first and last name
+      const firstName = field === "firstName" ? value : updatedUsers[index].firstName
+      const lastName = field === "lastName" ? value : updatedUsers[index].lastName
+      updatedUsers[index].email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`.replace(/\s+/g, "")
+    }
     updatedUsers[index] = { ...updatedUsers[index], [field]: value }
     setUsers(updatedUsers)
   }
@@ -208,9 +218,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                  <div className="flex space-x-2">
+                    <div className="flex space-x-2 items-center">
                     <input
-                      type="text"
+                      type={user.showPassword ? "text" : "password"}
                       value={user.password}
                       onChange={(e) => updateUser(index, "password", e.target.value)}
                       className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
@@ -223,7 +233,18 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                     >
                       Generate
                     </button>
-                  </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                      const updatedUsers = [...users];
+                      updatedUsers[index].showPassword = !updatedUsers[index].showPassword;
+                      setUsers(updatedUsers);
+                      }}
+                      className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      <Eye className="w-5 h-5" />
+                    </button>
+                    </div>
                 </div>
               </div>
             </motion.div>
