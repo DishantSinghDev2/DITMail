@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { GlobeAltIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline"
+import { Loader } from "lucide-react"
 
 interface DomainSetupProps {
   onNext: (data: any) => void
@@ -19,10 +20,12 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
   const [skipDomain, setSkipDomain] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingDomain, setExistingDomain] = useState({ domain: "", dnsRecords: {} })
+  const [isLoading, setIsLoading] = useState(false)
 
   // Fetch existing domain if available
   useEffect(() => {
     const fetchDomain = async () => {
+      setIsLoading(true)
       try {
         const token = localStorage.getItem("accessToken")
         const response = await fetch("/api/domains", {
@@ -34,6 +37,7 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
         if (response.ok) {
           const domainData = await response.json()
           if (domainData && domainData.domain) {
+
             setExistingDomain(domainData)
             setDomain(domainData.domain.domain || "")
           }
@@ -44,6 +48,8 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
       } catch (error: any) {
         console.error("Error fetching domain:", error)
         setError(error.message || "An unexpected error occurred")
+      } finally {
+        setIsLoading(false)
       }
     }
 
@@ -57,7 +63,7 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
       onNext({ domain: null })
       return
     }
-    
+
     if (existingDomain) {
       onNext({ domain: existingDomain })
       return
@@ -122,6 +128,11 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
         <div className="bg-white rounded-xl p-6 shadow-sm border">
           <label className="block text-sm font-medium text-gray-700 mb-2">Domain Name</label>
           <div className="relative">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-lg">
+                <Loader className="w-6 h-6 text-blue-600 animate-spin" />
+              </div>
+            )}
             <input
               type="text"
               value={domain}
@@ -131,8 +142,8 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
                 setDomain(validDomain)
               }}
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="yourcompany.com"
-              disabled={skipDomain}
+              placeholder="freecustom.email"
+              disabled={skipDomain || isLoading}
             />
             {error && (
               <div className="mt-2 text-sm text-red-600">

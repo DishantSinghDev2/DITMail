@@ -337,11 +337,13 @@ export default function DomainVerification({ data, onNext, onPrevious, user, cur
                             Follow these steps to add the necessary DNS records to your domain provider (e.g., Cloudflare, GoDaddy, Namecheap).
                             <br /><br />
                             <strong>General Steps:</strong>
-                            <ol className="list-decimal pl-5 mt-2 space-y-1">
-                                <li>Log in to your domain provider's control panel.</li>
-                                <li>Navigate to the DNS management section (often labeled "DNS", "Zone Editor", or "DNS Records").</li>
-                                <li>Add each of the following records:</li>
-                            </ol>
+                            <div>
+                                <ol className="list-decimal pl-5 mt-2 space-y-1">
+                                    <li>Log in to your domain provider's control panel.</li>
+                                    <li>Navigate to the DNS management section (often labeled "DNS", "Zone Editor", or "DNS Records").</li>
+                                    <li>Add each of the following records:</li>
+                                </ol>
+                            </div>
                         </DialogDescription>
                     </DialogHeader>
 
