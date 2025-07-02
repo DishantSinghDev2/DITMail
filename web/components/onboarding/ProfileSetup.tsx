@@ -5,6 +5,7 @@ import type React from "react"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { UserCircleIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline"
+import { toast } from "@/hooks/use-toast"
 
 interface ProfileSetupProps {
   onNext: (data: any) => void
@@ -111,7 +112,11 @@ export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) 
       onNext({ profile, survey })
     } catch (error) {
       console.error("Error saving profile:", error)
-      alert("Failed to save profile. Please try again.")
+      toast({
+        title: "Error",
+        description: "Failed to save your profile. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }

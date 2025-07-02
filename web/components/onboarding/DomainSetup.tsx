@@ -5,7 +5,7 @@ import type React from "react"
 import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { GlobeAltIcon, CheckCircleIcon, ExclamationTriangleIcon } from "@heroicons/react/24/outline"
-import { Loader } from "lucide-react"
+import { LoaderCircle } from "lucide-react"
 
 interface DomainSetupProps {
   onNext: (data: any) => void
@@ -130,7 +130,7 @@ export default function DomainSetup({ onNext, onPrevious, data, currentStep }: D
           <div className="relative">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 rounded-lg">
-                <Loader className="w-6 h-6 text-blue-600 animate-spin" />
+                <LoaderCircle className="w-6 h-6 text-blue-600 animate-spin" />
               </div>
             )}
             <input

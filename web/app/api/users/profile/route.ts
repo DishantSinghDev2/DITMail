@@ -3,6 +3,7 @@ import connectDB from "@/lib/db"
 import Profile from "@/models/Profile"
 import { getAuthUser } from "@/lib/auth"
 import { logAuditEvent } from "@/lib/audit"
+import { time } from "console"
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -17,7 +18,14 @@ export async function PATCH(request: NextRequest) {
 
     const targetProfile = await Profile.findOne({ userId: user._id })
     if (!targetProfile) {
-      return NextResponse.json({ error: "Profile not found" }, { status: 404 })
+      
+        // If the profile doesn't exist, create it
+      const newProfile = new Profile({
+        userId: user._id,
+        ...updates, // Spread the updates into the new profile
+      })
+      await newProfile.save()
+      return NextResponse.json({ profile: newProfile })
     }
 
     // Only owners can modify other owners/admins
