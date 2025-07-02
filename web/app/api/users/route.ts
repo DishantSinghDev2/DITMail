@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const limit = Number.parseInt(searchParams.get("limit") || "25")
     const search = searchParams.get("search") || ""
 
-    const query = { org_id: user.org_id }
+    const query: { org_id: any; $or?: Array<{ name?: { $regex: string; $options: string }; email?: { $regex: string; $options: string } }> } = { org_id: user.org_id }
     if (search) {
       query.$or = [{ name: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }]
     }

@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { UsersIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
 import { useToast } from "@/hooks/use-toast"
-import { Eye } from "lucide-react"
+import { Eye, EyeClosed } from "lucide-react"
 
 interface UserSetupProps {
   onNext: (data: any) => void
@@ -40,6 +40,31 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   )
   const [loading, setLoading] = useState(false)
   const {toast} = useToast()
+
+  useEffect(() => {
+    // Fetch existing users from API if available
+    const fetchUsers = async () => {
+      try {
+        const token = localStorage.getItem("accessToken")
+        const response = await fetch("/api/users", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+
+        if (response.ok) {
+          const { users } = await response.json()
+          setUsers(users)
+        } else {
+          console.error("Failed to fetch existing users")
+        }
+      } catch (error) {
+        console.error("Error fetching users:", error)
+      }
+    }
+
+    fetchUsers()
+  }, [])
 
   const addUser = () => {
     setUsers([
@@ -242,7 +267,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                       }}
                       className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                     >
-                      <Eye className="w-5 h-5" />
+                      {user.showPassword ? (
+                        <EyeClosed className="w-5 h-5" />
+                      ) : (
+                        <Eye className="w-5 h-5" />
+                      )}
                     </button>
                     </div>
                 </div>

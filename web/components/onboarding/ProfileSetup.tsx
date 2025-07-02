@@ -22,13 +22,19 @@ export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) 
     desktopNotifications: true,
   })
 
-  const [survey, setSurvey] = useState({
-    primaryUse: "",
-    teamSize: "",
-    currentEmailProvider: "",
-    importantFeatures: [],
-    experience: "",
-  })
+  const [survey, setSurvey] = useState<{
+      primaryUse: string;
+      teamSize: string;
+      currentEmailProvider: string;
+      importantFeatures: string[];
+      experience: string;
+    }>({
+      primaryUse: "",
+      teamSize: "",
+      currentEmailProvider: "",
+      importantFeatures: [],
+      experience: "",
+    })
 
   const [loading, setLoading] = useState(false)
 
@@ -76,7 +82,9 @@ export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) 
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          preferences: profile,
+          theme: profile.theme,
+          emailNotifications: profile.emailNotifications,
+          desktopNotifications: profile.desktopNotifications,
           timezone: profile.timezone,
           language: profile.language,
         }),
