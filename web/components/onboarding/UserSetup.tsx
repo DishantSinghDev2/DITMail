@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { UsersIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeClosed } from "lucide-react"
+import { Eye, EyeOff } from "lucide-react"
 
 interface UserSetupProps {
   onNext: (data: any) => void
@@ -28,18 +28,18 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
     data.users?.length > 0
       ? data.users
       : [
-          {
-            email: "",
-            firstName: "",
-            lastName: "",
-            role: "user",
-            password: "",
-            showPassword: false, // Added to toggle password visibility
-          },
-        ],
+        {
+          email: "",
+          firstName: "",
+          lastName: "",
+          role: "user",
+          password: "",
+          showPassword: false, // Added to toggle password visibility
+        },
+      ],
   )
   const [loading, setLoading] = useState(false)
-  const {toast} = useToast()
+  const { toast } = useToast()
 
   useEffect(() => {
     // Fetch existing users from API if available
@@ -54,7 +54,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
         if (response.ok) {
           const { users } = await response.json()
-          setUsers(users)
+          if (users.email.split("@")[1] !== data.domain.domain.domain) {
+            setUsers(users)
+          }
         } else {
           console.error("Failed to fetch existing users")
         }
@@ -250,37 +252,37 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
-                    <div className="flex space-x-2 items-center">
+                  <div className="relative">
                     <input
                       type={user.showPassword ? "text" : "password"}
                       value={user.password}
                       onChange={(e) => updateUser(index, "password", e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm pr-10"
                       placeholder="Enter password"
                     />
                     <button
                       type="button"
-                      onClick={() => generatePassword(index)}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-                    >
-                      Generate
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => {
-                      const updatedUsers = [...users];
-                      updatedUsers[index].showPassword = !updatedUsers[index].showPassword;
-                      setUsers(updatedUsers);
+                        const updatedUsers = [...users];
+                        updatedUsers[index].showPassword = !updatedUsers[index].showPassword;
+                        setUsers(updatedUsers);
                       }}
-                      className="p-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 hover:text-gray-900"
                     >
                       {user.showPassword ? (
-                        <EyeClosed className="w-5 h-5" />
+                        <EyeOff className="w-5 h-5" />
                       ) : (
                         <Eye className="w-5 h-5" />
                       )}
                     </button>
-                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => generatePassword(index)}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm mt-2"
+                  >
+                    Generate
+                  </button>
                 </div>
               </div>
             </motion.div>
