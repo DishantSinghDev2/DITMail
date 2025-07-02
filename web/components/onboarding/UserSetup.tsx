@@ -40,6 +40,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   )
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const [existingUsers, setExistingUsers] = useState<User[]>([])
 
   useEffect(() => {
     // Fetch existing users from API if available
@@ -64,11 +65,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
               firstName: user.name.split(" ")[0] || "",
               lastName: user.name.split(" ")[1] || "",
               role: user.role,
-              password: "",
+              password: "not-allowed",
               showPassword: false,
             }))
             if (filteredUsers.some((user: User) => user.email.split("@")[1] === data.domain.domain?.domain)) {
-            setUsers(filteredUsers)
+            setExistingUsers(filteredUsers)
             }
         } else {
           console.error("Failed to fetch existing users")
@@ -121,6 +122,17 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+
+
+    if (users.length === 0 && !existingUsers.length) {
+      toast({
+        title: "Error",
+        description: "Please add at least one user",
+        variant: "destructive",
+      })
+      setLoading(false)
+      return
+    }
 
     try {
       const token = localStorage.getItem("accessToken")
@@ -185,6 +197,41 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           <p className="text-sm text-blue-600 mt-2">Email addresses will use your domain: @{data.domain.domain.domain}</p>
         )}
       </div>
+
+      {/* Show cards with existing users */}
+      {existingUsers.length > 0 && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-8 space-y-4"
+        >
+          {existingUsers.map((user, index) => (
+            <div key={index} className="bg-white rounded-xl p-6 shadow-sm border">
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+                  <UsersIcon className="w-6 h-6 text-gray-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{user.firstName} {user.lastName}</h3>
+                  <p className="text-sm text-gray-600">{user.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className={`px-3 py-1 text-xs rounded-full ${user.role === "admin" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"}`}>
+                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => removeUser(index)}
+                  className="text-red-600 hover:text-red-800 p-1"
+                >
+                  <TrashIcon className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </motion.div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-4">
@@ -322,7 +369,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           </button>
           <button
             type="submit"
-            disabled={loading || !isFormValid}
+            disabled={loading || !(isFormValid || existingUsers.length > 0) }
             className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold disabled:opacity-50 hover:shadow-lg transition-all duration-200"
           >
             {loading ? "Creating Users..." : "Continue"}
