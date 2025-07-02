@@ -133,10 +133,17 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         if (response.ok) {
           const createdUser = await response.json()
           createdUsers.push(createdUser)
+          onNext({ users: createdUsers })
+        } else {
+          const error = await response.json()
+          toast({
+            title: "Error",
+            description: error.error || "Failed to create user",
+            variant: "destructive",
+          })
         }
       }
 
-      onNext({ users: createdUsers })
     } catch (error) {
       console.error("Error creating users:", error)
       toast({
@@ -283,6 +290,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         <button
           type="button"
           onClick={addUser}
+          disabled={loading || users.some((user) => !user.email || !user.firstName || !user.lastName || !user.password)}
           className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center space-x-2"
         >
           <PlusIcon className="w-5 h-5" />

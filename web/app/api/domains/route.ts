@@ -3,6 +3,7 @@ import connectDB from "@/lib/db"
 import Domain from "@/models/Domain"
 import { getAuthUser } from "@/lib/auth"
 import { generateDKIMKeys } from "@/lib/dns"
+import Organization from "@/models/Organization"
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
     await connectDB()
     const domain = await Domain.findOne({ org_id: user.org_id, verification_code: { $exists: true } })
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       domain: domain || null,
       dnsRecords: domain ? {
         txt: `${domain.domain} IN TXT "ditmail-verification=${domain.verification_code}"`,
@@ -46,15 +47,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Domain already exists and verified" }, { status: 400 })
     }
 
-    // Check plans limits
-    // const orgDomainsCount = await Domain.countDocuments({ org_id: user.org_id, ownership_verified: true })
-    // if (orgDomainsCount >= user.org_id.plan_id.limits.domains) {
-    //   return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 403 })
-    // }
+    // Check organization limits
+    const org = await Organization.findById(user.org_id).populate("plan_id")
+    const domainCount = await Domain.countDocuments({ org_id: user.org_id, ownership_verified: true })
+
+    if (domainCount >= org.plan_id.limits.domains) {
+      return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 400 })
+    }
+
 
     // Generate DKIM keys
     const { publicKey, privateKey } = await generateDKIMKeys()
-  
+
     // Generate a verification code random
     const verificationCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
 
