@@ -8,7 +8,7 @@ export interface IUser extends Document {
   org_id: mongoose.Types.ObjectId
   role: "owner" | "admin" | "user"
   dkim_selector: string
-  onboarding: {
+  onboarding?: {
     completed: boolean
     startedAt: Date
   }

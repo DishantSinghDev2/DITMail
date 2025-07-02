@@ -63,7 +63,7 @@ export default function OnboardingComplete({ onComplete, data }: OnboardingCompl
             <CheckCircleIcon className="w-6 h-6 text-green-600" />
           </div>
           <h3 className="font-semibold text-gray-900 mb-2">Domain</h3>
-          <p className="text-sm text-gray-600">{data.domain ? `${data.domain.domain} added` : "Can be added later"}</p>
+          <p className="text-sm text-gray-600">{data.domain.domain ? `${data.domain.domain.domain} added` : "Can be added later"}</p>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-sm border">
@@ -92,7 +92,7 @@ export default function OnboardingComplete({ onComplete, data }: OnboardingCompl
         >
           <h3 className="font-semibold text-yellow-900 mb-2">Next Steps for Domain Setup:</h3>
           <div className="text-left text-yellow-800 text-sm space-y-1">
-            <p>1. Configure DNS records for {data.domain.domain}</p>
+            <p>1. Configure DNS records for {data.domain.domain.domain}</p>
             <p>2. Verify domain ownership</p>
             <p>3. Start receiving emails at your custom domain</p>
           </div>

@@ -11,6 +11,7 @@ import ProfileSetup from "@/components/onboarding/ProfileSetup"
 import OnboardingComplete from "@/components/onboarding/OnboardingComplete"
 import LoadingSpinner from "@/components/ui/LoadingSpinner"
 import DomainVerification from "@/components/onboarding/DomainVerification"
+import { toast } from "@/hooks/use-toast"
 
 export default function OnboardingPage() {
   const { user, loading } = useAuth()
@@ -52,8 +53,34 @@ export default function OnboardingPage() {
     setCurrentStep((prev) => Math.max(prev - 1, 0))
   }
 
-  const handleComplete = () => {
-    router.push("/mail")
+  const handleComplete = async () => {
+    try {
+      const token = localStorage.getItem("accessToken")
+      const response = await fetch("/api/onboarding", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: true
+        }),
+      })
+      if (!response.ok) {
+        throw new Error("Failed to complete onboarding")
+      } 
+
+      router.push("/mail")
+
+    } catch (error) {
+      console.error("Onboarding completion error:", error)
+      toast({
+        title: "Error",
+        description: "Failed to complete onboarding. Please try again later.",
+        variant: "destructive",
+      })
+      return
+    }
   }
 
   if (loading) {

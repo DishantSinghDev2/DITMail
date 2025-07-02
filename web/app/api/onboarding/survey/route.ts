@@ -1,18 +1,13 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import connectDB from "@/lib/db"
 import User from "@/models/User"
 
 export async function POST(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+    const user = await getAuthUser(request)
+    if (!user || !["owner", "admin"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
     await connectDB()
@@ -20,10 +15,9 @@ export async function POST(request: NextRequest) {
     const surveyData = await request.json()
 
     // Save survey data to user profile
-    await User.findByIdAndUpdate(decoded.userId, {
+    await User.findByIdAndUpdate(user._id, {
       $set: {
         "onboarding.survey": surveyData,
-        "onboarding.completedAt": new Date(),
       },
     })
 

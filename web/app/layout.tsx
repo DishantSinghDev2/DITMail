@@ -5,6 +5,7 @@ import { Inter } from "next/font/google"
 import { AuthProvider } from "@/contexts/AuthContext"
 import { RealtimeProvider } from "@/contexts/RealtimeContext"
 import { initSentry } from "@/lib/sentry"
+import { ToastProvider } from "@/components/ui/toast"
 
 // Initialize Sentry
 initSentry()
@@ -25,7 +26,9 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <AuthProvider>
-          <RealtimeProvider>{children}</RealtimeProvider>
+          <ToastProvider>
+            <RealtimeProvider>{children}</RealtimeProvider>
+          </ToastProvider>
         </AuthProvider>
       </body>
     </html>
