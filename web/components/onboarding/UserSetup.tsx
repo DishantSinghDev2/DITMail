@@ -54,6 +54,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
         if (response.ok) {
             const { users } = await response.json()
+            if (!users || !Array.isArray(users)) {
+              return
+            }
             const filteredUsers = users
             .filter((user: any) => user.email && user.name && user.role)
             .map((user: any) => ({
