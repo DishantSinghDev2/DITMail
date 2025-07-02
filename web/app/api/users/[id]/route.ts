@@ -56,6 +56,11 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
+    // Prevent deletion of own account
+    if (targetUser._id.toString() === user._id.toString()) {
+      return NextResponse.json({ error: "Cannot delete your own account" }, { status: 403 })
+    }
+
     if (targetUser.role === "owner") {
       return NextResponse.json({ error: "Cannot delete owner account" }, { status: 403 })
     }

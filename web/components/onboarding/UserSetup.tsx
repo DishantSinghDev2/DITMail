@@ -258,6 +258,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                   onClick={() => {
                     handleUserRemove(index, user.id)
                   }}
+                  disabled={loading}
                   className="text-red-600 hover:text-red-800 p-1"
                 >
                   <TrashIcon className="w-4 h-4" />

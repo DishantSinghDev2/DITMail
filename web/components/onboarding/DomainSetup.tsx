@@ -14,7 +14,7 @@ interface DomainSetupProps {
   currentStep?: number
 }
 
-export default function DomainSetup({ onNext, onPrevious, data, currentStep }: DomainSetupProps) {
+export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupProps) {
   const [domain, setDomain] = useState(data.domain?.domain || "")
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
