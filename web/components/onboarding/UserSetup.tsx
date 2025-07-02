@@ -40,7 +40,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   )
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
-  const [existingUsers, setExistingUsers] = useState<User[]>([])
+  const [existingUsers, setExistingUsers] = useState<any[]>([])
 
   useEffect(() => {
     // Fetch existing users from API if available
@@ -54,13 +54,14 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         })
 
         if (response.ok) {
-            const { users } = await response.json()
-            if (!users || !Array.isArray(users)) {
-              return
-            }
-            const filteredUsers = users
+          const { users } = await response.json()
+          if (!users || !Array.isArray(users)) {
+            return
+          }
+          const filteredUsers = users
             .filter((user: any) => user.email && user.name && user.role)
             .map((user: any) => ({
+              id: user._id,
               email: user.email,
               firstName: user.name.split(" ")[0] || "",
               lastName: user.name.split(" ")[1] || "",
@@ -68,9 +69,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
               password: "not-allowed",
               showPassword: false,
             }))
-            if (filteredUsers.some((user: User) => user.email.split("@")[1] === data.domain.domain?.domain)) {
+          if (filteredUsers.some((user: User) => user.email.split("@")[1] === data.domain.domain?.domain)) {
             setExistingUsers(filteredUsers)
-            }
+          }
         } else {
           console.error("Failed to fetch existing users")
         }
@@ -102,6 +103,41 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
     }
   }
 
+  const handleUserRemove = async (index: number, id: string) => {
+    try {
+      const token = localStorage.getItem("accessToken")
+      const response = await fetch(`/api/users/${id}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        setExistingUsers(existingUsers.filter((_, i) => i !== index))
+        toast({
+          title: "Success",
+          description: "User removed successfully",
+          variant: "default",
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Error",
+          description: error.error || "Failed to remove user",
+          variant: "destructive",
+        })
+      }
+    } catch (error) {
+      console.error("Error removing user:", error)
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
+    }
+  }
+
   const updateUser = (index: number, field: keyof User, value: string) => {
     const updatedUsers = [...users]
     if (field === "firstName" || field === "lastName") {
@@ -124,13 +160,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
     setLoading(true)
 
 
-    if (users.length === 0 && !existingUsers.length) {
-      toast({
-        title: "Error",
-        description: "Please add at least one user",
-        variant: "destructive",
-      })
+    if (users.length === 0 && existingUsers.length) {
       setLoading(false)
+      onNext({ users: existingUsers })
       return
     }
 
@@ -160,6 +192,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         if (response.ok) {
           const createdUser = await response.json()
           createdUsers.push(createdUser)
+          if (existingUsers.length) createdUsers.push(...existingUsers)
           onNext({ users: createdUsers })
         } else {
           const error = await response.json()
@@ -222,7 +255,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                 </span>
                 <button
                   type="button"
-                  onClick={() => removeUser(index)}
+                  onClick={() => {
+                    handleUserRemove(index, user.id)
+                  }}
                   className="text-red-600 hover:text-red-800 p-1"
                 >
                   <TrashIcon className="w-4 h-4" />
@@ -369,7 +404,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           </button>
           <button
             type="submit"
-            disabled={loading || !(isFormValid || existingUsers.length > 0) }
+            disabled={loading || !(isFormValid || existingUsers.length > 0)}
             className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold disabled:opacity-50 hover:shadow-lg transition-all duration-200"
           >
             {loading ? "Creating Users..." : "Continue"}
