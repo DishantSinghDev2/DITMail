@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
 
-    const { name, email, password, role } = await request.json()
+    const { firstName, lastName, email, password, role } = await request.json()
+
+    const name = `${firstName} ${lastName}`.trim()
 
     await connectDB()
 
