@@ -31,6 +31,35 @@ export default function OnboardingPage() {
     }
   }, [user, loading, router])
 
+  useEffect(() => {
+    const fetchOnboardingStatus = async () => {
+      try {
+        const token = localStorage.getItem("accessToken")
+        const response = await fetch("/api/onboarding", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data && data.completed) {
+            router.push("/mail")
+          }
+        } else {
+          console.error("Failed to fetch onboarding status")
+        }
+      } catch (error) {
+        console.error("Error fetching onboarding status:", error)
+        toast({
+          title: "Error",
+          description: "Failed to check onboarding status. Please try again later.",
+          variant: "destructive",
+        })
+      }
+    }
+
+    fetchOnboardingStatus()
+  }, [loading, user, router])
 
   const steps = [
     { id: "welcome", title: "Welcome", component: OnboardingWelcome },
@@ -68,7 +97,7 @@ export default function OnboardingPage() {
       })
       if (!response.ok) {
         throw new Error("Failed to complete onboarding")
-      } 
+      }
 
       router.push("/mail")
 

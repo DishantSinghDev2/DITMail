@@ -3,6 +3,30 @@ import { getAuthUser } from "@/lib/auth";
 import User from "@/models/User";
 import connectDB from "@/lib/db";
 
+
+export async function GET(request: NextRequest) {
+    const user = await getAuthUser(request);
+    if (!user || !["owner", "admin"].includes(user.role)) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+    try {
+        await connectDB();
+        const onboardingStatus = await User.findOne(
+            { _id: user._id }
+        );
+
+        if (!onboardingStatus) {
+            return NextResponse.json({ error: "User not found" }, { status: 404 });
+        }
+        return NextResponse.json({
+            completed: onboardingStatus.onboarding?.completed || false,
+        });
+    } catch (error) {
+        console.error("Onboarding status fetch error:", error);
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+}
+
 export async function PATCH(request: NextRequest) {
     const user = await getAuthUser(request);
 
