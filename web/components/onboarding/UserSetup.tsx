@@ -53,10 +53,20 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         })
 
         if (response.ok) {
-          const { users } = await response.json()
-          if (users.email.split("@")[1] !== data.domain.domain.domain) {
-            setUsers(users)
-          }
+            const { users } = await response.json()
+            const filteredUsers = users
+            .filter((user: any) => user.email && user.name && user.role)
+            .map((user: any) => ({
+              email: user.email,
+              firstName: user.name.split(" ")[0] || "",
+              lastName: user.name.split(" ")[1] || "",
+              role: user.role,
+              password: "",
+              showPassword: false,
+            }))
+            if (filteredUsers.some((user: User) => user.email.split("@")[1] === data.domain.domain?.domain)) {
+            setUsers(filteredUsers)
+            }
         } else {
           console.error("Failed to fetch existing users")
         }
