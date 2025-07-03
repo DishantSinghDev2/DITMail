@@ -1,6 +1,7 @@
 # --- CORE ---
 redis
 xclient
+tls
 
 # --- AUTH ---
 auth/auth_mongo_user
