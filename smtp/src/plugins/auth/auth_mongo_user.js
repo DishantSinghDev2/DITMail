@@ -87,5 +87,7 @@ exports.hook_auth_plain = async function (next, connection, params) {
 
 // Handles LOGIN authentication (same logic, different format)
 exports.hook_auth_login = async function (next, connection, username, password) {
+    const plugin = this;
+    connection.logdebug(plugin, `AUTH LOGIN received: username=${username}`);
     return exports.hook_auth_plain.call(this, next, connection, [username, password]);
 };
