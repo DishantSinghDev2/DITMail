@@ -3,7 +3,7 @@ redis
 xclient
 
 # --- AUTH ---
-auth/auth_bridge
+auth/auth_mongo_user
 prevent_credential_leaks
 
 # --- MAIL FROM ---
@@ -27,7 +27,6 @@ relay
 track.status
 
 # --- QUEUE ---
-queue/smtp_bridge
 queue.redis.mongo
 
 # --- LOGGING / METRICS ---
