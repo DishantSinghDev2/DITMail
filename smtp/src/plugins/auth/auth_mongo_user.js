@@ -5,10 +5,16 @@ let db, users;
 
 exports.register = function () {
     const plugin = this;
-    plugin.load_config();
 
+    // Add this line for debugging
+    plugin.lognotice('Registering auth_mongo_user hooks...');
+
+    plugin.load_config();
     plugin.register_hook('auth_plain', 'hook_auth_plain');
     plugin.register_hook('auth_login', 'hook_auth_login');
+
+    // Add this line for debugging
+    plugin.lognotice('auth_mongo_user hooks registered.');
 };
 
 exports.load_config = function () {
@@ -54,6 +60,12 @@ exports.hook_capabilities = function (next, connection) {
 exports.hook_auth_plain = async function (next, connection, params) {
     const plugin = this;
 
+    // 👇 ADD THIS CHECK
+    if (!users) {
+        plugin.logerror("Authentication attempt failed: MongoDB connection not ready.");
+        return next(DENYSOFT, "Server temporarily unavailable, please try again later.");
+    }
+
     const username = params[0];
     const password = params[1];
 
@@ -65,12 +77,14 @@ exports.hook_auth_plain = async function (next, connection, params) {
         const user = await users.findOne({ email: username });
 
         if (!user) {
-            return next(DENY, 'Invalid user');
+            // Use DENYSOFT to prevent username enumeration
+            return next(DENYSOFT, 'Authentication failed');
         }
 
         const match = await bcrypt.compare(password, user.password_hash);
         if (!match) {
-            return next(DENY, 'Invalid password');
+            // Use a generic message for both bad user and bad password
+            return next(DENYSOFT, 'Authentication failed');
         }
 
         connection.notes.auth_user = {
