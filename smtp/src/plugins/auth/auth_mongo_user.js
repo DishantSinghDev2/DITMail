@@ -6,6 +6,9 @@ let db, users;
 exports.register = function () {
     const plugin = this;
     plugin.load_config();
+
+    plugin.register_hook('auth_plain', 'hook_auth_plain');
+    plugin.register_hook('auth_login', 'hook_auth_login');
 };
 
 exports.load_config = function () {
