@@ -41,7 +41,9 @@ exports.hook_capabilities = function (next, connection) {
         return next();
     }
 
-    connection.capabilities.push('AUTH LOGIN PLAIN');
+    if (!connection.notes.authenticated) {
+        connection.capabilities.push('AUTH LOGIN PLAIN CRAM-MD5');
+    }
     return next();
 };
 

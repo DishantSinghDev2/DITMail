@@ -4,8 +4,7 @@ xclient
 tls
 
 # --- AUTH ---
-auth/flat_file
-
+auth/auth_mongo_user
 prevent_credential_leaks
 
 # --- MAIL FROM ---
