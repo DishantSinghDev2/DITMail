@@ -15,7 +15,6 @@ altinbox
 
 # --- DATA VALIDATION ---
 headers
-clamd
 attachment
 bounce
 limit
