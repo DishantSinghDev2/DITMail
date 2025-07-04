@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const validity = isValidDomain(domain)
     
     if (!validity.allowed){
-      return NextResponse.json({ error: `Domain extention ${validity.tld} isn't allowed to be used with DITMail` })
+      return NextResponse.json({ error: `Domain extention ${validity.tld} isn't allowed to be used with DITMail` }, { status: 422 })
     }
 
     await connectDB()
