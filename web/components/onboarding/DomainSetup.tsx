@@ -15,7 +15,7 @@ interface DomainSetupProps {
 }
 
 export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupProps) {
-  const [domain, setDomain] = useState(data.domain?.domain || "")
+  const [domain, setDomain] = useState(data.domain?.domain.domain || "")
   const [loading, setLoading] = useState(false)
   const [skipDomain, setSkipDomain] = useState(false)
   const [error, setError] = useState<string | null>(null)

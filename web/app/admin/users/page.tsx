@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext"
 import AdminSidebar from "@/components/admin/AdminSidebar"
 import UserTable from "@/components/admin/UserTable"
 import CreateUserModal from "@/components/admin/CreateUserModal"
+import AccessDeniedPage from "../accessDenied"
 
 export default function AdminUsersPage() {
   const { user } = useAuth()
@@ -39,7 +40,7 @@ export default function AdminUsersPage() {
   }
 
   if (!user || !["owner", "admin"].includes(user.role)) {
-    return <div>Access Denied</div>
+    return <AccessDeniedPage />
   }
 
   return (
