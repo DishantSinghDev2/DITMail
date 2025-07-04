@@ -24,6 +24,13 @@ export default function MailPage() {
     }
   }, [user])
 
+  // checking mailbox access
+  useEffect(() => {
+    if (user && !user.mailboxAccess && user.role !== "user" ){
+      redirect("/admin")
+    }
+  }, [user])
+
   if (!user) {
     return <AuthForm />
   }

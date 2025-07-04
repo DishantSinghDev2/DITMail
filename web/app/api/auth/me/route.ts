@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
         id: user._id,
         name: user.name,
         email: user.email,
+        mailboxAccess: user.mailboxAccess,
         role: user.role,
         org_id: user.org_id,
         onboarding: user.onboarding,

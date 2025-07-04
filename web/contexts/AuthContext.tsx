@@ -7,6 +7,7 @@ interface User {
   id: string
   name: string
   email: string
+  mailboxAccess: boolean
   role: string
   org_id: string
   onboarding: {
