@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     await connectDB()
 
     // Check if domain already exists
-    const existingDomain = await Domain.findOne({ domain, ownership_verified: true, org_id: user.org_id })
+    const existingDomain = await Domain.findOne({ domain, ownership_verified: true })
     if (existingDomain) {
       return NextResponse.json({ error: "Domain already exists and verified" }, { status: 400 })
     }
