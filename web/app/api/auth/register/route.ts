@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
     const user = new User({
       name,
       email,
+      mailboxAccess: false,
       password_hash: password, // Will be hashed in pre-save hook
       org_id: organization._id,
       role: userRole,
@@ -72,6 +73,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: user._id,
         name: user.name,
+        mailboxAccess: user.mailboxAccess,
         email: user.email,
         role: user.role,
         org_id: user.org_id,

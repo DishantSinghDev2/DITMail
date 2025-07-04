@@ -116,6 +116,13 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
 
         const org_id = user.org_id ? user.org_id.toString() : null;
 
+        // check if user has mailboxAccess
+        if (!user.mailboxAccess){
+            plugin.logwarn(`AUTH failed for user: ${username} ( you don't have mailbox access )`);
+            connection.notes.auth_message = "Your account doesn't have SMTP mailbox access.";
+            return cb(false);
+        }
+
         // reject if the user is not active or does not have an organization ID
         if (!org_id) {
             plugin.logwarn(`AUTH failed for user: ${username} ( no org associated with acc )`);

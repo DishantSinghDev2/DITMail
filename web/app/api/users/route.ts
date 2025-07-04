@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
     const newUser = new User({
       name,
       email,
+      mailboxAccess: true,
       password_hash: password,
       org_id: user.org_id,
       role: role || "user",
@@ -116,6 +117,7 @@ export async function POST(request: NextRequest) {
       user: {
         id: newUser._id,
         name: newUser.name,
+        mailboxAccess: newUser.mailboxAccess,
         email: newUser.email,
         role: newUser.role,
         created_at: newUser.created_at,

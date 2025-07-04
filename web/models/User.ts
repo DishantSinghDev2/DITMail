@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs"
 
 export interface IUser extends Document {
   email: string
+  mailboxAccess: boolean
   name: string
   password_hash: string
   org_id: mongoose.Types.ObjectId
@@ -18,6 +19,7 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true, lowercase: true },
+  mailboxAccess: { type: Boolean, required: true, default: false},
   name: { type: String, required: true },
   password_hash: { type: String, required: true },
   org_id: { type: Schema.Types.ObjectId, ref: "Organization", required: true },
