@@ -38,7 +38,7 @@ exports.load_tls_ini = function () {
 exports.load_mongo_config = function () {
     const plugin = this;
 
-    // Load config from haraka/config/auth_mongo.ini
+    // Load config from haraka/config/auth_mongo_user.ini
     const config = plugin.config.get('auth_mongo_user.ini', {
         booleans: ['main.require_tls'],
     });
@@ -70,6 +70,8 @@ exports.load_mongo_config = function () {
  * to advertise to the SMTP client.
  */
 exports.hook_capabilities = (next, connection) => {
+    // This hook is called after the TLS handshake is complete (if any).
+    // We only offer AUTH capabilities if the connection is secure.
     if (connection.tls.enabled) {
         const methods = [ 'PLAIN', 'LOGIN' ];
         connection.capabilities.push(`AUTH ${methods.join(' ')}`);
@@ -100,7 +102,8 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
 
     try {
         // 2. Find the user in the database by their email.
-        const user = await users.findOne({ email: username });
+        // Using toLowerCase() to ensure case-insensitive lookup for the username.
+        const user = await users.findOne({ email: username.toLowerCase() });
 
         // 3. If user is not found, fail authentication.
         // We log it, but the client gets a generic failure message to prevent username enumeration.
@@ -121,7 +124,8 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         plugin.loginfo(connection, `Authenticated user: ${username}`);
 
         // Set the authenticated user on the connection for Haraka's core and other plugins.
-        connection.set('auth_user', username);
+        // We store it in lowercase to make comparisons easier in other hooks.
+        connection.set('auth_user', username.toLowerCase());
 
         // You can also store the full user object in connection.notes for other plugins to use.
         connection.notes.auth_user_obj = {
@@ -138,4 +142,36 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         connection.notes.auth_message = "An error occurred during authentication.";
         return cb(false);
     }
+};
+
+/**
+ * hook_mail is called for the 'MAIL FROM' SMTP command.
+ * It's used here to enforce that an authenticated user can only send
+ * mail from their own email address. This prevents sender spoofing.
+ */
+exports.hook_mail = function (next, connection, params) {
+    const plugin = this;
+
+    // Get the authenticated user. This is set in check_plain_passwd on success.
+    const authUser = connection.get('auth_user');
+    const mailFrom = params[0].address();
+
+    // If there's no authenticated user, this rule doesn't apply.
+    // Assuming this server is for submission, unauthenticated mail should be rejected.
+    if (!authUser) {
+        plugin.lognotice("MAIL FROM without authentication, denying.");
+        return next(DENY, "Authentication required to send mail.");
+    }
+
+    // Compare the authenticated user's email with the MAIL FROM address.
+    // We compare them in lowercase to avoid case-sensitivity issues.
+    if (mailFrom.toLowerCase() !== authUser) {
+        plugin.logwarn(`Authenticated user ${authUser} attempted to send as ${mailFrom}.`);
+        // Use a 550-series SMTP code for a permanent failure.
+        return next(DENY, "Sender address does not match authenticated user.");
+    }
+
+    // If the addresses match, the user is authorized.
+    plugin.loginfo(`User ${authUser} is authorized to send from ${mailFrom}.`);
+    return next(); // Continue to the next plugin
 };
