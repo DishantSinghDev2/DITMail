@@ -4,7 +4,6 @@
 // Passwords in the database must be hashed with bcrypt.
 
 const mongodb = require('mongodb');
-const bcrypt = require('bcryptjs');
 
 // These are module-level variables to hold the database connection.
 // They are initialized once in load_mongo_config().
@@ -110,7 +109,7 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         }
 
         // 4. Compare the provided password with the stored hash.
-        const match = await bcrypt.compare(password, user.password_hash);
+        const match = await user.comparePassword(password);
 
         if (!match) {
             plugin.logwarn(`AUTH failed for user: ${username} (bad password)`);
