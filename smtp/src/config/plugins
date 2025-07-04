@@ -32,6 +32,3 @@ queue.redis.mongo
 
 # --- LOGGING / METRICS ---
 stats.redis
-
-# --- IMAP ---
-wildduck
