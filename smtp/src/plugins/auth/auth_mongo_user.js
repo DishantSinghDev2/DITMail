@@ -57,6 +57,7 @@ exports.load_mongo_config = function () {
         .then(client => {
             db = client.db(); // Use the database specified in the URI
             users = db.collection(plugin.cfg.collection);
+            domains = db.collection('domains'); // Assuming you have a domains collection
             plugin.loginfo(`Connected to MongoDB for auth, using collection "${plugin.cfg.collection}"`);
         })
         .catch(err => {
@@ -105,10 +106,38 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         // Using toLowerCase() to ensure case-insensitive lookup for the username.
         const user = await users.findOne({ email: username.toLowerCase() });
 
+
         // 3. If user is not found, fail authentication.
         // We log it, but the client gets a generic failure message to prevent username enumeration.
         if (!user) {
             plugin.logwarn(`AUTH failed for user: ${username} (not found)`);
+            return cb(false);
+        }
+
+        const org_id = user.org_id ? user.org_id.toString() : null;
+
+        // reject if the user is not active or does not have an organization ID
+        if (!user.active || !org_id) {
+            plugin.logwarn(`AUTH failed for user: ${username} (inactive or no org)`);
+            connection.notes.auth_message = "Your account is not active or not associated with an organization.";
+            return cb(false);
+        }
+
+        // If organization ID is present, then check if the username matches the organization's domain.
+        const domains = await domains.find({ org_id, status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
+
+        if (domains.length > 0) {
+            // Check if the username matches any of the organization's domains.
+            const domainMatch = domains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
+            if (!domainMatch) {
+                plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
+                connection.notes.auth_message = "Your email address does not match the organization's domain.";
+                return cb(false);
+            }
+        } else {
+            // reject if no verified domains are found for the organization
+            plugin.logwarn(`AUTH failed for user: ${username} (no verified domains)`);
+            connection.notes.auth_message = "Your organization does not have any verified domains.";
             return cb(false);
         }
 
