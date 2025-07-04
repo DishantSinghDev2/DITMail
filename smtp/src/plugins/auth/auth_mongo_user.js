@@ -1,110 +1,140 @@
+// Haraka plugin for authenticating users against a MongoDB database.
+//
+// This plugin correctly uses Haraka's 'auth_base' framework.
+// Passwords in the database must be hashed with bcrypt.
+
 const mongodb = require('mongodb');
 const bcrypt = require('bcryptjs');
 
+// These are module-level variables to hold the database connection.
+// They are initialized once in load_mongo_config().
 let db, users;
 
+/**
+ * Register the plugin with Haraka.
+ */
 exports.register = function () {
     const plugin = this;
 
-    // Add this line for debugging
-    plugin.lognotice('Registering auth_mongo_user hooks...');
+    // VERY IMPORTANT: This tells Haraka to use this plugin within its
+    // built-in authentication framework. This is what was missing
+    // from your original attempt and what caused the '500' error.
+    plugin.inherits('auth/auth_base');
 
-    plugin.load_config();
-    plugin.register_hook('auth_plain', 'hook_auth_plain');
-    plugin.register_hook('auth_login', 'hook_auth_login');
-
-    // Add this line for debugging
-    plugin.lognotice('auth_mongo_user hooks registered.');
+    // Load our custom configuration from auth_mongo.ini
+    plugin.load_mongo_config();
 };
 
-exports.load_config = function () {
+/**
+ * Load configuration from auth_mongo.ini and connect to MongoDB.
+ */
+exports.load_mongo_config = function () {
     const plugin = this;
-    const config = plugin.config.get('auth_mongo_user.ini', {
+
+    // Load config from haraka/config/auth_mongo.ini
+    const config = plugin.config.get('auth_mongo.ini', {
         booleans: ['main.require_tls'],
     });
 
+    // Store config for later use
     plugin.cfg = {
-        uri: config.main.uri || 'mongodb://localhost:27017/ditmail',
+        uri: config.main.uri || 'mongodb://localhost:27017/haraka',
         collection: config.main.collection || 'users',
-        require_tls: config.main.require_tls || false,
+        // It's highly recommended to require TLS for authentication.
+        // Default to true for security.
+        require_tls: config.main.require_tls !== false,
     };
 
+    // Establish the MongoDB connection
     mongodb.MongoClient.connect(plugin.cfg.uri, { useUnifiedTopology: true })
         .then(client => {
-            db = client.db();
+            db = client.db(); // Use the database specified in the URI
             users = db.collection(plugin.cfg.collection);
-            plugin.loginfo(`Connected to MongoDB for auth, using collection ${plugin.cfg.collection}`);
+            plugin.loginfo(`Connected to MongoDB for auth, using collection "${plugin.cfg.collection}"`);
         })
         .catch(err => {
-            plugin.logerror(`Failed to connect to MongoDB: ${err}`);
+            // Log a severe error if the connection fails, as auth will not work.
+            plugin.logcrit(`Failed to connect to MongoDB: ${err.message}. Authentication will fail.`);
         });
 };
 
-// 👇 This hook ADVERTISES authentication to SMTP clients after STARTTLS
+/**
+ * hook_capabilities is called by Haraka to determine which features (capabilities)
+ * to advertise to the SMTP client.
+ */
 exports.hook_capabilities = function (next, connection) {
     const plugin = this;
 
-    // Advertise AUTH only if TLS is established or TLS not required
-    const is_tls = connection && connection.tls;
-    if (plugin.cfg.require_tls && !is_tls) {
+    // Do not advertise AUTH if TLS is required but not yet enabled.
+    // The client must issue STARTTLS first.
+    if (plugin.cfg.require_tls && !connection.tls.enabled) {
         return next();
     }
 
-    if (!connection.notes.authenticated) {
-        connection.capabilities.push('AUTH LOGIN PLAIN CRAM-MD5');
-    }
-    return next();
+    // By setting 'allowed_auth_methods', the 'auth/auth_base' plugin
+    // will advertise 'AUTH PLAIN LOGIN' for us.
+    connection.notes.allowed_auth_methods = ['PLAIN', 'LOGIN'];
+    next();
 };
 
-// Handles PLAIN authentication
-exports.hook_auth_plain = async function (next, connection, params) {
+/**
+ * This is the core function required by 'auth_base'. Haraka calls this
+ * function after receiving the username and password for both PLAIN and LOGIN auth.
+ *
+ * @param {object} connection - The connection object.
+ * @param {string} username   - The email address provided by the client.
+ * @param {string} password   - The password provided by the client.
+ * @param {function} cb       - The callback to call with the result. cb(true) for success, cb(false) for failure.
+ */
+exports.check_plain_passwd = async function (connection, username, password, cb) {
     const plugin = this;
 
-    // 👇 ADD THIS CHECK
+    // 1. Check if the MongoDB connection is established.
     if (!users) {
-        plugin.logerror("Authentication attempt failed: MongoDB connection not ready.");
-        return next(DENYSOFT, "Server temporarily unavailable, please try again later.");
-    }
-
-    const username = params[0];
-    const password = params[1];
-
-    if (!username || !password) {
-        return next(DENY, 'Missing credentials');
+        plugin.logerror("Authentication check failed: MongoDB connection is not ready.");
+        // Provide a user-friendly (but generic) message.
+        connection.notes.auth_message = "Server temporarily unavailable, please try again later.";
+        return cb(false); // Authentication fails
     }
 
     try {
+        // 2. Find the user in the database by their email.
         const user = await users.findOne({ email: username });
 
+        // 3. If user is not found, fail authentication.
+        // We log it, but the client gets a generic failure message to prevent username enumeration.
         if (!user) {
-            // Use DENYSOFT to prevent username enumeration
-            return next(DENYSOFT, 'Authentication failed');
+            plugin.logwarn(`AUTH failed for user: ${username} (not found)`);
+            return cb(false);
         }
 
+        // 4. Compare the provided password with the stored hash.
         const match = await bcrypt.compare(password, user.password_hash);
+
         if (!match) {
-            // Use a generic message for both bad user and bad password
-            return next(DENYSOFT, 'Authentication failed');
+            plugin.logwarn(`AUTH failed for user: ${username} (bad password)`);
+            return cb(false);
         }
 
-        connection.notes.auth_user = {
-            id: user._id,
+        // 5. Authentication successful!
+        plugin.loginfo(connection, `Authenticated user: ${username}`);
+
+        // Set the authenticated user on the connection for Haraka's core and other plugins.
+        connection.set('auth_user', username);
+
+        // You can also store the full user object in connection.notes for other plugins to use.
+        connection.notes.auth_user_obj = {
+            id: user._id.toString(),
             email: user.email,
             role: user.role,
-            org_id: user.org_id,
+            org_id: user.org_id
         };
 
-        connection.loginfo(plugin, `Authenticated: ${user.email}`);
-        return next(OK, `Welcome ${user.name || user.email}`);
-    } catch (err) {
-        plugin.logerror(`Auth error: ${err}`);
-        return next(DENYSOFT, 'Temporary error, try again later');
-    }
-};
+        return cb(true); // Signal success to Haraka
 
-// Handles LOGIN authentication (same logic, different format)
-exports.hook_auth_login = async function (next, connection, username, password) {
-    const plugin = this;
-    connection.logdebug(plugin, `AUTH LOGIN received: username=${username}`);
-    return exports.hook_auth_plain.call(this, next, connection, [username, password]);
+    } catch (err) {
+        plugin.logerror(`MongoDB auth error for user ${username}: ${err.message}`);
+        connection.notes.auth_message = "An error occurred during authentication.";
+        return cb(false);
+    }
 };
