@@ -23,7 +23,14 @@ exports.register = function () {
 
     // Load our custom configuration from auth_mongo.ini
     plugin.load_mongo_config();
-};
+    plugin.load_tls_ini();
+}
+
+exports.load_tls_ini = function () {
+    this.tls_cfg = this.config.get('tls.ini', () => {
+        this.load_tls_ini();
+    });
+}
 
 /**
  * Load configuration from auth_mongo.ini and connect to MongoDB.
@@ -62,20 +69,14 @@ exports.load_mongo_config = function () {
  * hook_capabilities is called by Haraka to determine which features (capabilities)
  * to advertise to the SMTP client.
  */
-exports.hook_capabilities = function (next, connection) {
-    const plugin = this;
-
-    // Do not advertise AUTH if TLS is required but not yet enabled.
-    // The client must issue STARTTLS first.
-    if (plugin.cfg.require_tls && !connection.tls.enabled) {
-        return next();
+exports.hook_capabilities = (next, connection) => {
+    if (connection.tls.enabled) {
+        const methods = [ 'PLAIN', 'LOGIN' ];
+        connection.capabilities.push(`AUTH ${methods.join(' ')}`);
+        connection.notes.allowed_auth_methods = methods;
     }
-
-    // By setting 'allowed_auth_methods', the 'auth/auth_base' plugin
-    // will advertise 'AUTH PLAIN LOGIN' for us.
-    connection.notes.allowed_auth_methods = ['PLAIN', 'LOGIN'];
     next();
-};
+}
 
 /**
  * This is the core function required by 'auth_base'. Haraka calls this
