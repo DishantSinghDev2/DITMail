@@ -39,13 +39,13 @@ exports.load_mongo_config = function () {
     const plugin = this;
 
     // Load config from haraka/config/auth_mongo.ini
-    const config = plugin.config.get('auth_mongo.ini', {
+    const config = plugin.config.get('auth_mongo_user.ini', {
         booleans: ['main.require_tls'],
     });
 
     // Store config for later use
     plugin.cfg = {
-        uri: config.main.uri || 'mongodb://localhost:27017/haraka',
+        uri: config.main.uri || 'mongodb://localhost:27017/ditmail',
         collection: config.main.collection || 'users',
         // It's highly recommended to require TLS for authentication.
         // Default to true for security.
