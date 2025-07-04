@@ -64,7 +64,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
       return
     }
 
-    if (existingDomain) {
+    if (existingDomain.domain) {
       onNext({ domain: existingDomain })
       return
     }
