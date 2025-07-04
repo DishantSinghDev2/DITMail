@@ -69,6 +69,13 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
       return
     }
 
+    // check if domain structure is valid
+    const regex = /^(?!:\/\/)([a-zA-Z0-9\-]+\.)+[a-zA-Z]{2,}$/;
+    if (!regex.test(domain)) {
+      setError("Invalid domain structure. Valid one looks like: freecustom.email")
+      return
+    }
+
     setLoading(true)
 
     try {
@@ -144,6 +151,7 @@ export default function DomainSetup({ onNext, onPrevious, data }: DomainSetupPro
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="freecustom.email"
               disabled={skipDomain || isLoading}
+              name="domain"
             />
             {error && (
               <div className="mt-2 text-sm text-red-600">

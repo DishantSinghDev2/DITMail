@@ -39,6 +39,12 @@ export async function POST(request: NextRequest) {
 
     const { domain } = await request.json()
 
+    const validity = isValidDomain(domain)
+    
+    if (!validity.allowed){
+      return NextResponse.json({ error: `Domain extention ${validity.tld} isn't allowed to be used with DITMail` })
+    }
+
     await connectDB()
 
     // Check if domain already exists
@@ -85,4 +91,24 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
+}
+
+const blacklistedTLDs = [
+  "tk", "ml", "ga", "cf", "gq", // Freenom free domains
+  "gg", "ru", "cn", "cam", "men", "mom" // sometimes flagged too
+];
+
+function isValidDomain(domain: string): { allowed: boolean, tld: string } {
+  // Extract TLD
+  const tld = domain.split('.').pop()?.toLowerCase() || '';
+
+  if (blacklistedTLDs.includes(tld)) return {
+    allowed: false,
+    tld
+  };
+
+  return {
+    allowed: true,
+    tld
+  };
 }
