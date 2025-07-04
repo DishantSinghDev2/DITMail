@@ -4,19 +4,6 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
-// A simple placeholder for your app's logo. 
-// Replace this with your actual Logo component or an <Image> tag.
-const DITMailLogo = () => (
-  <svg
-    className="h-8 w-auto text-blue-600"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <path d="M2.00299 5.883C2.00299 4.843 2.84499 4 3.88299 4H20.117C21.156 4 21.997 4.842 21.997 5.883L12.002 12.548L2.00299 5.883Z" />
-    <path d="M22 8.125V18.117C22 19.157 21.158 20 20.118 20H3.882C2.842 20 2 19.158 2 18.118V8.125L11.498 14.375C11.77 14.553 12.23 14.553 12.502 14.375L22 8.125Z" />
-  </svg>
-);
 
 
 // Set page metadata for the browser tab
@@ -29,11 +16,6 @@ export default function AccessDeniedPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 dark:bg-gray-900">
       <div className="w-full max-w-md p-6">
-        <div className="mx-auto mb-6">
-          <Link href="/dashboard" aria-label="Go to DITMail Dashboard">
-            <DITMailLogo />
-          </Link>
-        </div>
         
         <div className="rounded-lg border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-700 dark:bg-gray-800">
           <div className="flex flex-col items-center text-center">
@@ -56,11 +38,11 @@ export default function AccessDeniedPage() {
 
             <div className="mt-8 w-full">
               <Link
-                href="/dashboard" // <-- IMPORTANT: Change this to your main dashboard route
+                href="/mail"
                 className="flex w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Return to Dashboard
+                Return to Mail
               </Link>
             </div>
 
