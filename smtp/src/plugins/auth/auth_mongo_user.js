@@ -117,9 +117,9 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         const org_id = user.org_id ? user.org_id.toString() : null;
 
         // reject if the user is not active or does not have an organization ID
-        if (!user.active || !org_id) {
-            plugin.logwarn(`AUTH failed for user: ${username} (inactive or no org)`);
-            connection.notes.auth_message = "Your account is not active or not associated with an organization.";
+        if (!org_id) {
+            plugin.logwarn(`AUTH failed for user: ${username} ( no org associated with acc )`);
+            connection.notes.auth_message = "Your account has not associated with an organization.";
             return cb(false);
         }
 
