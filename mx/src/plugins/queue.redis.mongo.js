@@ -71,7 +71,7 @@ exports.save_to_mongo = function (next, connection) {
     const parsed = await simpleParser(raw);
 
     for (const recipient of transaction.rcpt_to) {
-        const destinationEmail = recipient.user.toLowerCase();
+        const destinationEmail = recipient.address.toLowerCase();
 
         // 1. Get User and Organization details from the 'users' collection
         const user = await db.collection('users').findOne({ email: destinationEmail });
