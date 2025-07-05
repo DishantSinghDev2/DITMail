@@ -307,46 +307,25 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden max-w-full flex">
-          {viewMode === "split" ? (
-            <>
-              <div className="max-w-1/2 border-r border-gray-200">
-                <MessageList
-                  messages={messages}
-                  loading={loading}
-                  selectedMessage={selectedMessage}
-                  onMessageSelect={handleMessageSelect}
-                  onRefresh={fetchMessages}
-                  onStar={handleStarMessage}
-                  onDelete={handleDeleteMessage}
-                  folder={selectedFolder}
-                />
-              </div>
-              <div className="max-w-1/2">
-                <MessageView
-                  message={selectedMessage}
-                  threadMessages={threadMessages}
-                  onReply={handleReply}
-                  onForward={handleForward}
-                  onDelete={handleDeleteMessage}
-                  onStar={handleStarMessage}
-                />
-              </div>
-            </>
-          ) : (
-            <div className="w-full">
-              <MessageList
-                messages={messages}
-                loading={loading}
-                selectedMessage={selectedMessage}
-                onMessageSelect={handleMessageSelect}
-                onRefresh={fetchMessages}
-                onStar={handleStarMessage}
-                onDelete={handleDeleteMessage}
-                folder={selectedFolder}
-              />
-            </div>
-          )}
+        <div className="flex-1 overflow-hidden border-r border-gray-200 w-full flex">
+            {selectedMessage ? <MessageView
+              message={selectedMessage}
+              threadMessages={threadMessages}
+              onReply={handleReply}
+              onForward={handleForward}
+              onDelete={handleDeleteMessage}
+              onStar={handleStarMessage}
+            /> : <MessageList
+              messages={messages}
+              loading={loading}
+              selectedMessage={selectedMessage}
+              onMessageSelect={handleMessageSelect}
+              onRefresh={fetchMessages}
+              onStar={handleStarMessage}
+              onDelete={handleDeleteMessage}
+              folder={selectedFolder}
+            />
+            }
         </div>
       </div>
 
