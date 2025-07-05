@@ -1,8 +1,9 @@
 "use client"
 
-import React, { createContext, useContext, useEffect, useState } from "react"
+import type React from "react"
+import { createContext, useContext, useEffect, useState } from "react"
 import { useAuth } from "./AuthContext"
-import io, { Socket } from "socket.io-client"
+import io from "socket.io-client"
 
 interface RealtimeContextType {
   newMessages: number
@@ -13,29 +14,28 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [newMessages, setNewMessages] = useState(0)
-  const {user} = useAuth()
-  const token = localStorage.getItem("accessToken")
+  const { user } = useAuth()
 
   useEffect(() => {
     if (!user) return
 
-    // Setup Socket.IO client
-    const socket: typeof Socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:4000", {
-      path: "/ws",
+    const token = localStorage.getItem("accessToken") // ✅ now safely inside useEffect
+
+    const socket = io("http://localhost:4000", {
       auth: { token }
     })
 
-    // Listen to mailbox events
     socket.on("mailbox_event", (data) => {
-      console.log("New mail received:", data)
+      if (data.type === "new_mail") {
+        setNewMessages((prev) => prev + 1)
 
-      setNewMessages((prev) => prev + 1)
-
-      if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(`📩 New mail from ${data.message.from}`, {
-          body: data.message.subject,
-          icon: "/favicon.ico",
-        })
+        // Optional: Show native browser notification
+        if ("Notification" in window && Notification.permission === "granted") {
+          new Notification(`New email from ${data.message.from}`, {
+            body: data.message.subject,
+            icon: "/favicon.ico",
+          })
+        }
       }
     })
 
@@ -57,6 +57,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
 export function useRealtime() {
   const context = useContext(RealtimeContext)
-  if (!context) throw new Error("useRealtime must be used within a RealtimeProvider")
+  if (context === undefined) {
+    throw new Error("useRealtime must be used within a RealtimeProvider")
+  }
   return context
 }
