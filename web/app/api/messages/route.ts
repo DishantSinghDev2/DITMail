@@ -24,7 +24,6 @@ export async function GET(request: NextRequest) {
 
     await connectDB()
 
-    // Build query
     const query: any = { user_id: user._id }
 
     if (threadId) {
@@ -32,14 +31,8 @@ export async function GET(request: NextRequest) {
     } else {
       query.folder = folder
     }
-
-    if (starred) {
-      query.starred = true
-    }
-
-    if (unread) {
-      query.read = false
-    }
+    if (starred) query.starred = true
+    if (unread) query.read = false
 
     if (search) {
       query.$or = [
@@ -49,12 +42,15 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    // Get messages with threading
     let messages
+
     if (threadId) {
-      messages = await Message.find(query).sort({ created_at: 1 }).populate("attachments")
+      // This block is ALREADY CORRECT. .populate() is the right way for find()
+      messages = await Message.find(query)
+        .sort({ created_at: 1 })
+        .populate("attachments") // This populates the attachments for a specific thread
     } else {
-      // Group by thread and get latest message from each thread
+      // This block needs the $lookup stage for aggregation
       const pipeline = [
         { $match: query },
         { $sort: { created_at: -1 } },
@@ -66,14 +62,28 @@ export async function GET(request: NextRequest) {
             unreadCount: { $sum: { $cond: [{ $eq: ["$read", false] }, 1, 0] } },
           },
         },
+        // --- START: THE FIX ---
+        // This stage "populates" the attachments for each latestMessage
+        {
+          $lookup: {
+            from: "attachments", // The collection name for your Attachment model
+            localField: "latestMessage.attachments", // The array of IDs in our documents
+            foreignField: "_id", // The field to match in the 'attachments' collection
+            as: "populatedAttachments", // The name for the new array of populated docs
+          },
+        },
+        // --- END: THE FIX ---
         { $sort: { "latestMessage.created_at": -1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit },
       ]
 
       const threads = await Message.aggregate(pipeline)
+
+      // Now, map the results and manually place the populated attachments
       messages = threads.map((thread) => ({
         ...thread.latestMessage,
+        attachments: thread.populatedAttachments, // Overwrite the IDs with the full objects
         messageCount: thread.messageCount,
         unreadCount: thread.unreadCount,
       }))
@@ -82,7 +92,7 @@ export async function GET(request: NextRequest) {
     const total = threadId
       ? await Message.countDocuments(query)
       : await Message.aggregate([
-          { $match: { user_id: user._id, folder } },
+          { $match: { user_id: user._id, folder, ... (search ? { $or: query.$or } : {}) } },
           { $group: { _id: "$thread_id" } },
           { $count: "total" },
         ]).then((result) => result[0]?.total || 0)
@@ -173,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ message })
-  } catch (error) {
+  } catch (error: any) {
     if (error.name === "ZodError") {
       return NextResponse.json({ error: error.errors }, { status: 400 })
     }
