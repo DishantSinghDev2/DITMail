@@ -1,7 +1,8 @@
-import next from "next"
-import express from "express"
-import { createServer } from "http"
-import { initializeWebSocket } from "@/lib/websocket" // Your file
+const next = require("next");
+const express = require("express");
+const { createServer } = require("http");
+const { initializeWebSocket } = require("../lib/websocket");
+
 
 const dev = process.env.NODE_ENV !== "production"
 const app = next({ dev })
@@ -13,9 +14,6 @@ app.prepare().then(() => {
 
   // Initialize WebSocket with your HTTP server
   initializeWebSocket(httpServer)
-
-  // Handle all other Next.js routes
-  expressApp.all("*", (req, res) => handle(req, res))
 
   const PORT = process.env.PORT || 3000
   httpServer.listen(PORT, () => {
