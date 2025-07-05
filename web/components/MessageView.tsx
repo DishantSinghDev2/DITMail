@@ -381,20 +381,20 @@ export default function MessageView({
 
             <button
               onClick={() => onArchive(latestMessage._id)}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+              className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <Archive className="h-4 w-4" />
+              <Archive className="h-4 w-4 " />
             </button>
             <button
               onClick={() => markAsSpam(latestMessage._id)}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+              className="p-2 hover:bg-gray-100 rounded-full"
             >
               <OctagonAlert className="h-4 w-4" />
             </button>
-            <div className="bg-gray-700 w-1 h-4 "></div>
+            <div className="bg-gray-700 w-0.5 h-5 "></div>
             <button
               onClick={() => markAsUnRead(latestMessage._id)}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+              className="p-2 hover:bg-gray-100 rounded-full"
             >
               <MailMinus className="h-4 w-4" />
             </button>
