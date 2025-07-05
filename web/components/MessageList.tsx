@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { formatDistanceToNow } from "date-fns"
 import {
   PaperClipIcon,
@@ -28,6 +28,31 @@ interface MessageListProps {
   onLoadMore?: () => void
   hasMore?: boolean
 }
+
+function TruncatedMessage({ text }: { text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [slicedText, setSlicedText] = useState(text);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const width = container.offsetWidth;
+    const approxCharWidth = 7; // depends on font
+    const maxChars = Math.floor(width / approxCharWidth);
+
+    if (text.length > maxChars) {
+      setSlicedText(text.slice(0, maxChars - 3) + "...");
+    }
+  }, [text]);
+
+  return (
+    <div ref={containerRef} className="w-full">
+      {slicedText}
+    </div>
+  );
+}
+
 
 export default function MessageList({
   messages,
@@ -448,7 +473,7 @@ export default function MessageList({
                 >
                   {message.subject || "(No subject)"}
                 </div>
-                <div className="text-xs text-gray-500 truncate">{message.text || "No preview available"}</div>
+                <div className="text-xs text-gray-500 truncate">{message.text ? TruncatedMessage(message.text) : "No preview available"}</div>
                 {message.messageCount > 1 && (
                   <div className="text-xs text-blue-600 mt-1">{message.messageCount} messages in conversation</div>
                 )}

@@ -307,7 +307,7 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden w-full flex">
           {viewMode === "split" ? (
             <>
               <div className="w-1/2 border-r border-gray-200">
