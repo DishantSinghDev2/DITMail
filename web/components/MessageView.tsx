@@ -17,7 +17,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid"
 import Dropdown from "./ui/Dropdown"
-import { ArrowLeft } from "lucide-react"
+import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react"
 
 interface MessageViewProps {
   message: any
@@ -148,6 +148,35 @@ export default function MessageView({
       })
     } catch (error) {
       console.error("Add label error:", error)
+    }
+  }
+
+  const markAsUnRead = async (messageId: string) => {
+    const token = localStorage.getItem("accessToken")
+    fetch(`/api/messages/${messageId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ read: false }),
+    }).then(() => onBack())
+  }
+
+  const onArchive = async (messageId: string) => {
+    try {
+
+      const token = localStorage.getItem("accessToken")
+      fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ folder: "archive" }),
+      }).then(() => onBack())
+    } catch (error) {
+      console.error("On Archive error: ", error)
     }
   }
 
@@ -344,11 +373,37 @@ export default function MessageView({
       {/* Header */}
       <div className="border-b border-gray-200 p-4 bg-white">
         <div className="flex items-center justify-between mb-2">
-          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full mr-3">
-            <ArrowLeft className="h-5 w-5 text-gray-400" />
-          </button>
-          <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
-          <div className="flex items-center space-x-2">
+          {/* Action Buttons */}
+          <div className="flex items-center space-x-3">
+            <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full">
+              <ArrowLeft className="h-5 w-5 text-gray-400" />
+            </button>
+
+            <button
+              onClick={() => onArchive(latestMessage._id)}
+              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+            >
+              <Archive className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => markAsSpam(latestMessage._id)}
+              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+            >
+              <OctagonAlert className="h-4 w-4" />
+            </button>
+            <div className="bg-gray-700 w-1 h-4 "></div>
+            <button
+              onClick={() => markAsUnRead(latestMessage._id)}
+              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-red-50"
+            >
+              <MailMinus className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => onDelete(latestMessage._id)}
+              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 text-red-600 rounded-md hover:bg-red-50"
+            >
+              <TrashIcon className="h-4 w-4" />
+            </button>
             <button
               onClick={() => onStar(latestMessage._id, !latestMessage.starred)}
               className="p-2 hover:bg-gray-100 rounded-full"
@@ -381,49 +436,22 @@ export default function MessageView({
                   onClick: printMessage,
                   icon: PrinterIcon,
                 },
-                {
-                  label: "Mark as spam",
-                  onClick: () => markAsSpam(latestMessage._id),
-                  icon: FlagIcon,
-                },
-                {
-                  label: "Archive",
-                  onClick: () => {
-                    /* Handle archive */
-                  },
-                  icon: ArchiveBoxIcon,
-                },
-                {
-                  label: "Delete",
-                  onClick: () => onDelete(latestMessage._id),
-                  icon: TrashIcon,
-                  danger: true,
-                },
               ]}
             />
           </div>
+
+          <div className="flex items-center space-x-2">
+            <p>1/1033</p>
+            <div className="flex flex-row gap-2">
+              <ChevronLeft className="w-3 h-3" />
+              <ChevronRight className="w-3 h-3" />
+            </div>
+          </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={() => onReply(latestMessage)}
-            className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
-          >
-            <ArrowUturnLeftIcon className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onForward(latestMessage)}
-            className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
-          >
-            <ArrowUturnRightIcon className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => onDelete(latestMessage._id)}
-            className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 text-red-600 rounded-md hover:bg-red-50"
-          >
-            <TrashIcon className="h-4 w-4" />
-          </button>
+
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
         </div>
       </div>
 
@@ -433,6 +461,23 @@ export default function MessageView({
           <div className="mb-4 text-sm text-gray-600">{displayMessages.length} messages in this conversation</div>
         )}
         {displayMessages.map((msg) => renderMessage(msg, displayMessages.length > 1))}
+      </div>
+
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => onReply(latestMessage)}
+          className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          <ArrowUturnLeftIcon className="h-4 w-4" />
+          <span>Reply</span>
+        </button>
+        <button
+          onClick={() => onForward(latestMessage)}
+          className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          <ArrowUturnRightIcon className="h-4 w-4" />
+          <span>Forward</span>
+        </button>
       </div>
 
       {/* Loading Overlay */}
