@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { formatDistanceToNow } from "date-fns"
 import {
   PaperClipIcon,
@@ -29,23 +29,6 @@ interface MessageListProps {
   hasMore?: boolean
 }
 
-const TruncatedMessage = (text: string, containerRef: any) => {
-
-  const container = containerRef.current;
-  if (!container) return;
-
-  const width = container.offsetWidth;
-  const approxCharWidth = 7;
-  const maxChars = Math.floor(width / approxCharWidth);
-
-  if (text.length > maxChars) {
-    text = (text.slice(0, maxChars - 3) + "...");
-  }
-
-  return text
-}
-
-
 export default function MessageList({
   messages,
   loading,
@@ -67,7 +50,6 @@ export default function MessageList({
   const [filterBy, setFilterBy] = useState("all")
   const [refreshing, setRefreshing] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSelectedMessages(new Set())
@@ -196,12 +178,6 @@ export default function MessageList({
   const getFilteredAndSortedMessages = useCallback(() => {
     let filtered = [...messages]
 
-    // truncate the message text according to the width
-    filtered = filtered.map((msg) => ({
-      ...msg,
-      text: TruncatedMessage(msg.text, containerRef)
-    }))
-
     // Apply filters
     switch (filterBy) {
       case "unread":
@@ -314,10 +290,11 @@ export default function MessageList({
                     key={action.id}
                     onClick={() => handleBulkAction(action.id)}
                     disabled={actionLoading === action.id}
-                    className={`px-3 py-1 text-sm rounded transition-colors ${action.danger
-                      ? "bg-red-100 hover:bg-red-200 text-red-700"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                      } disabled:opacity-50`}
+                    className={`px-3 py-1 text-sm rounded transition-colors ${
+                      action.danger
+                        ? "bg-red-100 hover:bg-red-200 text-red-700"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    } disabled:opacity-50`}
                   >
                     {actionLoading === action.id ? "..." : action.label}
                   </button>
@@ -399,8 +376,9 @@ export default function MessageList({
           {filteredMessages.map((message) => (
             <div
               key={message._id}
-              className={`flex items-center p-4 hover:bg-gray-50 cursor-pointer transition-colors ${selectedMessage?._id === message._id ? "bg-blue-50 border-r-4 border-blue-500" : ""
-                } ${!message.read ? "bg-blue-25" : ""}`}
+              className={`flex items-center p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                selectedMessage?._id === message._id ? "bg-blue-50 border-r-4 border-blue-500" : ""
+              } ${!message.read ? "bg-blue-25" : ""}`}
             >
               {/* Checkbox */}
               <div className="flex-shrink-0 mr-3">
@@ -470,7 +448,7 @@ export default function MessageList({
                 >
                   {message.subject || "(No subject)"}
                 </div>
-                <div ref={containerRef} className="text-xs text-gray-500 truncate">{message.text || "No preview available"}</div>
+                <div className="text-xs text-gray-500 truncate">{message.text || "No preview available"}</div>
                 {message.messageCount > 1 && (
                   <div className="text-xs text-blue-600 mt-1">{message.messageCount} messages in conversation</div>
                 )}
