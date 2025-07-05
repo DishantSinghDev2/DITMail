@@ -10,7 +10,8 @@
     "lib": "lib"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsc",
+    "dev": "ts-node ws-server.ts"
   },
   "dependencies": {
     "express": "^5.1.0",
