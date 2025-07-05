@@ -9,7 +9,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "ws dev": "ts-node ws/ws-server.ts"
+    "ws": "ts-node ws/ws-server.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "latest",
