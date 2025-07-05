@@ -336,7 +336,7 @@ export default function MailInterface() {
             onStar={handleStarMessage}
             onBack={handleOnBack}
             totalMessages={messages.length}
-            currentMessage={currentIndex + 1}
+            currentMessage={messages.findIndex(m => m.id === selectedMessage.id) + 1}
             onPrevious={handleOnPrevious}
             onNext={handleOnNext}
           /> : <MessageList
