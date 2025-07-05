@@ -17,6 +17,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid"
 import Dropdown from "./ui/Dropdown"
+import { ArrowLeft } from "lucide-react"
 
 interface MessageViewProps {
   message: any
@@ -25,6 +26,7 @@ interface MessageViewProps {
   onForward: (message: any) => void
   onDelete: (messageId: string) => void
   onStar: (messageId: string, starred: boolean) => void
+  onBack: () => void;
 }
 
 export default function MessageView({
@@ -34,6 +36,7 @@ export default function MessageView({
   onForward,
   onDelete,
   onStar,
+  onBack
 }: MessageViewProps) {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const [showFullHeaders, setShowFullHeaders] = useState(false)
@@ -327,7 +330,7 @@ export default function MessageView({
       <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
           <div className="text-4xl mb-4">📧</div>
-          <p>Select a message to read</p>
+          <p>No message is selected to read</p>
         </div>
       </div>
     )
@@ -341,6 +344,9 @@ export default function MessageView({
       {/* Header */}
       <div className="border-b border-gray-200 p-4 bg-white">
         <div className="flex items-center justify-between mb-2">
+          <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full mr-3">
+            <ArrowLeft className="h-5 w-5 text-gray-400" />
+          </button>
           <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
           <div className="flex items-center space-x-2">
             <button
@@ -405,21 +411,18 @@ export default function MessageView({
             className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
           >
             <ArrowUturnLeftIcon className="h-4 w-4" />
-            <span>Reply</span>
           </button>
           <button
             onClick={() => onForward(latestMessage)}
             className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
           >
             <ArrowUturnRightIcon className="h-4 w-4" />
-            <span>Forward</span>
           </button>
           <button
             onClick={() => onDelete(latestMessage._id)}
             className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 text-red-600 rounded-md hover:bg-red-50"
           >
             <TrashIcon className="h-4 w-4" />
-            <span>Delete</span>
           </button>
         </div>
       </div>

@@ -203,6 +203,11 @@ export default function MailInterface() {
     setIsComposeOpen(true)
   }
 
+  const handleOnBack = () => {
+    setSelectedMessage(null)
+    setSelectedThread(null)
+  }
+
   const handleForward = (message: any) => {
     setReplyMessage(message)
     setComposeMode("forward")
@@ -315,6 +320,7 @@ export default function MailInterface() {
             onForward={handleForward}
             onDelete={handleDeleteMessage}
             onStar={handleStarMessage}
+            onBack={handleOnBack}
           /> : <MessageList
             messages={messages}
             loading={loading}

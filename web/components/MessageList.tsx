@@ -409,11 +409,9 @@ export default function MessageList({
               </div>
 
               {/* Message Content */}
-              {/* FIX 1: Add `overflow-hidden` to the main content block. This ensures that even if child elements try to overflow, they will be clipped by this container, allowing `truncate` to work correctly. */}
-              <div className="flex-1 min-w-0 overflow-hidden" onClick={() => onMessageSelect(message)}>
+              <div className="flex-1 min-w-0" onClick={() => onMessageSelect(message)}>
                 <div className="flex items-center justify-between mb-1">
-                  {/* FIX 2: Add `min-w-0` to this flex container to allow the child `span` to truncate properly when the sender/recipient name is long. */}
-                  <div className="flex items-center space-x-2 min-w-0">
+                  <div className="flex items-center space-x-2">
                     <span
                       className={`text-sm truncate ${!message.read ? "font-semibold text-gray-900" : "font-medium text-gray-700"}`}
                     >
@@ -450,8 +448,7 @@ export default function MessageList({
                 >
                   {message.subject || "(No subject)"}
                 </div>
-                {/* FIX 3: Removed trailing space in className for cleanliness. */}
-                <div className="text-xs text-gray-500 truncate">{message.text || "No preview available"}</div>
+                <div className="text-xs text-gray-500 truncate ">{message.text || "No preview available"}</div>
                 {message.messageCount > 1 && (
                   <div className="text-xs text-blue-600 mt-1">{message.messageCount} messages in conversation</div>
                 )}
