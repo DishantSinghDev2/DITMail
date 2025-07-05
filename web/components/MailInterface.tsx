@@ -307,25 +307,25 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden border-r border-gray-200 w-full flex">
-            {selectedMessage ? <MessageView
-              message={selectedMessage}
-              threadMessages={threadMessages}
-              onReply={handleReply}
-              onForward={handleForward}
-              onDelete={handleDeleteMessage}
-              onStar={handleStarMessage}
-            /> : <MessageList
-              messages={messages}
-              loading={loading}
-              selectedMessage={selectedMessage}
-              onMessageSelect={handleMessageSelect}
-              onRefresh={fetchMessages}
-              onStar={handleStarMessage}
-              onDelete={handleDeleteMessage}
-              folder={selectedFolder}
-            />
-            }
+        <div className="overflow-hidden border-r border-gray-200 w-full">
+          {selectedMessage ? <MessageView
+            message={selectedMessage}
+            threadMessages={threadMessages}
+            onReply={handleReply}
+            onForward={handleForward}
+            onDelete={handleDeleteMessage}
+            onStar={handleStarMessage}
+          /> : <MessageList
+            messages={messages}
+            loading={loading}
+            selectedMessage={selectedMessage}
+            onMessageSelect={handleMessageSelect}
+            onRefresh={fetchMessages}
+            onStar={handleStarMessage}
+            onDelete={handleDeleteMessage}
+            folder={selectedFolder}
+          />
+          }
         </div>
       </div>
 
