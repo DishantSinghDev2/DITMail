@@ -20,7 +20,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     if (!user) return
 
     // Setup Socket.IO client
-    const socket: typeof Socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3000", {
+    const socket: typeof Socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:4000", {
       path: "/ws",
       auth: { token }
     })
