@@ -307,10 +307,10 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="flex-1 overflow-hidden w-full flex">
+        <div className="flex-1 overflow-hidden max-w-full flex">
           {viewMode === "split" ? (
             <>
-              <div className="w-1/2 border-r border-gray-200">
+              <div className="max-w-1/2 border-r border-gray-200">
                 <MessageList
                   messages={messages}
                   loading={loading}
@@ -322,7 +322,7 @@ export default function MailInterface() {
                   folder={selectedFolder}
                 />
               </div>
-              <div className="w-1/2">
+              <div className="max-w-1/2">
                 <MessageView
                   message={selectedMessage}
                   threadMessages={threadMessages}

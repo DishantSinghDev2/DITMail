@@ -371,7 +371,7 @@ export default function MessageList({
       </div>
 
       {/* Message List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto" >
         <div className="divide-y divide-gray-200">
           {filteredMessages.map((message) => (
             <div
