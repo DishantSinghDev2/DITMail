@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react"
 import { formatDistanceToNow } from "date-fns"
 import {
   PaperClipIcon,
@@ -33,12 +33,12 @@ function TruncatedMessage({ text }: { text: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [slicedText, setSlicedText] = useState(text);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
     const width = container.offsetWidth;
-    const approxCharWidth = 7; // depends on font
+    const approxCharWidth = 7;
     const maxChars = Math.floor(width / approxCharWidth);
 
     if (text.length > maxChars) {
