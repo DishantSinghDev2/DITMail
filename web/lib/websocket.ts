@@ -1,8 +1,43 @@
 import { Server } from "socket.io"
-import { getRedisClient } from "./redis-server"
-import { verifyToken } from "./auth"
+import jwt  from "jsonwebtoken"
+import { Redis } from "ioredis"
 
+const JWT_SECRET = process.env.JWT_SECRET!
+
+export interface JWTPayload {
+  userId: string
+  email: string
+  orgId: string
+  role: string
+  sessionId: string
+}
+
+function verifyToken(token: string): JWTPayload | null {
+  try {
+    return jwt.verify(token, JWT_SECRET) as JWTPayload
+  } catch {
+    return null
+  }
+}
+
+// Server-side Redis client (not for Edge Runtime)
+let redis: Redis | null = null
+
+function getRedisClient() {
+  if (!redis) {
+    redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379")
+  }
+  return redis
+}
 let io: Server
+
+declare module "socket.io" {
+  interface Socket {
+    userId: string
+    userEmail: string
+    orgId: string
+  }
+}
 
 export function initializeWebSocket(server: any) {
   if (!io) {
