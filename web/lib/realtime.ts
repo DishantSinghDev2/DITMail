@@ -1,5 +1,5 @@
 import { redis, publishMailboxEvent } from "./redis"
-import { io } from "./websocket"
+import { io } from "../../ws/lib/websocket"
 
 export class RealtimeService {
   private static instance: RealtimeService
