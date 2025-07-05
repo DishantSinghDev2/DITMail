@@ -44,9 +44,11 @@ export function initializeWebSocket(server: any) {
     io = new Server(server, {
       cors: {
         origin: process.env.NEXT_PUBLIC_APP_URL,
-        methods: ["GET", "POST"],
+        methods: ["GET", "POST"]
       },
+      transports: ["websocket", "polling"], // optional
     })
+    
 
     io.use(async (socket, next) => {
       try {
