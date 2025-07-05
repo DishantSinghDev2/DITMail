@@ -53,22 +53,6 @@ export function initializeWebSocket(server: any) {
         subscriber.quit()
       })
 
-      // Handle typing indicators for compose
-      socket.on("typing_start", (data) => {
-        socket.to(`org:${socket.orgId}`).emit("user_typing", {
-          userId: socket.userId,
-          email: socket.userEmail,
-          ...data,
-        })
-      })
-
-      socket.on("typing_stop", (data) => {
-        socket.to(`org:${socket.orgId}`).emit("user_stopped_typing", {
-          userId: socket.userId,
-          email: socket.userEmail,
-          ...data,
-        })
-      })
     })
 
     // Redis subscriber for system-wide events

@@ -27,6 +27,10 @@ interface MessageViewProps {
   onDelete: (messageId: string) => void
   onStar: (messageId: string, starred: boolean) => void
   onBack: () => void;
+  totalMessages: number;
+  currentMessage: number;
+  onNext: () => void;
+  onPrevious: () => void;
 }
 
 export default function MessageView({
@@ -36,7 +40,11 @@ export default function MessageView({
   onForward,
   onDelete,
   onStar,
-  onBack
+  onBack,
+  totalMessages,
+  currentMessage,
+  onNext,
+  onPrevious
 }: MessageViewProps) {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const [showFullHeaders, setShowFullHeaders] = useState(false)
@@ -375,17 +383,19 @@ export default function MessageView({
         <div className="flex items-center justify-between mb-2">
           {/* Action Buttons */}
           <div className="flex items-center space-x-3">
-            <button onClick={onBack} className="p-2 hover:bg-gray-100 rounded-full">
+            <button onClick={onBack} title="Go back" className="p-2 hover:bg-gray-100 rounded-full">
               <ArrowLeft className="h-5 w-5 text-gray-400" />
             </button>
 
             <button
+              title="Archive"
               onClick={() => onArchive(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <Archive className="h-4 w-4 text-gray-400" />
             </button>
             <button
+              title="Mark as spam"
               onClick={() => markAsSpam(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
@@ -393,18 +403,21 @@ export default function MessageView({
             </button>
             <div className="bg-gray-400 w-0.5 h-[14px] "></div>
             <button
+              title="Mark as unread"
               onClick={() => markAsUnRead(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <MailMinus className="h-4 w-4 text-gray-400" />
             </button>
             <button
+              title="Delete"
               onClick={() => onDelete(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <TrashIcon className="h-4 w-4 text-red-400" />
             </button>
             <button
+              title="Star"
               onClick={() => onStar(latestMessage._id, !latestMessage.starred)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
@@ -416,7 +429,7 @@ export default function MessageView({
             </button>
             <Dropdown
               trigger={
-                <button className="p-2 hover:bg-gray-100 rounded-full">
+                <button title="More options" className="p-2 hover:bg-gray-100 rounded-full">
                   <EllipsisVerticalIcon className="h-5 w-5 text-gray-400" />
                 </button>
               }
@@ -440,11 +453,27 @@ export default function MessageView({
             />
           </div>
 
-          <div className="flex items-center space-x-2">
-            <p>1/1033</p>
-            <div className="flex flex-row gap-2">
-              <ChevronLeft className="w-3 h-3" />
-              <ChevronRight className="w-3 h-3" />
+          <div className="flex items-center space-x-3">
+            <div className="text-sm">
+              {currentMessage} of {totalMessages}
+            </div>
+            <div className="flex flex-row gap-3">
+              <button
+                title="Back"
+                onClick={() => onPrevious()}
+                className="p-2 hover:bg-gray-100 rounded-full"
+                disabled={currentMessage == 1}
+              >
+                <ChevronLeft className="w-3 h-3" />
+              </button>
+              <button
+                title="Next"
+                onClick={() => onNext()}
+                className="p-2 hover:bg-gray-100 rounded-full"
+                disabled={currentMessage == totalMessages}
+              >
+                <ChevronRight className="w-3 h-3" />
+              </button>
             </div>
           </div>
         </div>

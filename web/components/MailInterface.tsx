@@ -197,6 +197,19 @@ export default function MailInterface() {
     }
   }
 
+  const currentIndex = messages.findIndex(m => m.id === selectedMessage.id);
+  const handleOnPrevious = () => {
+    if (currentIndex > 0) {
+      setSelectedMessage(messages[currentIndex - 1]);
+    }
+  };
+  
+  const handleOnNext = () => {
+    if (currentIndex < messages.length - 1) {
+      setSelectedMessage(messages[currentIndex + 1]);
+    }
+  };
+  
   const handleReply = (message: any) => {
     setReplyMessage(message)
     setComposeMode("reply")
@@ -321,6 +334,10 @@ export default function MailInterface() {
             onDelete={handleDeleteMessage}
             onStar={handleStarMessage}
             onBack={handleOnBack}
+            totalMessages={messages.length}
+            currentMessage={currentIndex + 1}
+            onPrevious={handleOnPrevious}
+            onNext={handleOnNext}
           /> : <MessageList
             messages={messages}
             loading={loading}
