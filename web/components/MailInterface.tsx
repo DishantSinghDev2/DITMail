@@ -239,7 +239,7 @@ export default function MailInterface() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex  flex-col">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">
@@ -312,7 +312,7 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="overflow-hidden border-r border-gray-200 w-full">
+        <div className="overflow-x-hidden overflow-y-auto border-r border-gray-200 w-full">
           {selectedMessage ? <MessageView
             message={selectedMessage}
             threadMessages={threadMessages}

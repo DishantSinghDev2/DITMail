@@ -383,26 +383,26 @@ export default function MessageView({
               onClick={() => onArchive(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <Archive className="h-4 w-4 " />
+              <Archive className="h-4 w-4 text-gray-400" />
             </button>
             <button
               onClick={() => markAsSpam(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <OctagonAlert className="h-4 w-4" />
+              <OctagonAlert className="h-4 w-4 text-gray-400" />
             </button>
-            <div className="bg-gray-700 w-0.5 h-5 "></div>
+            <div className="bg-gray-400 w-0.5 h-[14px] "></div>
             <button
               onClick={() => markAsUnRead(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <MailMinus className="h-4 w-4" />
+              <MailMinus className="h-4 w-4 text-gray-400" />
             </button>
             <button
               onClick={() => onDelete(latestMessage._id)}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 text-red-600 rounded-md hover:bg-red-50"
+              className="p-2 hover:bg-gray-100 rounded-full"
             >
-              <TrashIcon className="h-4 w-4" />
+              <TrashIcon className="h-4 w-4 text-red-400" />
             </button>
             <button
               onClick={() => onStar(latestMessage._id, !latestMessage.starred)}
@@ -461,24 +461,24 @@ export default function MessageView({
           <div className="mb-4 text-sm text-gray-600">{displayMessages.length} messages in this conversation</div>
         )}
         {displayMessages.map((msg) => renderMessage(msg, displayMessages.length > 1))}
+        <div className="flex items-center justify-between mb-2">
+          <button
+            onClick={() => onReply(latestMessage)}
+            className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            <ArrowUturnLeftIcon className="h-4 w-4" />
+            <span>Reply</span>
+          </button>
+          <button
+            onClick={() => onForward(latestMessage)}
+            className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+          >
+            <ArrowUturnRightIcon className="h-4 w-4" />
+            <span>Forward</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between mb-2">
-        <button
-          onClick={() => onReply(latestMessage)}
-          className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
-        >
-          <ArrowUturnLeftIcon className="h-4 w-4" />
-          <span>Reply</span>
-        </button>
-        <button
-          onClick={() => onForward(latestMessage)}
-          className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
-        >
-          <ArrowUturnRightIcon className="h-4 w-4" />
-          <span>Forward</span>
-        </button>
-      </div>
 
       {/* Loading Overlay */}
       {loading && (
