@@ -197,14 +197,15 @@ export default function MailInterface() {
     }
   }
 
-  const currentIndex = messages.findIndex(m => m.id === selectedMessage.id);
   const handleOnPrevious = () => {
+    const currentIndex = messages.findIndex(m => m.id === selectedMessage.id);
     if (currentIndex > 0) {
       setSelectedMessage(messages[currentIndex - 1]);
     }
   };
   
   const handleOnNext = () => {
+    const currentIndex = messages.findIndex(m => m.id === selectedMessage.id);
     if (currentIndex < messages.length - 1) {
       setSelectedMessage(messages[currentIndex + 1]);
     }
