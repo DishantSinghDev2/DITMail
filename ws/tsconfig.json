@@ -9,6 +9,6 @@
       "strict": true,
       "resolveJsonModule": true
     },
-    "include": ["ws/**/*.ts", "lib/**/*.ts"]
+    "include": ["**/*.ts", "lib/**/*.ts"]
   }
   
