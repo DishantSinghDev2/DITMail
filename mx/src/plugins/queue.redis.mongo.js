@@ -89,45 +89,49 @@ exports.save_to_mongo = function (next, connection) {
         
         // 3. Process and upload attachments to GridFS, then prepare for the 'attachments' collection
         if (parsed.attachments?.length) {
-            const attachmentPromises = parsed.attachments.map(att =>
-                new Promise((resolve, reject) => {
-                    const uploadStream = gfsBucket.openUploadStream(att.filename, {
-                        contentType: att.contentType,
-                        metadata: {
-                            user_id: userId,
-                            message_id: messageMongoId, // Pre-link to the message
-                            original_filename: att.filename
-                        },
-                    });
-                    
-                    uploadStream.on('finish', (file) => {
-                        // Prepare the document for the 'attachments' collection
-                        const attachmentDoc = {
-                            _id: new ObjectId(), // Generate its own ID
-                            filename: att.filename,
-                            mimeType: att.contentType,
-                            user_id: userId,
-                            gridfs_id: file._id, // The ID of the file in GridFS chunks/files
-                            message_id: messageMongoId,
-                            size: att.size,
-                            created_at: new Date(),
-                        };
-                        resolve(attachmentDoc);
-                    });
-                    
-                    uploadStream.on('error', reject);
-                    uploadStream.end(att.content);
-                })
-            );
-
-            const attachmentDocs = await Promise.all(attachmentPromises);
-
-            if (attachmentDocs.length > 0) {
+          const attachmentPromises = parsed.attachments.map(att =>
+              new Promise((resolve, reject) => {
+                  const uploadStream = gfsBucket.openUploadStream(att.filename, {
+                      contentType: att.contentType,
+                      metadata: {
+                          user_id: userId,
+                          message_id: messageMongoId,
+                          original_filename: att.filename
+                      },
+                  });
+      
+                  // Get the ID right away. It's available synchronously on the stream object.
+                  const gridfsId = uploadStream.id;
+      
+                  // Note: The 'file' parameter in the callback is removed as it's unreliable.
+                  uploadStream.on('finish', () => {
+                      // Prepare the document for the 'attachments' collection
+                      const attachmentDoc = {
+                          _id: new ObjectId(), // Generate its own ID for the attachments collection
+                          filename: att.filename,
+                          mimeType: att.contentType,
+                          user_id: userId,
+                          gridfs_id: gridfsId,
+                          message_id: messageMongoId,
+                          size: att.size,
+                          created_at: new Date(),
+                      };
+                      resolve(attachmentDoc);
+                  });
+      
+                  uploadStream.on('error', reject);
+                  uploadStream.end(att.content);
+              })
+          );
+      
+          const attachmentDocs = await Promise.all(attachmentPromises);
+      
+          if (attachmentDocs.length > 0) {
               const insertResult = await db.collection('attachments').insertMany(attachmentDocs);
               // Collect the newly inserted ObjectId's for the message's 'attachments' array
               Object.values(insertResult.insertedIds).forEach(id => attachmentIds.push(id));
-            }
-        }
+          }
+      }
         
         // 4. Construct the document for the 'messages' collection
         const folder = classify(parsed);
