@@ -30,7 +30,6 @@ interface MessageListProps {
 }
 
 const TruncatedMessage = (text: string, containerRef: any) => {
-  const [slicedText, setSlicedText] = useState(text);
 
   const container = containerRef.current;
   if (!container) return;
@@ -40,11 +39,10 @@ const TruncatedMessage = (text: string, containerRef: any) => {
   const maxChars = Math.floor(width / approxCharWidth);
 
   if (text.length > maxChars) {
-    setSlicedText(text.slice(0, maxChars - 3) + "...");
+    text = (text.slice(0, maxChars - 3) + "...");
   }
 
-  return slicedText
-
+  return text
 }
 
 
