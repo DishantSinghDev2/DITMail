@@ -25,7 +25,6 @@ interface MailSidebarProps {
   newMessages: number
   user: any
   onLogout: () => void
-  refreshCount: () => void
 }
 export type MailSidebarHandle = {
   refreshCount: () => void
@@ -511,3 +510,5 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     )
   }
 )
+
+export default MailSidebar
