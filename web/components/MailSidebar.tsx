@@ -83,11 +83,11 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
       return () => clearInterval(interval)
     }, [])
 
-    const refreshCount = () => fetchFolderCounts
+    const refreshCount = () => fetchFolderCounts()
 
 
     useImperativeHandle(ref, () => ({
-      refreshCount,
+      refreshCount
     }))
 
 
