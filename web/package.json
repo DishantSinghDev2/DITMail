@@ -49,6 +49,7 @@
     "autoprefixer": "^10.4.20",
     "axios": "^1.10.0",
     "bcryptjs": "latest",
+    "bullmq": "^5.56.1",
     "chart.js": "latest",
     "child_process": "latest",
     "class-variance-authority": "^0.7.1",

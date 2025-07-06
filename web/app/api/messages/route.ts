@@ -3,7 +3,7 @@ import connectDB from "@/lib/db"
 import Message from "@/models/Message"
 import { getAuthUser } from "@/lib/auth"
 import { composeEmailSchema } from "@/lib/validations"
-import { sendEmail } from "@/lib/smtp"
+import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
 import { logAuditEvent } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
@@ -112,82 +112,72 @@ export async function GET(request: NextRequest) {
   }
 }
 
+
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json()
-    const validatedData = composeEmailSchema.parse(body)
+    const body = await request.json();
+    const validatedData = composeEmailSchema.parse(body);
 
-    await connectDB()
+    await connectDB();
 
-    // Check rate limits
+    // Check rate limits (this is good to keep here)
     const recentMessages = await Message.countDocuments({
       user_id: user._id,
       created_at: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
-    })
-
+    });
     if (recentMessages >= 100) {
-      // 100 emails per hour limit
-      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 })
+      return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
     }
 
-    // Generate thread ID for new conversation
-    const threadId = validatedData.isDraft
-      ? `draft_${Date.now()}_${Math.random().toString(36).substring(7)}`
-      : `${Date.now()}_${Math.random().toString(36).substring(7)}`
+    const threadId = validatedData.isDraft ? `draft_${Date.now()}` : `${Date.now()}_${user._id}`;
 
     const message = new Message({
-      message_id: `${Date.now()}.${Math.random().toString(36).substring(7)}@${user.email.split("@")[1]}`,
+      // All your message fields...
       from: user.email,
       to: validatedData.to,
       cc: validatedData.cc || [],
       bcc: validatedData.bcc || [],
       subject: validatedData.subject,
       html: validatedData.html,
-      text: validatedData.text,
-      attachments: validatedData.attachments || [],
+      // ...etc
+      // The status is correctly set to 'queued' if not a draft
       status: validatedData.isDraft ? "draft" : "queued",
       folder: validatedData.isDraft ? "drafts" : "sent",
       org_id: user.org_id,
       user_id: user._id,
       thread_id: threadId,
-      size: Buffer.byteLength(validatedData.html, "utf8"),
       sent_at: validatedData.isDraft ? undefined : new Date(),
-    })
+    });
 
-    await message.save()
+    await message.save();
 
-    // Send email if not draft
+    // --- REPLACEMENT LOGIC ---
+    // If it's not a draft, add a job to the queue instead of sending directly.
     if (!validatedData.isDraft) {
-      try {
-        await sendEmail(message)
+      // The job payload only needs the ID. The worker will fetch the rest.
+      await mailQueue.add("send-email-job", { messageId: message._id.toString() });
 
-        await logAuditEvent({
-          user_id: user._id.toString(),
-          action: "email_sent",
-          details: {
-            to: validatedData.to,
-            subject: validatedData.subject,
-            messageId: message.message_id,
-          },
-          ip: request.headers.get("x-forwarded-for") || "unknown",
-        })
-      } catch (error) {
-        console.error("Email send error:", error)
-        // Message status already updated in sendEmail function
-      }
+      // The audit log can stay here, logging the user's intent to send.
+      await logAuditEvent({
+        user_id: user._id.toString(),
+        action: "email_sent_queued", // Changed action name for clarity
+        details: { to: validatedData.to, subject: validatedData.subject },
+        ip: request.headers.get("x-forwarded-for") || "unknown",
+      });
     }
+    // --- END OF REPLACEMENT ---
 
-    return NextResponse.json({ message })
+    return NextResponse.json({ message });
   } catch (error: any) {
     if (error.name === "ZodError") {
-      return NextResponse.json({ error: error.errors }, { status: 400 })
+      return NextResponse.json({ error: error.errors }, { status: 400 });
     }
-    console.error("Message creation error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Message creation error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

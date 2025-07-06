@@ -335,7 +335,7 @@ export default function MailInterface() {
         </header>
 
         {/* Content Area */}
-        <div className="overflow-x-hidden overflow-y-auto border-r border-gray-200 w-full">
+        <div className="overflow-x-hidden overflow-y-auto  border-r border-gray-200 w-full">
           {selectedMessage ? <MessageView
             message={selectedMessage}
             threadMessages={threadMessages}

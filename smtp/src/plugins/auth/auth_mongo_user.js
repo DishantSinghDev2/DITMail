@@ -1,213 +1,192 @@
-// Haraka plugin for authenticating users against a MongoDB database.
-//
-// This plugin correctly uses Haraka's 'auth_base' framework.
-// Passwords in the database must be hashed with bcrypt.
+// Haraka plugin for unified user authentication against MongoDB.
+// Supports both encrypted App Passwords (for internal services)
+// and bcrypt-hashed passwords (for end-user email clients).
 
 const mongodb = require('mongodb');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
-// These are module-level variables to hold the database connection.
-// They are initialized once in load_mongo_config().
-let db, users;
+// --- Module-level variables ---
+let db, users, domains, appPasswords;
+const ALGORITHM = 'aes-256-cbc';
+let ENCRYPTION_KEY;
 
-/**
- * Register the plugin with Haraka.
- */
+// --- Helper function for decryption ---
+function decrypt(text, key, plugin) {
+  try {
+    const parts = text.split(':');
+    if (parts.length < 2) throw new Error('Invalid encrypted text format.');
+    const iv = Buffer.from(parts.shift(), 'hex');
+    const encryptedText = parts.join(':');
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+    decrypted += decipher.final('utf8');
+    return decrypted;
+  } catch (e) {
+    plugin.logerror(`Decryption failed: ${e.message}`);
+    return null; // Return null on failure
+  }
+}
+
+// --- Haraka Plugin Registration ---
 exports.register = function () {
     const plugin = this;
-
-    // VERY IMPORTANT: This tells Haraka to use this plugin within its
-    // built-in authentication framework. This is what was missing
-    // from your original attempt and what caused the '500' error.
     plugin.inherits('auth/auth_base');
-
-    // Load our custom configuration from auth_mongo.ini
     plugin.load_mongo_config();
-    plugin.load_tls_ini();
-}
+};
 
-exports.load_tls_ini = function () {
-    this.tls_cfg = this.config.get('tls.ini', () => {
-        this.load_tls_ini();
-    });
-}
-
-/**
- * Load configuration from auth_mongo.ini and connect to MongoDB.
- */
 exports.load_mongo_config = function () {
     const plugin = this;
-
-    // Load config from haraka/config/auth_mongo_user.ini
     const config = plugin.config.get('auth_mongo_user.ini', {
         booleans: ['main.require_tls'],
     });
 
-    // Store config for later use
     plugin.cfg = {
-        uri: config.main.uri || 'mongodb://localhost:27017/ditmail',
-        collection: config.main.collection || 'users',
-        // It's highly recommended to require TLS for authentication.
-        // Default to true for security.
+        uri: config.main.uri || 'mongodb://127.0.0.1:27017/ditmail',
+        userCollection: config.main.collection || 'users',
+        appPasswordCollection: config.main.app_password_collection || 'apppasswords',
+        domainCollection: 'domains',
+        encryption_key: config.main.encryption_key || '', // Load the key from config
         require_tls: config.main.require_tls !== false,
     };
 
-    // Establish the MongoDB connection
+    // Validate the encryption key
+    if (!plugin.cfg.encryption_key) {
+        plugin.logcrit("encryption_key is missing in auth_mongo_user.ini. App password auth will fail.");
+    } else {
+        ENCRYPTION_KEY = Buffer.from(plugin.cfg.encryption_key, 'base64');
+        if (ENCRYPTION_KEY.length !== 32) {
+            plugin.logcrit("encryption_key must be a 32-byte, base64-encoded string.");
+        }
+    }
+
     mongodb.MongoClient.connect(plugin.cfg.uri, { useUnifiedTopology: true })
         .then(client => {
-            db = client.db(); // Use the database specified in the URI
-            users = db.collection(plugin.cfg.collection);
-            domains = db.collection('domains'); // Assuming you have a domains collection
-            plugin.loginfo(`Connected to MongoDB for auth, using collection "${plugin.cfg.collection}"`);
+            db = client.db();
+            users = db.collection(plugin.cfg.userCollection);
+            domains = db.collection(plugin.cfg.domainCollection);
+            appPasswords = db.collection(plugin.cfg.appPasswordCollection);
+            plugin.loginfo(`Unified Auth: Connected to MongoDB.`);
         })
         .catch(err => {
-            // Log a severe error if the connection fails, as auth will not work.
-            plugin.logcrit(`Failed to connect to MongoDB: ${err.message}. Authentication will fail.`);
+            plugin.logcrit(`Unified Auth: MongoDB connection failed: ${err.message}`);
         });
 };
 
-/**
- * hook_capabilities is called by Haraka to determine which features (capabilities)
- * to advertise to the SMTP client.
- */
 exports.hook_capabilities = (next, connection) => {
-    // This hook is called after the TLS handshake is complete (if any).
-    // We only offer AUTH capabilities if the connection is secure.
+    // Only offer AUTH if the connection is secure (TLS).
     if (connection.tls.enabled) {
-        const methods = [ 'PLAIN', 'LOGIN' ];
+        const methods = ['PLAIN', 'LOGIN'];
         connection.capabilities.push(`AUTH ${methods.join(' ')}`);
         connection.notes.allowed_auth_methods = methods;
     }
     next();
-}
+};
 
-/**
- * This is the core function required by 'auth_base'. Haraka calls this
- * function after receiving the username and password for both PLAIN and LOGIN auth.
- *
- * @param {object} connection - The connection object.
- * @param {string} username   - The email address provided by the client.
- * @param {string} password   - The password provided by the client.
- * @param {function} cb       - The callback to call with the result. cb(true) for success, cb(false) for failure.
- */
 exports.check_plain_passwd = async function (connection, username, password, cb) {
     const plugin = this;
 
-    // 1. Check if the MongoDB connection is established.
-    if (!users) {
-        plugin.logerror("Authentication check failed: MongoDB connection is not ready.");
-        // Provide a user-friendly (but generic) message.
-        connection.notes.auth_message = "Server temporarily unavailable, please try again later.";
-        return cb(false); // Authentication fails
+    if (!users || !appPasswords) {
+        plugin.logerror("Unified Auth: MongoDB connection not ready.");
+        connection.notes.auth_message = "Server temporarily unavailable.";
+        return cb(false);
     }
 
     try {
-        // 2. Find the user in the database by their email.
-        // Using toLowerCase() to ensure case-insensitive lookup for the username.
         const user = await users.findOne({ email: username.toLowerCase() });
 
-
-        // 3. If user is not found, fail authentication.
-        // We log it, but the client gets a generic failure message to prevent username enumeration.
         if (!user) {
-            plugin.logwarn(`AUTH failed for user: ${username} (not found)`);
+            plugin.logwarn(`Unified Auth: User ${username} not found.`);
             return cb(false);
         }
 
-        const org_id = user.org_id ? user.org_id.toString() : null;
-
-        // check if user has mailboxAccess
-        if (!user.mailboxAccess){
-            plugin.logwarn(`AUTH failed for user: ${username} ( you don't have mailbox access )`);
-            connection.notes.auth_message = "Your account doesn't have SMTP mailbox access.";
-            return cb(false);
-        }
-
-        // reject if the user is not active or does not have an organization ID
-        if (!org_id) {
-            plugin.logwarn(`AUTH failed for user: ${username} ( no org associated with acc )`);
-            connection.notes.auth_message = "Your account has not associated with an organization.";
-            return cb(false);
-        }
-
-        // If organization ID is present, then check if the username matches the organization's domain.
-        const domains = await domains.find({ org_id, status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
-
-        if (domains.length > 0) {
-            // Check if the username matches any of the organization's domains.
-            const domainMatch = domains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
-            if (!domainMatch) {
-                plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
-                connection.notes.auth_message = "Your email address does not match the organization's domain.";
-                return cb(false);
+        // --- AUTHENTICATION LOGIC ---
+        // 1. Try App Password Authentication FIRST (for automated services)
+        if (ENCRYPTION_KEY) {
+            const userAppPasswords = await appPasswords.find({ user_id: user._id }).toArray();
+            for (const ap of userAppPasswords) {
+                const plainTextPassword = decrypt(ap.encrypted_password, ENCRYPTION_KEY, plugin);
+                if (plainTextPassword !== null && plainTextPassword === password) {
+                    plugin.loginfo(`Unified Auth: User ${username} authenticated successfully via App Password.`);
+                    return plugin.on_auth_success(connection, user, cb);
+                }
             }
-        } else {
-            // reject if no verified domains are found for the organization
-            plugin.logwarn(`AUTH failed for user: ${username} (no verified domains)`);
-            connection.notes.auth_message = "Your organization does not have any verified domains.";
-            return cb(false);
+        }
+        
+        // 2. If App Password auth fails or is not configured, fall back to user password (bcrypt)
+        if (user.password_hash) {
+            const match = await bcrypt.compare(password, user.password_hash);
+            if (match) {
+                plugin.loginfo(`Unified Auth: User ${username} authenticated successfully via main password.`);
+                return plugin.on_auth_success(connection, user, cb);
+            }
         }
 
-        // 4. Compare the provided password with the stored hash.
-        const match = await bcrypt.compare(password, user.password_hash);
-
-        if (!match) {
-            plugin.logwarn(`AUTH failed for user: ${username} (bad password)`);
-            return cb(false);
-        }
-
-        // 5. Authentication successful!
-        plugin.loginfo(connection, `Authenticated user: ${username}`);
-
-        // Set the authenticated user on the connection for Haraka's core and other plugins.
-        // We store it in lowercase to make comparisons easier in other hooks.
-        connection.set('auth_user', username.toLowerCase());
-
-        // You can also store the full user object in connection.notes for other plugins to use.
-        connection.notes.auth_user_obj = {
-            id: user._id.toString(),
-            email: user.email,
-            role: user.role,
-            org_id: user.org_id
-        };
-
-        return cb(true); // Signal success to Haraka
+        // 3. If both methods fail, deny access.
+        plugin.logwarn(`Unified Auth: All authentication methods failed for user ${username}.`);
+        return cb(false);
 
     } catch (err) {
-        plugin.logerror(`MongoDB auth error for user ${username}: ${err.message}`);
+        plugin.logerror(`Unified Auth: Error for user ${username}: ${err.message}`);
         connection.notes.auth_message = "An error occurred during authentication.";
         return cb(false);
     }
 };
 
 /**
- * hook_mail is called for the 'MAIL FROM' SMTP command.
- * It's used here to enforce that an authenticated user can only send
- * mail from their own email address. This prevents sender spoofing.
+ * A helper function to run common logic on successful authentication.
  */
-exports.hook_mail = function (next, connection, params) {
+exports.on_auth_success = async function (connection, user, cb) {
     const plugin = this;
+    const username = user.email;
 
-    // Get the authenticated user. This is set in check_plain_passwd on success.
-    const authUser = connection.get('auth_user');
-    const mailFrom = params[0].address();
-
-    // If there's no authenticated user, this rule doesn't apply.
-    // Assuming this server is for submission, unauthenticated mail should be rejected.
-    if (!authUser) {
-        plugin.lognotice("MAIL FROM without authentication, denying.");
-        return next(DENY, "Authentication required to send mail.");
+    // --- Domain and Access Checks (from your original plugin) ---
+    if (!user.mailboxAccess){
+        plugin.logwarn(`AUTH failed for user: ${username} (no mailbox access)`);
+        connection.notes.auth_message = "Your account does not have SMTP mailbox access.";
+        return cb(false);
+    }
+    
+    const org_id = user.org_id ? user.org_id.toString() : null;
+    if (!org_id) {
+        plugin.logwarn(`AUTH failed for user: ${username} (no org associated)`);
+        connection.notes.auth_message = "Your account is not associated with an organization.";
+        return cb(false);
     }
 
-    // Compare the authenticated user's email with the MAIL FROM address.
-    // We compare them in lowercase to avoid case-sensitivity issues.
+    const orgDomains = await domains.find({ org_id: new mongodb.ObjectId(org_id), status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
+    if (orgDomains.length === 0) {
+        plugin.logwarn(`AUTH failed for user: ${username} (no verified domains for org)`);
+        connection.notes.auth_message = "Your organization does not have any verified domains.";
+        return cb(false);
+    }
+    
+    const domainMatch = orgDomains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
+    if (!domainMatch) {
+        plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
+        connection.notes.auth_message = "Your email address does not match your organization's domain.";
+        return cb(false);
+    }
+    
+    // --- All checks passed ---
+    connection.set('auth_user', username.toLowerCase());
+    connection.notes.user = user; // Store full user object
+    connection.relaying = true; // Allow sending outbound mail
+    
+    return cb(true);
+};
+
+exports.hook_mail = function (next, connection, params) {
+    const authUser = connection.get('auth_user');
+    if (!authUser) {
+        return next(DENY, "Authentication required.");
+    }
+
+    const mailFrom = params[0].address();
     if (mailFrom.toLowerCase() !== authUser) {
-        plugin.logwarn(`Authenticated user ${authUser} attempted to send as ${mailFrom}.`);
-        // Use a 550-series SMTP code for a permanent failure.
+        this.logwarn(`Authenticated user ${authUser} attempted to send as ${mailFrom}.`);
         return next(DENY, "Sender address does not match authenticated user.");
     }
 
-    // If the addresses match, the user is authorized.
-    plugin.loginfo(`User ${authUser} is authorized to send from ${mailFrom}.`);
-    return next(); // Continue to the next plugin
+    return next();
 };
