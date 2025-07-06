@@ -43,8 +43,9 @@ export function initializeWebSocket(server: any) {
   if (!io) {
     io = new Server(server, {
       cors: {
-        origin: process.env.NEXT_PUBLIC_APP_URL,
-        methods: ["GET", "POST"]
+        origin: "http://localhost:3000",
+        methods: ["GET", "POST"],
+        credentials: true
       },
       transports: ["websocket", "polling"], // optional
     })
