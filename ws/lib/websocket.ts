@@ -14,6 +14,7 @@ export interface JWTPayload {
 
 function verifyToken(token: string): JWTPayload | null {
   try {
+    console.log("The jwt secret used: ", JWT_SECRET)
     return jwt.verify(token, JWT_SECRET) as JWTPayload
   } catch {
     return null
