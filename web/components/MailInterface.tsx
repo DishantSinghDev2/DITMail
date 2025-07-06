@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useAuth } from "@/contexts/AuthContext"
 import { useRealtime } from "@/contexts/RealtimeContext"
-import MailSidebar from "./MailSidebar"
+import MailSidebar, { MailSidebarHandle } from "./MailSidebar"
 import MessageList from "./MessageList"
 import MessageView from "./MessageView"
 import ComposeModal from "./ComposeModal"
@@ -35,6 +35,12 @@ export default function MailInterface() {
   const [viewMode, setViewMode] = useState<"split" | "list">("split")
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose")
   const [replyMessage, setReplyMessage] = useState<any>(null)
+  const sidebarRef = useRef<MailSidebarHandle>(null)
+
+  const triggerRefresh = () => {
+    sidebarRef.current?.refreshCount()
+  }
+
 
   const { user, logout } = useAuth()
   const { newMessages, markMessagesRead } = useRealtime()
@@ -61,6 +67,7 @@ export default function MailInterface() {
       if (response.ok) {
         const data = await response.json()
         setMessages(data.messages)
+        triggerRefresh()
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
@@ -203,14 +210,14 @@ export default function MailInterface() {
       setSelectedMessage(messages[currentIndex - 1]);
     }
   };
-  
+
   const handleOnNext = () => {
     const currentIndex = messages.findIndex(m => m.id === selectedMessage.id);
     if (currentIndex < messages.length - 1) {
       setSelectedMessage(messages[currentIndex + 1]);
     }
   };
-  
+
   const handleReply = (message: any) => {
     setReplyMessage(message)
     setComposeMode("reply")
@@ -245,6 +252,7 @@ export default function MailInterface() {
     <div className="h-screen flex bg-gray-100">
       {/* Sidebar */}
       <MailSidebar
+        ref={sidebarRef}
         selectedFolder={selectedFolder}
         onFolderSelect={handleFolderSelect}
         onCompose={handleCompose}
