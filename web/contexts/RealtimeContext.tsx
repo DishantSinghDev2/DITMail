@@ -45,12 +45,18 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const token = localStorage.getItem("accessToken")
 
       // The actual URL should come from your environment variables
-      const socketUrl = "http://localhost:4000";
+      const isSecure = window.location.protocol === "https:";
+      const wsProtocol = isSecure ? "wss://" : "ws://";
+      const wsHost = window.location.hostname; // This will be your server's public IP or domain
+      const wsUrl = `${wsProtocol}${wsHost}:4000`;
 
-      const socket: Socket = io(socketUrl, {
+      console.log("Attempting to connect to WebSocket at:", wsUrl);
+
+      const socket: Socket = io(wsUrl, {
         auth: { token },
-        transports: ["websocket", "polling"] // Be explicit about transports
-      })
+        transports: ["websocket", "polling"]
+      });
+
 
       // Store the connected socket in the ref
       socketRef.current = socket
@@ -76,7 +82,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         // ... notification logic
       })
     }
-    
+
     // 4. Call the connection function.
     connectSocket()
 
