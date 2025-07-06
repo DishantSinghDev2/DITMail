@@ -52,22 +52,34 @@ export function initializeWebSocket(server: any) {
     
 
     io.use(async (socket, next) => {
-      try {
-        const token = socket.handshake.auth.token
-        const payload = verifyToken(token)
-
-        if (!payload) {
-          return next(new Error("Authentication error"))
-        }
-
-        socket.userId = payload.userId
-        socket.userEmail = payload.email
-        socket.orgId = payload.orgId
-        next()
-      } catch (error) {
-        next(new Error("Authentication error"))
+      const token = socket.handshake.auth.token;
+    
+      // Add this detailed logging
+      if (!token) {
+        console.error("Authentication failed: No token provided by the client.");
+        return next(new Error("Authentication error: No token"));
       }
-    })
+    
+      try {
+        const payload = verifyToken(token);
+    
+        if (!payload) {
+          // Add this detailed logging
+          console.error("Authentication failed: Token is invalid or expired. Token used:", token);
+          return next(new Error("Authentication error: Invalid token"));
+        }
+        
+        // ... success case
+        socket.userId = payload.userId;
+        console.log(`User ${payload.email} passed authentication.`);
+        next();
+    
+      } catch (error) {
+        // This catches errors inside jwt.verify itself
+        console.error("An unexpected error occurred during token verification:", error);
+        next(new Error("Authentication error"));
+      }
+    });
 
     io.on("connection", (socket) => {
       console.log(`User ${socket.userEmail} connected`)
