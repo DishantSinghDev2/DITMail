@@ -45,7 +45,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const token = localStorage.getItem("accessToken")
 
       // The actual URL should come from your environment variables
-      const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:4000";
+      const socketUrl = "http://localhost:4000";
 
       const socket: Socket = io(socketUrl, {
         auth: { token },
