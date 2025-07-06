@@ -1,3 +1,11 @@
+// STEP 1: CONFIGURE DOTENV AT THE VERY TOP
+// -------------------------------------------------------------------
+import { config } from "dotenv";
+config(); // This line reads your .env file and loads the variables
+// -------------------------------------------------------------------
+//
+
+
 import express from "express"
 import { createServer } from "http"
 import { initializeWebSocket } from "./lib/websocket"
