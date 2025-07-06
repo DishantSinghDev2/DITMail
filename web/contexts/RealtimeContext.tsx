@@ -1,15 +1,8 @@
 "use client"
 
-import React, { createContext, useContext, useState } from "react"
-import dynamic from "next/dynamic"
-
-// THIS IS THE KEY:
-// We dynamically import the entire SocketHandler component and explicitly
-// disable Server-Side Rendering (SSR) for it.
-const SocketHandler = dynamic(
-  () => import("@/components/SocketHandler"), // Adjust the import path as needed
-  { ssr: false }
-)
+import React, { createContext, useContext, useEffect, useState } from "react"
+import { useAuth } from "./AuthContext"
+import io, { Socket } from "socket.io-client"
 
 interface RealtimeContextType {
   newMessages: number
@@ -20,6 +13,28 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [newMessages, setNewMessages] = useState(0)
+  const {user} = useAuth()
+  
+  useEffect(() => {
+    if (!user) return
+    
+    const token = localStorage.getItem("accessToken")
+    // Setup Socket.IO client
+    const socket: typeof Socket = io("http://localhost:4000", {
+      auth: { token }
+    })
+
+    // Listen to mailbox events
+    socket.on("mailbox_event", (data) => {
+      console.log("New mail received:", data)
+
+      setNewMessages((prev) => prev + 1)
+    })
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [user])
 
   const markMessagesRead = () => {
     setNewMessages(0)
@@ -27,13 +42,6 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <RealtimeContext.Provider value={{ newMessages, markMessagesRead }}>
-      {/* 
-        This client-only component is now rendered here.
-        It will handle the socket connection and update state using the prop.
-        Because it's loaded with `ssr: false`, Next.js will not try to
-        bundle its problematic dependencies on the server.
-      */}
-      <SocketHandler setNewMessages={setNewMessages} />
       {children}
     </RealtimeContext.Provider>
   )
