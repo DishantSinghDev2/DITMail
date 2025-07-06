@@ -218,6 +218,7 @@ export default function MailInterface() {
   }
 
   const handleOnBack = () => {
+    fetchMessages()
     setSelectedMessage(null)
     setSelectedThread(null)
   }

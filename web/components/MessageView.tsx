@@ -137,7 +137,8 @@ export default function MessageView({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ folder: "spam" }),
-      })
+      }).then(() => onBack())
+
     } catch (error) {
       console.error("Mark as spam error:", error)
     }
@@ -153,7 +154,7 @@ export default function MessageView({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ label }),
-      })
+      }).then(() => onBack())
     } catch (error) {
       console.error("Add label error:", error)
     }
