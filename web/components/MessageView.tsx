@@ -18,6 +18,8 @@ import {
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid"
 import Dropdown from "./ui/Dropdown"
 import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react"
+import SpamBanner from "./messages/SpamBanner"
+import EmailViewer from "./messages/EmailViewer"
 
 interface MessageViewProps {
   message: any
@@ -172,6 +174,39 @@ export default function MessageView({
     }).then(() => onBack())
   }
 
+  const handleUnMarkSpam = async (messageId: string) => {
+    try {
+      const token = localStorage.getItem("accessToken")
+      await fetch(`/api/messages/${messageId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ folder: "inbox" }),
+      }).then(() => onBack())
+
+    } catch (error) {
+      console.error("Mark as non spam error:", error)
+    }
+  }
+
+  const handleDeleteForever = async (messageId: string) => {
+    try {
+      const token = localStorage.getItem("accessToken")
+      await fetch(`/api/messages/${messageId}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        }
+      }).then(() => onBack())
+
+    } catch (error) {
+      console.error("Delete forever error:", error)
+    }
+  }
+
   const onArchive = async (messageId: string) => {
     try {
 
@@ -310,34 +345,57 @@ export default function MessageView({
               </div>
             )}
 
+            {/* Show a banner when its a spam email */}
+            {msg.folder === "spam" && <SpamBanner onMarkNotSpam={() => handleUnMarkSpam(msg._id)} />}
+
             {/* Message Body */}
-            <div className="prose max-w-none mb-4">
-              <div dangerouslySetInnerHTML={{ __html: msg.html }} />
+            <div className="mb-4">
+              <EmailViewer html={msg.html} isSpam={msg.folder === "spam"} />
             </div>
 
             {/* Attachments */}
             {msg.attachments?.length > 0 && (
               <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-3">Attachments ({msg.attachments.length})</h4>
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Attachments ({msg.attachments.length})
+                </h4>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {msg.attachments.map((attachment: any) => (
-                    <div
-                      key={attachment._id}
-                      className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer"
-                      onClick={() => downloadAttachment(attachment._id, attachment.filename)}
-                    >
-                      <PaperClipIcon className="h-5 w-5 text-gray-400" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{attachment.filename}</p>
-                        <p className="text-xs text-gray-500">
-                          {attachment.mimeType} • {Math.round(attachment.size / 1024)} KB
-                        </p>
+                  {msg.attachments.map((attachment: any) => {
+                    const isSpam = msg.folder === 'spam';
+                    return (
+                      <div
+                        key={attachment._id}
+                        className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition
+              ${isSpam
+                            ? 'bg-red-50 dark:bg-red-900 border border-red-300 text-red-700 dark:text-red-200 cursor-not-allowed'
+                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          }`}
+                        onClick={() => {
+                          if (!isSpam) downloadAttachment(attachment._id, attachment.filename);
+                        }}
+                      >
+                        <PaperClipIcon className={`h-5 w-5 ${isSpam ? 'text-red-400' : 'text-gray-400'}`} />
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${isSpam ? 'text-red-800 dark:text-red-100' : 'text-gray-900 dark:text-white'}`}>
+                            {attachment.filename}
+                          </p>
+                          <p className={`text-xs ${isSpam ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                            {attachment.mimeType} • {Math.round(attachment.size / 1024)} KB
+                          </p>
+                          {isSpam && (
+                            <p className="text-xs text-red-500 mt-1">
+                              ⚠ Attachment blocked for your safety — mark as not spam to download.
+                            </p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
+
 
             {/* Labels */}
             {msg.labels?.length > 0 && (
@@ -388,20 +446,61 @@ export default function MessageView({
               <ArrowLeft className="h-5 w-5 text-gray-400" />
             </button>
 
-            <button
-              title="Archive"
-              onClick={() => onArchive(latestMessage._id)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              <Archive className="h-4 w-4 text-gray-400" />
-            </button>
-            <button
-              title="Mark as spam"
-              onClick={() => markAsSpam(latestMessage._id)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              <OctagonAlert className="h-4 w-4 text-gray-400" />
-            </button>
+            {latestMessage.folder === "inbox" ? (
+              <>
+                <button
+                  title="Archive"
+                  onClick={() => onArchive(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <Archive className="h-4 w-4 text-gray-400" />
+                </button>
+                <button
+                  title="Mark as spam"
+                  onClick={() => markAsSpam(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <OctagonAlert className="h-4 w-4 text-gray-400" />
+                </button>
+              </>) : latestMessage.folder === "spam" ? (
+                <>
+                  <button
+                    title="Delete forever"
+                    onClick={() => handleDeleteForever(latestMessage._id)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
+                    Delete forever
+                  </button>
+                  <div className="bg-gray-400 w-0.5 h-[14px] "></div>
+                  <button
+                    title="Mark as not spam"
+                    onClick={() => handleUnMarkSpam(latestMessage._id)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
+                    Not spam
+                  </button>
+                </>
+              ): latestMessage.folder === "trash" ? (
+                <>
+                  <button
+                    title="Delete forever"
+                    onClick={() => handleDeleteForever(latestMessage._id)}
+                    className="p-2 hover:bg-gray-100 rounded-full"
+                  >
+                    Delete forever
+                  </button>
+                </>
+              ): (
+                <>
+                  <button
+                  title="Mark as spam"
+                  onClick={() => markAsSpam(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                >
+                  <OctagonAlert className="h-4 w-4 text-gray-400" />
+                </button>
+                </>
+              )}
             <div className="bg-gray-400 w-0.5 h-[14px] "></div>
             <button
               title="Mark as unread"
@@ -410,13 +509,13 @@ export default function MessageView({
             >
               <MailMinus className="h-4 w-4 text-gray-400" />
             </button>
-            <button
+            {latestMessage.folder === "inbox" && <button
               title="Delete"
               onClick={() => onDelete(latestMessage._id)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
               <TrashIcon className="h-4 w-4 text-red-400" />
-            </button>
+            </button>}
             <button
               title="Star"
               onClick={() => onStar(latestMessage._id, !latestMessage.starred)}

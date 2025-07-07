@@ -58,6 +58,7 @@
     "copy-to-clipboard": "^3.3.3",
     "date-fns": "latest",
     "dns": "latest",
+    "dompurify": "^3.2.6",
     "embla-carousel-react": "8.5.1",
     "framer-motion": "^12.19.1",
     "fs": "latest",
