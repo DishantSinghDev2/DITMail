@@ -1,7 +1,7 @@
 'use client';
 
-import DOMPurify from 'dompurify';
 import { useState, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 
 interface EmailViewerProps {
   html: string;
@@ -9,44 +9,42 @@ interface EmailViewerProps {
 }
 
 export default function EmailViewer({ html, isSpam = false }: EmailViewerProps) {
-  const [showBlocked, setShowBlocked] = useState(false);
+  const [showBlocked, setShowBlocked] = useState(!isSpam);
 
-  const sanitizedHTML = useMemo(() => {
-    let safeHTML = html;
-
-    // Basic sanitization to remove scripts and unsafe elements
-    safeHTML = DOMPurify.sanitize(safeHTML, {
+  const processedHtml = useMemo(() => {
+    let cleanHtml = DOMPurify.sanitize(html, {
       USE_PROFILES: { html: true },
       FORBID_TAGS: ['script', 'iframe', 'style', 'object'],
       FORBID_ATTR: ['onerror', 'onload', 'onclick', 'style'],
     });
 
-    if (isSpam && !showBlocked) {
-      // Hide images and links by replacing their tags
-      safeHTML = safeHTML
-        .replace(/<img [^>]*>/gi, `<div class="bg-gray-200 dark:bg-gray-700 text-center text-xs text-gray-600 dark:text-gray-300 px-2 py-1 rounded-md my-2">[Image blocked due to spam]</div>`)
-        .replace(/<a [^>]*>(.*?)<\/a>/gi, `<span class="text-blue-600 dark:text-blue-400 underline cursor-not-allowed">[Link blocked]</span>`);
+    if (!showBlocked && isSpam) {
+      // Hide <img> and <a> visually (not remove them)
+      cleanHtml = cleanHtml
+        .replace(/<img[^>]*>/gi, `<div class="spam-img-placeholder"></div>`)
+        .replace(/<a [^>]*>(.*?)<\/a>/gi, `<span class="spam-link">🔗 Link blocked</span>`);
     }
 
-    return safeHTML;
+    return cleanHtml;
   }, [html, isSpam, showBlocked]);
 
   return (
-    <div className="relative border rounded-lg p-4 bg-white dark:bg-gray-900">
+    <div className="relative border rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
       {isSpam && !showBlocked && (
-        <div className="mb-4 text-sm text-yellow-800 dark:text-yellow-200 bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-700 rounded p-2">
-          This message was flagged as spam. Images and links are blocked for your safety.
+        <div className="mb-4 text-sm text-yellow-900 dark:text-yellow-100 bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-700 rounded-md p-3">
+          ⚠️ This message was flagged as spam. Images and links have been blocked.
           <button
             onClick={() => setShowBlocked(true)}
-            className="ml-3 text-blue-600 dark:text-blue-300 underline"
+            className="ml-3 text-blue-600 dark:text-blue-300 underline font-medium"
           >
             Show anyway
           </button>
         </div>
       )}
+
       <div
-        className="prose dark:prose-invert max-w-none text-sm"
-        dangerouslySetInnerHTML={{ __html: sanitizedHTML }}
+        className="prose dark:prose-invert max-w-none text-sm email-viewer"
+        dangerouslySetInnerHTML={{ __html: processedHtml }}
       />
     </div>
   );
