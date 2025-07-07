@@ -3,31 +3,24 @@ redis
 xclient
 tls
 
-# --- AUTH ---
+# --- AUTH & LIMITS (Your Business Logic) ---
 auth/auth_mongo_user
 prevent_credential_leaks
-
-# --- MAIL FROM ---
-mail_from.is_resolvable
-
-# --- RCPT TO ---
-altinbox
-
-# --- DATA VALIDATION ---
-headers
-attachment
-bounce
 limit
 
-# --- DKIM ---
-dkim
 
-# --- RELAY ---
-relay
-track.status
+# --- INBOUND DATA VALIDATION ---
+headers
+attachment
 
 # --- QUEUE ---
+# For INBOUND mail, saved by your plugin
 queue.redis.mongo
 
+# For OUTBOUND mail from authenticated users
+# This will use your config/smtp_forward.ini to relay to SES
+queue/smtp_forward
+
 # --- LOGGING / METRICS ---
+track.status  # Your custom tracking
 stats.redis
