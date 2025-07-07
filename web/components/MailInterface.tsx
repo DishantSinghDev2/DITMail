@@ -249,7 +249,7 @@ export default function MailInterface() {
   }
 
   return (
-    <div className="h-screen flex bg-gray-100">
+    <div className="h-screen max-w-[100vw] flex bg-gray-100">
       {/* Sidebar */}
       <MailSidebar
         ref={sidebarRef}
@@ -262,7 +262,7 @@ export default function MailInterface() {
       />
 
       {/* Main Content */}
-      <div className="flex-1 flex  flex-col">
+      <div className="flex-1 flex w-4/5 flex-col">
         {/* Header */}
         <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
           <div className="flex items-center justify-between">

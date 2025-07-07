@@ -266,7 +266,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     }
 
     return (
-      <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+      <div className="w-1/5 bg-white border-r border-gray-200 flex flex-col h-full">
         {/* Header */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
