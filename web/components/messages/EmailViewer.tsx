@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import DOMPurify from 'dompurify';
+import { useState, useEffect, useRef } from 'react';
 
 interface EmailViewerProps {
   html: string;
@@ -9,37 +8,73 @@ interface EmailViewerProps {
 }
 
 export default function EmailViewer({ html, isSpam = false }: EmailViewerProps) {
-  const [showBlocked, setShowBlocked] = useState(!isSpam);
+  // By default, we trust the content unless it's explicitly marked as spam.
+  const [trustContent, setTrustContent] = useState(!isSpam);
+  const viewerRef = useRef<HTMLDivElement>(null);
 
-  const processedHtml = useMemo(() => {
-    let cleanHtml = html
-    if (!showBlocked && isSpam) {
-      // Hide <img> and <a> visually (not remove them)
-      cleanHtml = cleanHtml
-        .replace(/<img[^>]*>/gi, `<div class="spam-img-placeholder"></div>`)
-        .replace(/<a [^>]*>(.*?)<\/a>/gi, `<span class="spam-link">🔗 Link blocked</span>`);
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    // Use the browser's built-in parser to safely handle the HTML string.
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // Manipulate the DOM based on whether the content is trusted.
+    if (trustContent) {
+      // --- Safe/Trusted Content Logic ---
+      // Find all links and make them open in a new tab for security.
+      const links = doc.querySelectorAll('a');
+      links.forEach(link => {
+        link.setAttribute('target', '_blank');
+        // Add rel="noopener noreferrer" for security when using target="_blank"
+        link.setAttribute('rel', 'noopener noreferrer');
+      });
+    } else {
+      // --- Untrusted/Spam Content Logic ---
+      // Neuter all links by removing their href attribute. This keeps the text and styles.
+      const links = doc.querySelectorAll('a');
+      links.forEach(link => {
+        link.removeAttribute('href');
+        link.style.textDecoration = 'none'; // Optional: remove underline for disabled links
+        link.style.cursor = 'default';      // Optional: change cursor
+        link.onclick = (e) => e.preventDefault(); // Prevent any JS-based navigation
+      });
+
+      // Neuter all images by blanking their src. This preserves layout and styles.
+      const images = doc.querySelectorAll('img');
+      images.forEach(img => {
+        img.dataset.originalSrc = img.src; // Store original src in case we want to restore it
+        img.src = ''; // Blank out the source to prevent loading
+        img.style.display = 'none'; // Or hide it completely
+      });
     }
 
-    return cleanHtml;
-  }, [html, isSpam, showBlocked]);
+    // Clear the viewer and inject the sanitized HTML.
+    // We use doc.body.innerHTML because parseFromString wraps the content in <html><body>...</body></html>
+    viewerRef.current.innerHTML = doc.body.innerHTML;
+
+  }, [html, trustContent]);
 
   return (
     <div className="relative border rounded-lg p-4 bg-white dark:bg-gray-900 shadow-sm">
-      {isSpam && !showBlocked && (
-        <div className="mb-4 text-sm text-yellow-900 dark:text-yellow-100 bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-700 rounded-md p-3">
-          ⚠️ This message was flagged as spam. Images and links have been blocked.
+      {isSpam && !trustContent && (
+        <div className="mb-4 text-sm text-yellow-900 dark:text-yellow-100 bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-700 rounded-md p-3 flex items-center justify-between">
+          <span>
+            ⚠️ For your security, remote images and links in this message have been blocked.
+          </span>
           <button
-            onClick={() => setShowBlocked(true)}
-            className="ml-3 text-blue-600 dark:text-blue-300 underline font-medium"
+            onClick={() => setTrustContent(true)}
+            className="ml-4 px-3 py-1 text-xs text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 font-medium"
           >
-            Show anyway
+            Show Content
           </button>
         </div>
       )}
 
+      {/* This div will be populated by the useEffect hook */}
       <div
+        ref={viewerRef}
         className="prose dark:prose-invert max-w-none text-sm email-viewer"
-        dangerouslySetInnerHTML={{ __html: processedHtml }}
       />
     </div>
   );
