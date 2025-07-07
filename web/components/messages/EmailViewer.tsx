@@ -13,13 +13,6 @@ export default function EmailViewer({ html, isSpam = false }: EmailViewerProps) 
 
   const processedHtml = useMemo(() => {
     let cleanHtml = html
-    if (!showBlocked && isSpam)  {
-      cleanHtml = DOMPurify.sanitize(html, {
-      USE_PROFILES: { html: true },
-      FORBID_TAGS: ['script', 'iframe', 'style', 'object'],
-      FORBID_ATTR: ['onerror', 'onload', 'onclick', 'style'],
-    });
-}
     if (!showBlocked && isSpam) {
       // Hide <img> and <a> visually (not remove them)
       cleanHtml = cleanHtml
