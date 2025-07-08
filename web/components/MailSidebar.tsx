@@ -273,7 +273,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
         onMouseLeave={() => isCollapsed && setIsHovering(false)}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200 flex items-center space-x-4 h-[65px]">
+        <div className="p-4 flex items-center space-x-4 h-[65px]">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-1 text-gray-500 hover:text-gray-900 rounded-md flex-shrink-0"
@@ -313,7 +313,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto px-2">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-2">
           {/* Default Folders */}
           <nav className="space-y-1">
             {defaultFolders.map((folder) => {
@@ -328,8 +328,6 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                   onClick={() => onFolderSelect(folder.id)}
                   title={folder.name}
                   className={`w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors group ${
-                    isExpanded ? "justify-between" : "justify-center"
-                  } ${
                     isSelected
                       ? "bg-blue-100 text-blue-700 font-medium"
                       : "text-gray-700 hover:bg-gray-100"
