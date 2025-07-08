@@ -60,7 +60,7 @@ export default function EmailViewer({ html, isSpam = false }: EmailViewerProps) 
       {isSpam && !trustContent && (
         <div className="mb-4 text-sm text-yellow-900 dark:text-yellow-100 bg-yellow-100 dark:bg-yellow-800 border border-yellow-400 dark:border-yellow-700 rounded-md p-3 flex items-center justify-between">
           <span>
-            ⚠️ For your security, remote images and links in this message have been blocked.
+            For your security, remote images and links in this message have been blocked.
           </span>
           <button
             onClick={() => setTrustContent(true)}
@@ -74,7 +74,7 @@ export default function EmailViewer({ html, isSpam = false }: EmailViewerProps) 
       {/* This div will be populated by the useEffect hook */}
       <div
         ref={viewerRef}
-        className="prose dark:prose-invert max-w-none text-sm email-viewer"
+        className="prose max-w-none text-sm email-viewer"
       />
     </div>
   );

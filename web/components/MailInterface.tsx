@@ -228,6 +228,7 @@ export default function MailInterface() {
     setSelectedMessage(null)
     setSelectedThread(null)
     setThreadMessages([])
+    fetchMessages()
   }
 
   function handleOnPrevious(): void {

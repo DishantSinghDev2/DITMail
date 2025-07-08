@@ -265,7 +265,6 @@ export default function MessageView({
                 <div className="flex items-center space-x-2">
                   <p className="text-sm font-medium text-gray-900">{msg.from}</p>
                   {getPriorityBadge(msg.priority)}
-                  {!msg.read && <div className="w-2 h-2 bg-blue-600 rounded-full"></div>}
                 </div>
                 <p className="text-xs text-gray-500">
                   To: {msg.to.join(", ")}

@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 export default function SpamBanner({
-    reason = "This message was marked as spam. It may be unsafe.",
+    reason = "Why is this message in spam? You reported this message as spam from your inbox.",
     onMarkNotSpam,
     onBlockSender,
 }: {
@@ -23,10 +23,10 @@ export default function SpamBanner({
             <div className="flex flex-wrap gap-2">
                 {onMarkNotSpam && (
                     <Button
-                        variant="ghost"
+                        variant="secondary"
                         size="sm"
                         onClick={onMarkNotSpam}
-                        className="text-yellow-700 hover:underline"
+                        className="text-yellow-700"
                     >
                         Mark as Not Spam
                     </Button>
