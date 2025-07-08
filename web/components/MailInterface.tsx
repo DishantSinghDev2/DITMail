@@ -1,3 +1,4 @@
+// components/MailInterface.tsx
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -9,7 +10,10 @@ import MessageView from "./MessageView"
 import ComposeModal from "./ComposeModal"
 import SearchBar from "./SearchBar"
 import NotificationPanel from "./NotificationPanel"
-import { MagnifyingGlassIcon, Cog6ToothIcon, BellIcon, PlusIcon, ViewColumnsIcon } from "@heroicons/react/24/outline"
+import SettingsDropdown from "./mail/SettingsDropdown" // <-- Import new component
+import UpgradeModal from "./mail/UpgradeModal" // <-- Import new component
+import FilterPopover from "./mail/FilterPopover" // <-- Import new component
+import { BellIcon, AdjustmentsHorizontalIcon, SparklesIcon, InformationCircleIcon } from "@heroicons/react/24/outline"
 import { clientNotificationService } from "@/lib/notifications-client"
 
 export default function MailInterface() {
@@ -21,31 +25,34 @@ export default function MailInterface() {
   const [threadMessages, setThreadMessages] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [showSearch, setShowSearch] = useState(false)
-  const [showNotifications, setShowNotifications] = useState(false)
   const [notifications, setNotifications] = useState([])
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+
+  // New state variables for requested features
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
+  const [isDarkMode, setIsDarkMode] = useState(false)
+  const [theme, setTheme] = useState('theme-default')
+
   const [filters, setFilters] = useState({
     unread: false,
     starred: false,
     hasAttachments: false,
-    priority: "",
-    dateRange: "",
   })
-  const [viewMode, setViewMode] = useState<"split" | "list">("split")
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose")
   const [replyMessage, setReplyMessage] = useState<any>(null)
   const sidebarRef = useRef<MailSidebarHandle>(null)
-
+  
   const triggerRefresh = () => {
     sidebarRef.current?.refreshCount()
   }
 
-
   const { user, logout } = useAuth()
   const { newMessages, markMessagesRead } = useRealtime()
 
-  // Fetch messages with advanced filtering
+  // --- Core fetching logic remains the same ---
   const fetchMessages = useCallback(async () => {
     setLoading(true)
     try {
@@ -56,8 +63,6 @@ export default function MailInterface() {
         ...(filters.unread && { unread: "true" }),
         ...(filters.starred && { starred: "true" }),
         ...(filters.hasAttachments && { hasAttachments: "true" }),
-        ...(filters.priority && { priority: filters.priority }),
-        ...(filters.dateRange && { dateRange: filters.dateRange }),
       })
 
       const response = await fetch(`/api/messages?${params}`, {
@@ -75,8 +80,7 @@ export default function MailInterface() {
       setLoading(false)
     }
   }, [selectedFolder, searchQuery, filters])
-
-  // Fetch thread messages
+  
   const fetchThreadMessages = useCallback(async (threadId: string) => {
     try {
       const token = localStorage.getItem("accessToken")
@@ -93,7 +97,6 @@ export default function MailInterface() {
     }
   }, [])
 
-  // Fetch notifications using client service
   const fetchNotifications = useCallback(async () => {
     try {
       const data = await clientNotificationService.getUserNotifications()
@@ -103,6 +106,25 @@ export default function MailInterface() {
       console.error("Error fetching notifications:", error)
     }
   }, [])
+
+
+  // Add effect for Dark Mode and Theme
+  useEffect(() => {
+    const root = window.document.documentElement
+    if (isDarkMode) {
+      root.classList.add('dark')
+    } else {
+      root.classList.remove('dark')
+    }
+    // Remove old theme classes
+    root.classList.forEach(className => {
+        if(className.startsWith('theme-')) {
+            root.classList.remove(className);
+        }
+    });
+    // Add new theme class
+    root.classList.add(theme)
+  }, [isDarkMode, theme])
 
   useEffect(() => {
     fetchMessages()
@@ -118,7 +140,6 @@ export default function MailInterface() {
     }
   }, [selectedThread, fetchThreadMessages])
 
-  // Real-time message updates
   useEffect(() => {
     if (newMessages > 0 && selectedFolder === "inbox") {
       fetchMessages()
@@ -126,6 +147,7 @@ export default function MailInterface() {
     }
   }, [newMessages, selectedFolder, fetchMessages, fetchNotifications])
 
+  // --- Handlers (handleFolderSelect, etc.) remain the same ---
   const handleFolderSelect = (folder: string) => {
     setSelectedFolder(folder)
     setSelectedMessage(null)
@@ -144,11 +166,7 @@ export default function MailInterface() {
       setSelectedThread(null)
       setThreadMessages([])
     }
-
-    // Mark as read
-    if (!message.read) {
-      markMessageAsRead(message._id)
-    }
+    if (!message.read) markMessageAsRead(message._id)
   }
 
   const markMessageAsRead = async (messageId: string) => {
@@ -156,16 +174,11 @@ export default function MailInterface() {
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ read: true }),
       })
       fetchMessages()
-    } catch (error) {
-      console.error("Error marking message as read:", error)
-    }
+    } catch (error) { console.error("Error marking message as read:", error) }
   }
 
   const handleStarMessage = async (messageId: string, starred: boolean) => {
@@ -173,16 +186,14 @@ export default function MailInterface() {
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ starred }),
       })
-      fetchMessages()
-    } catch (error) {
-      console.error("Error starring message:", error)
-    }
+      fetchMessages() // Refresh list to show star
+      if (selectedMessage && selectedMessage._id === messageId) {
+        setSelectedMessage({ ...selectedMessage, starred }); // Update view immediately
+      }
+    } catch (error) { console.error("Error starring message:", error) }
   }
 
   const handleDeleteMessage = async (messageId: string) => {
@@ -190,67 +201,50 @@ export default function MailInterface() {
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ folder: "trash" }),
       })
       fetchMessages()
       setSelectedMessage(null)
       setSelectedThread(null)
-    } catch (error) {
-      console.error("Error deleting message:", error)
-    }
+    } catch (error) { console.error("Error deleting message:", error) }
   }
-
-  const handleOnPrevious = () => {
-    const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
-    if (currentIndex > 0) {
-      setSelectedMessage(messages[currentIndex - 1]);
-    }
-  };
-
-  const handleOnNext = () => {
-    const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
-    if (currentIndex < messages.length - 1) {
-      setSelectedMessage(messages[currentIndex + 1]);
-    }
-  };
-
+  
   const handleReply = (message: any) => {
-    setReplyMessage(message)
-    setComposeMode("reply")
-    setIsComposeOpen(true)
+    setReplyMessage(message); setComposeMode("reply"); setIsComposeOpen(true);
+  }
+  const handleForward = (message: any) => {
+    setReplyMessage(message); setComposeMode("forward"); setIsComposeOpen(true);
+  }
+  const handleCompose = () => {
+    setReplyMessage(null); setComposeMode("compose"); setIsComposeOpen(true);
+  }
+  const handleComposeClose = () => {
+    setIsComposeOpen(false); setReplyMessage(null); setComposeMode("compose");
   }
 
-  const handleOnBack = () => {
-    fetchMessages()
+  function handleOnBack(): void {
     setSelectedMessage(null)
     setSelectedThread(null)
+    setThreadMessages([])
   }
 
-  const handleForward = (message: any) => {
-    setReplyMessage(message)
-    setComposeMode("forward")
-    setIsComposeOpen(true)
+  function handleOnPrevious(): void {
+    const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
+    if (currentIndex > 0) {
+      const previousMessage = messages[currentIndex - 1];
+      handleMessageSelect(previousMessage);
+    }
   }
-
-  const handleCompose = () => {
-    setReplyMessage(null)
-    setComposeMode("compose")
-    setIsComposeOpen(true)
+  function handleOnNext(): void {
+    const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
+    if (currentIndex < messages.length - 1) {
+      const nextMessage = messages[currentIndex + 1];
+      handleMessageSelect(nextMessage);
+    }
   }
-
-  const handleComposeClose = () => {
-    setIsComposeOpen(false)
-    setReplyMessage(null)
-    setComposeMode("compose")
-  }
-
   return (
-    <div className="h-screen max-w-[100vw] flex bg-gray-100">
-      {/* Sidebar */}
+    <div className="h-screen w-screen flex bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 overflow-hidden">
       <MailSidebar
         ref={sidebarRef}
         selectedFolder={selectedFolder}
@@ -261,39 +255,58 @@ export default function MailInterface() {
         onLogout={logout}
       />
 
-      {/* Main Content */}
-      <div className="flex-1 flex w-4/5 flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+        <header className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-semibold text-gray-900 capitalize">{selectedFolder}</h1>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setShowSearch(!showSearch)}
-                  className={`p-2 rounded-md ${showSearch ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:text-gray-600"}`}
-                >
-                  <MagnifyingGlassIcon className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => setViewMode(viewMode === "split" ? "list" : "split")}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-md"
-                >
-                  <ViewColumnsIcon className="h-5 w-5" />
-                </button>
-              </div>
+            {/* Search Bar is now permanent */}
+            <div className="flex-1 max-w-2xl">
+              <SearchBar
+                query={searchQuery}
+                onQueryChange={setSearchQuery}
+                onSearch={fetchMessages}
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
             </div>
-            <div className="flex items-center space-x-3">
+
+            {/* Right-side Icons */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                title="Filter"
+              >
+                <AdjustmentsHorizontalIcon className="h-5 w-5" />
+              </button>
+              {/* Filter Popover */}
+              {showFilters && (
+                <FilterPopover
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onClose={() => setShowFilters(false)}
+                />
+              )}
+
+              {/* Upgrade Button */}
+              <button
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="flex items-center space-x-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-3 py-1.5 rounded-full text-sm font-semibold transition-transform hover:scale-105"
+              >
+                <SparklesIcon className="h-4 w-4" />
+                <span>Upgrade</span>
+              </button>
+
+              {/* Notification Bell */}
               <div className="relative">
                 <button
                   onClick={() => setShowNotifications(!showNotifications)}
-                  className="p-2 text-gray-400 hover:text-gray-600 rounded-md relative"
+                  className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title="Notifications"
                 >
                   <BellIcon className="h-5 w-5" />
                   {unreadNotifications > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {unreadNotifications > 9 ? "9+" : unreadNotifications}
-                    </span>
+                    <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-gray-800" />
                   )}
                 </button>
                 {showNotifications && (
@@ -301,41 +314,46 @@ export default function MailInterface() {
                     notifications={notifications}
                     onClose={() => setShowNotifications(false)}
                     onRefresh={fetchNotifications}
+                    onMarkAsRead={(notificationId) => {
+                      // Add logic to mark a notification as read
+                      console.log(`Marking notification ${notificationId} as read`);
+                    }}
+                    onMarkAllAsRead={() => {
+                      // Add logic to mark all notifications as read
+                      console.log("Marking all notifications as read");
+                    }}
+                    onDelete={(notificationId) => {
+                      // Add logic to delete a notification
+                      console.log(`Deleting notification ${notificationId}`);
+                    }}
                   />
                 )}
               </div>
-              <button
-                onClick={() => (window.location.href = "/settings")}
-                className="p-2 text-gray-400 hover:text-gray-600 rounded-md"
-              >
-                <Cog6ToothIcon className="h-5 w-5" />
-              </button>
-              <button
-                onClick={handleCompose}
-                className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium"
-              >
-                <PlusIcon className="h-4 w-4" />
-                <span>Compose</span>
-              </button>
+              
+              {/* Settings Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title="Settings"
+                >
+                  <AdjustmentsHorizontalIcon className="h-5 w-5" />
+                </button>
+                <SettingsDropdown
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    isDarkMode={isDarkMode}
+                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                    currentTheme={theme}
+                    onChangeTheme={setTheme}
+                />
+              </div>
             </div>
           </div>
-
-          {/* Search Bar */}
-          {showSearch && (
-            <div className="mt-4">
-              <SearchBar
-                query={searchQuery}
-                onQueryChange={setSearchQuery}
-                filters={filters}
-                onFiltersChange={setFilters}
-                onSearch={fetchMessages}
-              />
-            </div>
-          )}
         </header>
 
         {/* Content Area */}
-        <div className="overflow-x-hidden overflow-y-auto  border-r border-gray-200 w-full">
+        <div className="overflow-x-hidden overflow-y-auto min-h-[90vh] border-r border-gray-200 w-full">
           {selectedMessage ? <MessageView
             message={selectedMessage}
             threadMessages={threadMessages}
@@ -362,17 +380,17 @@ export default function MailInterface() {
         </div>
       </div>
 
-      {/* Compose Modal */}
+      {/* Modals */}
       {isComposeOpen && (
         <ComposeModal
           onClose={handleComposeClose}
-          onSent={() => {
-            fetchMessages()
-            handleComposeClose()
-          }}
+          onSent={() => { fetchMessages(); handleComposeClose(); }}
           replyTo={composeMode === "reply" ? replyMessage : undefined}
           forwardMessage={composeMode === "forward" ? replyMessage : undefined}
         />
+      )}
+      {isUpgradeModalOpen && (
+        <UpgradeModal onClose={() => setIsUpgradeModalOpen(false)} />
       )}
     </div>
   )

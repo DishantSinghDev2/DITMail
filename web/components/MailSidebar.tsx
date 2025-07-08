@@ -88,7 +88,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     }, [])
 
     useImperativeHandle(ref, () => ({
-      refreshCount: () => fetchFolderCounts(),
+      refreshCount: () => fetchFolderCounts()
     }))
 
     const fetchAllData = async () => {
@@ -293,7 +293,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
         </div>
 
         {/* Compose Button */}
-        <div className="px-3 py-4">
+        <div className="px-2 py-4">
           <button
             onClick={onCompose}
             className={`w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-md font-medium shadow-sm hover:shadow-md transition-all duration-300 ease-in-out ${
@@ -328,6 +328,8 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                   onClick={() => onFolderSelect(folder.id)}
                   title={folder.name}
                   className={`w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors group ${
+                    isExpanded ? "justify-between" : ""
+                  } ${
                     isSelected
                       ? "bg-blue-100 text-blue-700 font-medium"
                       : "text-gray-700 hover:bg-gray-100"
@@ -361,13 +363,8 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                   </div>
                   {isExpanded && (
                     <div className="flex items-center space-x-2">
-                      {unreadCount > 0 && (
-                        <span className="bg-blue-600 text-white text-xs rounded-full px-2 py-1 min-w-[20px] text-center">
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </span>
-                      )}
-                      {totalCount > 0 && unreadCount === 0 && (
-                        <span className="text-xs text-gray-400">
+                      {totalCount > 0 && (
+                        <span className={`text-xs ${unreadCount > 0 ? "text-blue-600" : "text-gray-500"}`}>
                           {totalCount}
                         </span>
                       )}
