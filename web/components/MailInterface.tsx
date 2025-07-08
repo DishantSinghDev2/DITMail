@@ -273,24 +273,6 @@ export default function MailInterface() {
 
             {/* Right-side Icons */}
             <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setShowFilters(!showFilters)}
-                className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                title="Filter"
-              >
-                <AdjustmentsHorizontalIcon className="h-5 w-5" />
-              </button>
-              {/* Filter Popover */}
-              {showFilters && (
-                <FilterPopover
-                  filters={filters}
-                  onFiltersChange={setFilters}
-                  onClose={() => setShowFilters(false)}
-                />
-              )}
-
-
-              
               {/* Settings Dropdown */}
               <div className="relative">
                 <button

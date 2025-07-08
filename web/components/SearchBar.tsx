@@ -131,11 +131,16 @@ export default function SearchBar({
           <input
             ref={inputRef}
             type="text"
+            name="search"
             value={query}
             onChange={(e) => handleQueryChange(e.target.value)}
             onFocus={() => setShowSuggestions(query.length > 0 || searchHistory.length > 0)}
             placeholder="Search emails, contacts, subjects..."
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck="false"
+            aria-label="Search emails"
           />
 
           {/* Search suggestions dropdown */}
