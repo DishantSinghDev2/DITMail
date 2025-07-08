@@ -267,7 +267,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     return (
       <div
         className={`relative bg-white border-r border-gray-200 flex flex-col h-full transition-all duration-300 ease-in-out ${
-          isExpanded ? "w-64" : "w-20"
+          isExpanded ? "w-64" : "w-16"
         }`}
         onMouseEnter={() => isCollapsed && setIsHovering(true)}
         onMouseLeave={() => isCollapsed && setIsHovering(false)}
@@ -296,9 +296,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
         <div className="px-2 py-4">
           <button
             onClick={onCompose}
-            className={`w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-md font-medium shadow-sm hover:shadow-md transition-all duration-300 ease-in-out ${
-              isExpanded ? "px-4" : "px-2"
-            }`}
+            className={`w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-md font-medium shadow-sm hover:shadow-md transition-all duration-300 ease-in-out`}
             title="Compose"
           >
             <PlusIcon className="h-5 w-5 flex-shrink-0" />

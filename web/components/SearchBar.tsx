@@ -2,7 +2,8 @@
 
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { MagnifyingGlassIcon, FunnelIcon, XMarkIcon, ClockIcon } from "@heroicons/react/24/outline"
+import { MagnifyingGlassIcon, XMarkIcon, ClockIcon } from "@heroicons/react/24/outline"
+import { AdjustmentsHorizontalIcon } from "@heroicons/react/24/solid"
 
 interface SearchBarProps {
   query: string
@@ -44,6 +45,7 @@ export default function SearchBar({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
+      // Close suggestions dropdown
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setShowSuggestions(false)
       }
@@ -122,7 +124,7 @@ export default function SearchBar({
     .slice(0, 5)
 
   return (
-    <div className="relative space-y-3">
+    <div className="relative">
       <form onSubmit={handleSubmit} className="flex items-center space-x-2">
         <div className="flex-1 relative" ref={dropdownRef}>
           <MagnifyingGlassIcon className="h-5 w-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
@@ -138,7 +140,7 @@ export default function SearchBar({
 
           {/* Search suggestions dropdown */}
           {showSuggestions && (filteredSuggestions.length > 0 || displayedHistory.length > 0) && (
-            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-64 overflow-y-auto">
+            <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-64 overflow-y-auto">
               {/* Recent searches */}
               {displayedHistory.length > 0 && (
                 <div>
@@ -208,25 +210,18 @@ export default function SearchBar({
           }`}
           title="Advanced filters"
         >
-          <FunnelIcon className="h-5 w-5" />
+          <AdjustmentsHorizontalIcon className="h-5 w-5" />
           {hasActiveFilters && (
             <span className="absolute -top-1 -right-1 bg-blue-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
               !
             </span>
           )}
         </button>
-
-        <button
-          type="submit"
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
-        >
-          Search
-        </button>
       </form>
 
       {/* Advanced Filters */}
       {showFilters && (
-        <div className="bg-gray-50 rounded-md p-4 border border-gray-200 shadow-sm">
+        <div className="absolute z-10 w-full mt-2 bg-gray-50 rounded-md p-4 border border-gray-200 shadow-lg">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-medium text-gray-900">Advanced Filters</h3>
             <button onClick={() => setShowFilters(false)} className="p-1 hover:bg-gray-200 rounded transition-colors">

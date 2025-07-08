@@ -15,6 +15,7 @@ import UpgradeModal from "./mail/UpgradeModal" // <-- Import new component
 import FilterPopover from "./mail/FilterPopover" // <-- Import new component
 import { BellIcon, AdjustmentsHorizontalIcon, SparklesIcon, InformationCircleIcon } from "@heroicons/react/24/outline"
 import { clientNotificationService } from "@/lib/notifications-client"
+import { Settings } from "lucide-react"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -288,14 +289,27 @@ export default function MailInterface() {
                 />
               )}
 
-              {/* Upgrade Button */}
-              <button
-                onClick={() => setIsUpgradeModalOpen(true)}
-                className="flex items-center space-x-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-3 py-1.5 rounded-full text-sm font-semibold transition-transform hover:scale-105"
-              >
-                <SparklesIcon className="h-4 w-4" />
-                <span>Upgrade</span>
-              </button>
+
+              
+              {/* Settings Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+                  title="Settings"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+                <SettingsDropdown
+                    isOpen={isSettingsOpen}
+                    onClose={() => setIsSettingsOpen(false)}
+                    isDarkMode={isDarkMode}
+                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                    currentTheme={theme}
+                    onChangeTheme={setTheme}
+                />
+              </div>
+
 
               {/* Notification Bell */}
               <div className="relative">
@@ -330,24 +344,16 @@ export default function MailInterface() {
                 )}
               </div>
               
-              {/* Settings Dropdown */}
-              <div className="relative">
-                <button
-                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                  className="p-2 text-gray-500 hover:text-gray-800 dark:hover:text-white rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
-                  title="Settings"
-                >
-                  <AdjustmentsHorizontalIcon className="h-5 w-5" />
-                </button>
-                <SettingsDropdown
-                    isOpen={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
-                    isDarkMode={isDarkMode}
-                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-                    currentTheme={theme}
-                    onChangeTheme={setTheme}
-                />
-              </div>
+
+              
+              {/* Upgrade Button */}
+              <button
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="flex items-center space-x-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 px-3 py-1.5 rounded-full text-sm font-semibold transition-transform hover:scale-105"
+              >
+                <SparklesIcon className="h-4 w-4" />
+                <span>Upgrade</span>
+              </button>
             </div>
           </div>
         </header>
