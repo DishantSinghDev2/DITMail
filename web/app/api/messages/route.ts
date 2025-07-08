@@ -23,7 +23,9 @@ export async function GET(request: NextRequest) {
     const unread = searchParams.get("unread") === "true";
     const hasAttachments = searchParams.get("hasAttachments") === "true";
     const priority = searchParams.get("priority") || "";
-    const dateRange = searchParams.get("dateRange") || "";
+    const timeRange = searchParams.get("timeRange") || "";
+    const startDate = searchParams.get("startDate");
+    const endDate = searchParams.get("endDate");
     const sender = searchParams.get("sender") || "";
     const recipient = searchParams.get("recipient") || "";
     const size = searchParams.get("size") || "";
@@ -42,21 +44,64 @@ export async function GET(request: NextRequest) {
     if (unread) query.read = false;
     if (hasAttachments) query.attachments = { $exists: true, $ne: [] };
     if (priority) query.priority = priority;
-    if (dateRange) {
-      const [startDate, endDate] = dateRange.split(",");
-      query.created_at = {
-        ...(startDate ? { $gte: new Date(startDate) } : {}),
-        ...(endDate ? { $lte: new Date(endDate) } : {}),
-      };
+
+    if (timeRange) {
+      const now = new Date();
+      switch (timeRange) {
+        case "today":
+          query.created_at = {
+            $gte: new Date(now.setHours(0, 0, 0, 0)),
+            $lte: new Date(now.setHours(23, 59, 59, 999)),
+          };
+          break;
+        case "yesterday":
+          const yesterday = new Date(now.setDate(now.getDate() - 1));
+          query.created_at = {
+            $gte: new Date(yesterday.setHours(0, 0, 0, 0)),
+            $lte: new Date(yesterday.setHours(23, 59, 59, 999)),
+          };
+          break;
+        case "week":
+          const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+          query.created_at = { $gte: new Date(weekStart.setHours(0, 0, 0, 0)) };
+          break;
+        case "month":
+          query.created_at = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+          break;
+        case "3months":
+          query.created_at = { $gte: new Date(now.setMonth(now.getMonth() - 3)) };
+          break;
+        case "year":
+          query.created_at = { $gte: new Date(now.getFullYear(), 0, 1) };
+          break;
+        case "custom":
+          if (startDate || endDate) {
+            query.created_at = {
+              ...(startDate ? { $gte: new Date(startDate) } : {}),
+              ...(endDate ? { $lte: new Date(endDate) } : {}),
+            };
+          }
+          break;
+      }
     }
+
     if (sender) query.from = { $regex: sender, $options: "i" };
     if (recipient) query.to = { $regex: recipient, $options: "i" };
     if (size) {
-      const [minSize, maxSize] = size.split(",");
-      query.size = {
-        ...(minSize ? { $gte: Number(minSize) } : {}),
-        ...(maxSize ? { $lte: Number(maxSize) } : {}),
-      };
+      switch (size) {
+        case "small":
+          query.size = { $lt: 1024 * 1024 }; // Less than 1MB
+          break;
+        case "medium":
+          query.size = { $gte: 1024 * 1024, $lt: 10 * 1024 * 1024 }; // 1MB to 10MB
+          break;
+        case "large":
+          query.size = { $gte: 10 * 1024 * 1024, $lt: 25 * 1024 * 1024 }; // 10MB to 25MB
+          break;
+        case "huge":
+          query.size = { $gte: 25 * 1024 * 1024 }; // Greater than 25MB
+          break;
+      }
     }
     if (label) query.labels = label;
 
