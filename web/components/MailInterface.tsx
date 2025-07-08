@@ -39,8 +39,15 @@ export default function MailInterface() {
 
   const [filters, setFilters] = useState({
     unread: false,
-    starred: false,
-    hasAttachments: false,
+      starred: false,
+      hasAttachments: false,
+      priority: "",
+      dateRange: "",
+      sender: "",
+      recipient: "",
+      size: "",
+      folder: "",
+      label: "",
   })
   const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose")
   const [replyMessage, setReplyMessage] = useState<any>(null)
@@ -64,6 +71,13 @@ export default function MailInterface() {
         ...(filters.unread && { unread: "true" }),
         ...(filters.starred && { starred: "true" }),
         ...(filters.hasAttachments && { hasAttachments: "true" }),
+        ...(filters.priority && { priority: filters.priority }),
+        ...(filters.dateRange && { dateRange: filters.dateRange }),
+        ...(filters.sender && { sender: filters.sender }),
+        ...(filters.recipient && { recipient: filters.recipient }),
+        ...(filters.size && { size: filters.size }),
+        ...(filters.folder && { folder: filters.folder }),
+        ...(filters.label && { label: filters.label }),
       })
 
       const response = await fetch(`/api/messages?${params}`, {

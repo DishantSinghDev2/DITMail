@@ -349,6 +349,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                     <div className="relative">
                       <Icon className="h-5 w-5 flex-shrink-0" />
                       {!isExpanded &&
+                        folder.id === "inbox" &&
                         unreadCount && (
                           <span className="absolute top-[-2px] right-[-2px] flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>

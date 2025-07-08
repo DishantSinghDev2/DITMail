@@ -8,49 +8,73 @@ import { logAuditEvent } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const user = await getAuthUser(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { searchParams } = new URL(request.url)
-    const folder = searchParams.get("folder") || "inbox"
-    const page = Number.parseInt(searchParams.get("page") || "1")
-    const limit = Number.parseInt(searchParams.get("limit") || "25")
-    const search = searchParams.get("search") || ""
-    const threadId = searchParams.get("threadId")
-    const starred = searchParams.get("starred") === "true"
-    const unread = searchParams.get("unread") === "true"
+    const { searchParams } = new URL(request.url);
+    const folder = searchParams.get("folder") || "inbox";
+    const page = Number.parseInt(searchParams.get("page") || "1");
+    const limit = Number.parseInt(searchParams.get("limit") || "25");
+    const search = searchParams.get("search") || "";
+    const threadId = searchParams.get("threadId");
+    const starred = searchParams.get("starred") === "true";
+    const unread = searchParams.get("unread") === "true";
+    const hasAttachments = searchParams.get("hasAttachments") === "true";
+    const priority = searchParams.get("priority") || "";
+    const dateRange = searchParams.get("dateRange") || "";
+    const sender = searchParams.get("sender") || "";
+    const recipient = searchParams.get("recipient") || "";
+    const size = searchParams.get("size") || "";
+    const label = searchParams.get("label") || "";
 
-    await connectDB()
+    await connectDB();
 
-    const query: any = { user_id: user._id }
+    const query: any = { user_id: user._id };
 
     if (threadId) {
-      query.thread_id = threadId
+      query.thread_id = threadId;
     } else {
-      query.folder = folder
+      query.folder = folder;
     }
-    if (starred) query.starred = true
-    if (unread) query.read = false
+    if (starred) query.starred = true;
+    if (unread) query.read = false;
+    if (hasAttachments) query.attachments = { $exists: true, $ne: [] };
+    if (priority) query.priority = priority;
+    if (dateRange) {
+      const [startDate, endDate] = dateRange.split(",");
+      query.created_at = {
+        ...(startDate ? { $gte: new Date(startDate) } : {}),
+        ...(endDate ? { $lte: new Date(endDate) } : {}),
+      };
+    }
+    if (sender) query.from = { $regex: sender, $options: "i" };
+    if (recipient) query.to = { $regex: recipient, $options: "i" };
+    if (size) {
+      const [minSize, maxSize] = size.split(",");
+      query.size = {
+        ...(minSize ? { $gte: Number(minSize) } : {}),
+        ...(maxSize ? { $lte: Number(maxSize) } : {}),
+      };
+    }
+    if (label) query.labels = label;
 
     if (search) {
       query.$or = [
         { subject: { $regex: search, $options: "i" } },
         { from: { $regex: search, $options: "i" } },
         { text: { $regex: search, $options: "i" } },
-      ]
+      ];
     }
 
-    let messages
+    let messages;
 
     if (threadId) {
-      // This block is ALREADY CORRECT. .populate() is the right way for find()
       messages = await Message.find(query)
         .sort({ created_at: 1 })
-        .populate("attachments") // This populates the attachments for a specific thread
+        .populate("attachments");
     } else {
-      // This block needs the $lookup stage for aggregation
       const pipeline = [
         { $match: query },
         { $sort: { created_at: -1 } },
@@ -62,40 +86,36 @@ export async function GET(request: NextRequest) {
             unreadCount: { $sum: { $cond: [{ $eq: ["$read", false] }, 1, 0] } },
           },
         },
-        // --- START: THE FIX ---
-        // This stage "populates" the attachments for each latestMessage
         {
           $lookup: {
-            from: "attachments", // The collection name for your Attachment model
-            localField: "latestMessage.attachments", // The array of IDs in our documents
-            foreignField: "_id", // The field to match in the 'attachments' collection
-            as: "populatedAttachments", // The name for the new array of populated docs
+            from: "attachments",
+            localField: "latestMessage.attachments",
+            foreignField: "_id",
+            as: "populatedAttachments",
           },
         },
-        // --- END: THE FIX ---
         { $sort: { "latestMessage.created_at": -1 } },
         { $skip: (page - 1) * limit },
         { $limit: limit },
-      ]
+      ];
 
-      const threads = await Message.aggregate(pipeline)
+      const threads = await Message.aggregate(pipeline);
 
-      // Now, map the results and manually place the populated attachments
       messages = threads.map((thread) => ({
         ...thread.latestMessage,
-        attachments: thread.populatedAttachments, // Overwrite the IDs with the full objects
+        attachments: thread.populatedAttachments,
         messageCount: thread.messageCount,
         unreadCount: thread.unreadCount,
-      }))
+      }));
     }
 
     const total = threadId
       ? await Message.countDocuments(query)
       : await Message.aggregate([
-          { $match: { user_id: user._id, folder, ... (search ? { $or: query.$or } : {}) } },
+          { $match: { user_id: user._id, folder, ...(search ? { $or: query.$or } : {}) } },
           { $group: { _id: "$thread_id" } },
           { $count: "total" },
-        ]).then((result) => result[0]?.total || 0)
+        ]).then((result) => result[0]?.total || 0);
 
     return NextResponse.json({
       messages,
@@ -105,10 +125,10 @@ export async function GET(request: NextRequest) {
         total,
         pages: Math.ceil(total / limit),
       },
-    })
+    });
   } catch (error) {
-    console.error("Messages fetch error:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Messages fetch error:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
