@@ -66,6 +66,18 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     // Determine if the sidebar should be visually expanded
     const isExpanded = !isCollapsed || isHovering
 
+    // Use localStorage to persist the collapsed state
+    useEffect(() => {
+      const storedState = localStorage.getItem("mailSidebarCollapsed")
+      if (storedState !== null) {
+        setIsCollapsed(storedState === "true")
+      }
+    }, [])
+
+    useEffect(() => {
+      localStorage.setItem("mailSidebarCollapsed", String(isCollapsed))
+    }, [isCollapsed])
+
     const defaultFolders = [
       { id: "inbox", name: "Inbox", icon: InboxIcon, count: "inbox" },
       { id: "sent", name: "Sent", icon: PaperAirplaneIcon, count: "sent" },
@@ -267,7 +279,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
     return (
       <div
         className={`relative bg-white border-r border-gray-200 flex flex-col h-full transition-all duration-300 ease-in-out ${
-          isExpanded ? "w-64" : "w-16"
+          isExpanded ? "w-64" : "w-[3.6rem]"
         }`}
         onMouseEnter={() => isCollapsed && setIsHovering(true)}
         onMouseLeave={() => isCollapsed && setIsHovering(false)}
@@ -337,8 +349,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                     <div className="relative">
                       <Icon className="h-5 w-5 flex-shrink-0" />
                       {!isExpanded &&
-                        folder.id === "inbox" &&
-                        newMessages > 0 && (
+                        unreadCount && (
                           <span className="absolute top-[-2px] right-[-2px] flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
