@@ -445,7 +445,7 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
 
 
        {/* Toolbar */}
-       <div className="flex-shrink-0 border-b"><MainToolbarContent editor={editor!} isMobile /></div>
+       <div className="flex-shrink-0 border-b"><MainToolbarContent editor={editor!} isMobile={isMobile} /></div>
         
         {/* Editor Content Area */}
         <div className="flex-1 overflow-y-auto">
