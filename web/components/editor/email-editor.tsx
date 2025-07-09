@@ -122,14 +122,10 @@ export function EmailEditor({
       // 1. Check for an existing draft via API
       if (!draftToLoadId && conversationId) {
         try {
-          const res = await fetch(`/api/drafts?in_reply_to_id=${encodeURIComponent(conversationId)}`, {
-            headers: { Authorization: `Bearer ${token}` },
-          })
-          if (res.ok) {
-            const data = await res.json()
-            if (data.draft?._id) {
-              draftToLoadId = data.draft._id
-            }
+          // check if a draft exists for the conversation in local storage first
+          const localDrafts = JSON.parse(localStorage.getItem(`draft-${conversationId}`) || "[]")
+          if (localDrafts.length > 0) {
+            draftToLoadId = localDrafts[0]._id // Use the first draft found
           }
         } catch (e) {
           console.warn("Could not search for existing draft.", e)
@@ -229,6 +225,16 @@ export function EmailEditor({
         in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
       }
 
+      // save draft to local storage immediately
+      try {
+        const existingDrafts = JSON.parse(localStorage.getItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`) || "[]")
+        const updatedDrafts = existingDrafts.filter((d: any) => d._id !== draftId) // Remove any existing draft with the same ID
+        updatedDrafts.push({ ...payload, _id: draftId || `temp-${Date.now()}` }) // Use a temp ID if no draftId exists
+        localStorage.setItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`, JSON.stringify(updatedDrafts))
+      } catch (error) {
+        console.error("Failed to save draft to local storage:", error)
+      }
+
       try {
         const token = localStorage.getItem("accessToken")
         const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts"
@@ -284,6 +290,7 @@ export function EmailEditor({
       const tempId = tempAttachments[i]._id
       const formData = new FormData()
       formData.append("file", file)
+      formData.append("message_id", draftId || "new") // Use draftId if available, otherwise "new"
       try {
         const token = localStorage.getItem("accessToken")
         const response = await fetch("/api/attachments", {
