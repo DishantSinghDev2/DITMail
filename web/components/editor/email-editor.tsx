@@ -58,6 +58,7 @@ import { useIsMobile } from "@/hooks/use-mobile"
 // --- Styles ---
 import "./simple-editor.scss"
 import "@/app/globals.css"
+import { Ellipsis, Paperclip, Trash2, X } from "lucide-react"
 
 // --- Helper to validate comma-separated emails ---
 const validateEmails = (emails: string) => {
@@ -115,87 +116,101 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [showCcBcc, setShowCcBcc] = useState(false)
   const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
-  
+  const [quotedContent, setQuotedContent] = useState<string | null>(null)
+  const [isQuoteVisible, setIsQuoteVisible] = useState(false)
+  const [isInitializing, setIsInitializing] = useState(true)
+
   const isMobile = useIsMobile()
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const localStorageKey = useRef<string>(`draft-${replyToMessage?.message_id || forwardMessage?.message_id || initialDraftId || 'new'}`);
 
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
     mode: "onChange",
-    defaultValues: {
-      to: "",
-      cc: "",
-      bcc: "",
-      subject: "",
-      content: "",
-      attachments: [],
-    },
-  })
+    defaultValues: { to: "", cc: "", bcc: "", subject: "", content: "", attachments: [] },
+  });
 
   // --- Initialize form based on props (Reply, Forward, Draft) ---
   useEffect(() => {
     const initialize = async () => {
-      // Load from Draft
-      if (initialDraftId) {
+      const token = localStorage.getItem("accessToken");
+
+      // 1. Try to load from localStorage for instant UI
+      const localDraft = localStorage.getItem(localStorageKey.current);
+      if (localDraft) {
+        const { values, attachments } = JSON.parse(localDraft);
+        form.reset(values);
+        setUploadedAttachments(attachments || []);
+        if (values.cc || values.bcc) setShowCcBcc(true);
+      }
+
+      // 2. Determine initial state from props (Reply, Forward, or existing Draft)
+      let draftToLoadId = initialDraftId;
+
+      // If replying/forwarding, search for a draft related to this message
+      if (replyToMessage || forwardMessage) {
+        const messageId = replyToMessage?.message_id || forwardMessage?.message_id;
         try {
-          const token = localStorage.getItem("accessToken");
-          const response = await fetch(`/api/drafts/${initialDraftId}`, { headers: { Authorization: `Bearer ${token}` } });
-          if (!response.ok) throw new Error("Failed to load draft");
-          const data = await response.json();
-          const draft = data.draft;
-          form.reset({
+          // This assumes an API endpoint like `/api/drafts?in_reply_to_id=...`
+          // If not available, this part can be skipped.
+          const res = await fetch(`/api/drafts?in_reply_to_id=${messageId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json();
+            if (data.draft) draftToLoadId = data.draft._id;
+          }
+        } catch (e) { console.warn("Could not search for existing draft.") }
+      }
+
+      // 3. Fetch from API if a draft ID is determined
+      if (draftToLoadId) {
+        try {
+          const res = await fetch(`/api/drafts/${draftToLoadId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error("Draft not found");
+          const { draft } = await res.json();
+          setDraftId(draft._id);
+          const formValues = {
             to: draft.to?.join(", ") || "",
             cc: draft.cc?.join(", ") || "",
             bcc: draft.bcc?.join(", ") || "",
             subject: draft.subject || "",
-            content: draft.html || "",
-          });
+            content: draft.html || "<p></p>",
+          };
+          form.reset(formValues);
           setUploadedAttachments(draft.attachments || []);
           if (draft.cc?.length > 0 || draft.bcc?.length > 0) setShowCcBcc(true);
+          // Also update localStorage with the official version
+          localStorage.setItem(localStorageKey.current, JSON.stringify({ values: formValues, attachments: draft.attachments || [] }));
         } catch (error) {
-          console.error("Error loading draft:", error);
-          toast({ title: "Error", description: "Could not load draft.", variant: "destructive" });
+          console.error("Failed to load draft from API, using local or new.", error);
         }
-        return;
       }
-      
-      let content = "";
-      // Handle Reply
-      if (replyToMessage) {
-        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
-        const quoteHeader = `<p><br>--- On ${formattedDate}, ${replyToMessage.from} wrote: ---</p>`;
-        const originalContent = `<blockquote>${replyToMessage.html}</blockquote>`;
-        content = `${quoteHeader}${originalContent}`;
+
+      // 4. If no draft was loaded, set up a new reply/forward state
+      else if (replyToMessage) {
         form.reset({
           to: replyToMessage.from,
           subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
-          content: content,
+          content: "<p></p>",
         });
-      }
-      
-      // Handle Forward
-      if (forwardMessage) {
-        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
-        const forwardHeader = `
-          <p><br>---------- Forwarded message ---------</p>
-          <p>From: ${forwardMessage.from}</p>
-          <p>Date: ${formattedDate}</p>
-          <p>Subject: ${forwardMessage.subject}</p>
-          <p>To: ${forwardMessage.to?.join(", ")}</p>
-          ${forwardMessage.cc?.length > 0 ? `<p>Cc: ${forwardMessage.cc.join(", ")}</p>` : ""}
-        `;
-        const originalContent = `<blockquote>${forwardMessage.html}</blockquote>`;
-        content = `${forwardHeader}${originalContent}`;
+        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
+        const quoteHeader = `<p>On ${formattedDate}, ${replyToMessage.from} wrote:</p>`;
+        setQuotedContent(`${quoteHeader}<blockquote>${replyToMessage.html}</blockquote>`);
+      } else if (forwardMessage) {
         form.reset({
           subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
-          content: content,
+          content: "<p></p>",
         });
+        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
+        const forwardHeader = `<p>---------- Forwarded message ---------<br>From: ${forwardMessage.from}<br>Date: ${formattedDate}<br>Subject: ${forwardMessage.subject}<br>To: ${forwardMessage.to?.join(", ")}</p>`;
+        setQuotedContent(`${forwardHeader}<blockquote>${forwardMessage.html}</blockquote>`);
         setUploadedAttachments(forwardMessage.attachments || []);
       }
+      setIsInitializing(false);
     };
     initialize();
-  }, [replyToMessage, forwardMessage, initialDraftId, form, toast]);
-  
+  }, [initialDraftId, replyToMessage, forwardMessage, form]);
+
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -213,15 +228,16 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
     content: form.getValues("content"),
     onUpdate: ({ editor }) => {
       form.setValue("content", editor.getHTML(), { shouldValidate: true, shouldDirty: true });
-    },
+    }
   });
+
 
   // --- Set editor content when form values are reset ---
   useEffect(() => {
     const subscription = form.watch((value, { name }) => {
       if (name === "content" && editor && !editor.isDestroyed) {
         if (editor.getHTML() !== value.content) {
-            editor.commands.setContent(value.content || '', false);
+          editor.commands.setContent(value.content || '', false);
         }
       }
     });
@@ -229,132 +245,109 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
   }, [form, editor]);
 
   // --- Auto-save Drafts ---
-  const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>) => {
-    if (!data.subject && !data.content) return; // Don't save empty drafts
+  const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>, attachments: any[]) => {
+    if (!data.subject && !data.content && attachments.length === 0) return;
+
+    // Save to localStorage immediately
+    localStorage.setItem(localStorageKey.current, JSON.stringify({ values: data, attachments }));
+
     setIsSaving(true);
+    const payload = {
+      to: data.to.split(",").map(e => e.trim()).filter(Boolean),
+      cc: data.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+      bcc: data.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+      subject: data.subject,
+      html: data.content,
+      attachments: attachments.map(att => att._id),
+      in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
+    };
+
     try {
       const token = localStorage.getItem("accessToken");
       const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
       const method = draftId ? "PATCH" : "POST";
-      
-      const payload = {
-          to: data.to.split(",").map(e => e.trim()).filter(Boolean),
-          cc: data.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
-          bcc: data.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
-          subject: data.subject,
-          html: data.content,
-          attachments: uploadedAttachments.map(att => att._id)
-      };
-
-      const response = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(payload),
-      });
-
+      const response = await fetch(url, { method, headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify(payload) });
       if (response.ok) {
         const result = await response.json();
         if (!draftId) setDraftId(result.draft._id);
         setLastSaved(new Date());
-      } else {
-        throw new Error("Failed to save draft");
       }
-    } catch (error) {
-      console.error("Auto-save error:", error);
-      // Optional: show a non-intrusive toast
-    } finally {
-      setIsSaving(false);
-    }
-  }, [draftId, uploadedAttachments]);
+    } catch (error) { console.error("Auto-save error:", error); }
+    finally { setIsSaving(false); }
+  }, [draftId, replyToMessage, forwardMessage]);
 
-  const debouncedSave = useCallback(debounce(saveDraft, 2500), [saveDraft]);
+  const debouncedSave = useCallback(debounce(saveDraft, 2000), [saveDraft]);
 
   useEffect(() => {
     const subscription = form.watch((value) => {
-        if (form.formState.isDirty) {
-           debouncedSave(value as z.infer<typeof emailSchema>);
-        }
+      if (form.formState.isDirty) {
+        debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments);
+      }
     });
     return () => subscription.unsubscribe();
-  }, [form, debouncedSave]);
+  }, [form, debouncedSave, uploadedAttachments]);
 
 
-  // --- File Handling ---
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
-    const token = localStorage.getItem("accessToken");
 
     for (const file of Array.from(files)) {
       const formData = new FormData();
       formData.append("file", file);
       try {
-        const response = await fetch("/api/attachments", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
-          body: formData,
-        });
+        const token = localStorage.getItem("accessToken");
+        const response = await fetch("/api/attachments", { method: "POST", headers: { Authorization: `Bearer ${token}` }, body: formData });
         if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
         const result = await response.json();
         setUploadedAttachments(prev => [...prev, result.attachment]);
-      } catch (error) {
-        console.error("Upload error:", error);
-        toast({ title: "Attachment Error", description: (error as Error).message, variant: "destructive" });
-      }
+      } catch (error) { toast({ title: "Attachment Error", description: (error as Error).message, variant: "destructive" }); }
     }
-     // Clear file input value to allow re-selecting the same file
-    if(fileInputRef.current) fileInputRef.current.value = "";
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
-  
-  const handleRemoveAttachment = async (attachmentIdToRemove: string) => {
-      try {
-          const token = localStorage.getItem("accessToken");
-          await fetch(`/api/attachments/${attachmentIdToRemove}`, {
-              method: "DELETE",
-              headers: { Authorization: `Bearer ${token}` },
-          });
-          setUploadedAttachments(prev => prev.filter(att => att._id !== attachmentIdToRemove));
-      } catch (error) {
-          console.error("Error deleting attachment:", error);
-          toast({ title: "Error", description: "Could not remove attachment.", variant: "destructive" });
-      }
+
+  const handleRemoveAttachment = (attachmentIdToRemove: string) => {
+    setUploadedAttachments(prev => prev.filter(att => att._id !== attachmentIdToRemove));
   };
-  
-  // --- Form Actions ---
-  const handleDeleteDraft = async () => {
+
+  const cleanup = async () => {
+    localStorage.removeItem(localStorageKey.current);
     if (draftId) {
-      try {
-        const token = localStorage.getItem("accessToken");
-        await fetch(`/api/drafts/${draftId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        toast({ title: "Draft Discarded" });
-      } catch (error) {
-        console.error("Error discarding draft:", error);
-        // Fail silently, as user intent is just to close.
-      }
+      const token = localStorage.getItem("accessToken");
+      await fetch(`/api/drafts/${draftId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     }
+  };
+
+  const handleDeleteDraft = async () => {
+    await cleanup();
+    toast({ title: "Draft Discarded" });
     onClose();
   };
+
 
   async function onSubmit(values: z.infer<typeof emailSchema>) {
     setIsSending(true);
     try {
+
+      const finalHtml = isQuoteVisible && quotedContent
+        ? `${values.content}<br>${quotedContent}`
+        : values.content;
+
+
       const token = localStorage.getItem("accessToken");
       const payload = {
         to: values.to.split(",").map(e => e.trim()),
         cc: values.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
         bcc: values.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
         subject: values.subject,
-        html: values.content,
+        html: finalHtml,
         attachments: uploadedAttachments.map(att => att._id),
         ...(replyToMessage && {
           in_reply_to: replyToMessage.message_id,
           references: [...(replyToMessage.references || []), replyToMessage.message_id],
         }),
       };
-      
+
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -362,14 +355,15 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
       });
 
       if (!response.ok) throw new Error("Failed to send email.");
-      
+
       if (draftId) { // Delete draft after successful send
-          await fetch(`/api/drafts/${draftId}`, {
-             method: "DELETE", headers: { Authorization: `Bearer ${token}` }
-          });
+        await fetch(`/api/drafts/${draftId}`, {
+          method: "DELETE", headers: { Authorization: `Bearer ${token}` }
+        });
       }
 
       toast({ title: "Success", description: "Your email has been sent." });
+      await cleanup();
       onSent();
       onClose();
     } catch (error) {
@@ -380,106 +374,116 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
     }
   }
 
-  if (!editor) {
-    return <div className="p-4 text-center">Loading composer...</div>
-  }
+  if (isInitializing || !editor) { return <div className="p-8 text-center">Loading composer...</div> }
+  // *** NEW: Compact input style class ***
+  const compactInputStyle = "border-0 border-b rounded-none shadow-none focus-visible:ring-0 focus:border-primary py-1 h-auto text-sm px-1";
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full bg-background border rounded-lg shadow-lg">
         {/* --- Header Fields --- */}
-        <div className="p-4 space-y-3 border-b">
-          <div className="flex items-center">
+        {/* --- Header Fields (with new compact style) --- */}
+        <div className="p-3 space-y-2 border-b">
+          <div className="flex items-center gap-2">
             <FormField control={form.control} name="to" render={({ field }) => (
-                <FormItem className="flex-1">
-                  <div className="flex items-center">
-                    <FormLabel className="w-12 text-sm text-muted-foreground">To</FormLabel>
-                    <FormControl><Input placeholder="Recipients" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
-                  </div>
-                   <FormMessage className="ml-12" />
-                </FormItem>
-              )}
+              <FormItem className="flex-1 flex items-baseline gap-2">
+                <FormLabel className="text-xs text-muted-foreground">To</FormLabel>
+                <FormControl><Input placeholder="Recipients" {...field} className={compactInputStyle} /></FormControl>
+              </FormItem>
+            )}
             />
-            <Button type="button" variant="link" size="sm" onClick={() => setShowCcBcc(!showCcBcc)} className="text-muted-foreground">Cc/Bcc</Button>
+            <Button type="button" onClick={() => setShowCcBcc(!showCcBcc)} className="text-xs text-muted-foreground h-auto p-1">Cc/Bcc</Button>
           </div>
-          
+          <FormMessage {...form.getFieldState("to")} className="text-xs ml-8 -mt-1" />
+
           {showCcBcc && (
             <>
-            <Separator />
-            <FormField control={form.control} name="cc" render={({ field }) => (
-                <FormItem className="flex items-center">
-                  <FormLabel className="w-12 text-sm text-muted-foreground">Cc</FormLabel>
-                  <FormControl><Input placeholder="Carbon Copy" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
-                  <FormMessage className="ml-2" />
+              <FormField control={form.control} name="cc" render={({ field }) => (
+                <FormItem className="flex-1 flex items-baseline gap-2">
+                  <FormLabel className="text-xs text-muted-foreground">Cc</FormLabel>
+                  <FormControl><Input placeholder="Carbon Copy" {...field} className={compactInputStyle} /></FormControl>
                 </FormItem>
-            )}/>
-            <Separator />
-            <FormField control={form.control} name="bcc" render={({ field }) => (
-                <FormItem className="flex items-center">
-                  <FormLabel className="w-12 text-sm text-muted-foreground">Bcc</FormLabel>
-                  <FormControl><Input placeholder="Blind Carbon Copy" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
-                   <FormMessage className="ml-2" />
+              )} />
+              <FormMessage {...form.getFieldState("cc")} className="text-xs ml-8 -mt-1" />
+
+              <FormField control={form.control} name="bcc" render={({ field }) => (
+                <FormItem className="flex-1 flex items-baseline gap-2">
+                  <FormLabel className="text-xs text-muted-foreground">Bcc</FormLabel>
+                  <FormControl><Input placeholder="Blind Carbon Copy" {...field} className={compactInputStyle} /></FormControl>
                 </FormItem>
-            )}/>
+              )} />
+              <FormMessage {...form.getFieldState("bcc")} className="text-xs ml-8 -mt-1" />
             </>
           )}
 
-          <Separator />
-          
           <FormField control={form.control} name="subject" render={({ field }) => (
-              <FormItem className="flex items-center">
-                <FormLabel className="w-12 text-sm text-muted-foreground">Subject</FormLabel>
-                <FormControl><Input placeholder="Email Subject" {...field} className="border-0 shadow-none focus-visible:ring-0 font-medium" /></FormControl>
-                <FormMessage className="ml-2" />
-              </FormItem>
-          )}/>
+            <FormItem className="flex items-baseline gap-2">
+              <FormLabel className="text-xs text-muted-foreground">Subject</FormLabel>
+              <FormControl><Input placeholder="Email Subject" {...field} className={`${compactInputStyle} font-medium`} /></FormControl>
+            </FormItem>
+          )} />
+          <FormMessage {...form.getFieldState("subject")} className="text-xs ml-14 -mt-1" />
         </div>
+
 
         {/* --- Tiptap Editor and Toolbar --- */}
         <Toolbar className="sticky top-0 z-10 custom-toolbar-scroll border-b bg-background/80 backdrop-blur-sm">
           <MainToolbarContent editor={editor} isMobile={isMobile} />
         </Toolbar>
-        
-        <div className="flex-1 overflow-y-auto content-wrapper">
+
+        <div className="flex-1 overflow-y-auto p-4">
           <EditorContent editor={editor} />
+
+          {/* --- NEW: Collapsible Quoted Content Display --- */}
+          {quotedContent && (
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => setIsQuoteVisible(!isQuoteVisible)}
+                className="flex items-center gap-2 text-muted-foreground hover:text-primary"
+              >
+                <Ellipsis className="h-4 w-4" />
+              </button>
+              {isQuoteVisible && (
+                <div
+                  className="prose prose-sm max-w-none text-muted-foreground mt-2 border-l-2 pl-4"
+                  dangerouslySetInnerHTML={{ __html: quotedContent }}
+                />
+              )}
+            </div>
+          )}
         </div>
-        
-        {/* --- Attachments List --- */}
+
+        {/* Attachments List */}
         {uploadedAttachments.length > 0 && (
-            <div className="px-4 py-2 border-t">
+            <div className="flex-shrink-0 px-4 py-2 border-t">
                 <ul className="flex flex-wrap gap-2">
                     {uploadedAttachments.map(att => (
                         <li key={att._id} className="flex items-center text-sm bg-muted text-muted-foreground rounded-full px-3 py-1">
-                           <PaperClipIcon className="h-4 w-4 mr-2" />
+                           <Paperclip className="h-4 w-4 mr-2" />
                            <span>{att.filename}</span>
-                           <button type="button" onClick={() => handleRemoveAttachment(att._id)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5">
-                               <XMarkIcon className="h-3 w-3" />
-                           </button>
+                           <button type="button" onClick={() => handleRemoveAttachment(att._id)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5"><X className="h-3 w-3" /></button>
                         </li>
                     ))}
                 </ul>
             </div>
         )}
 
-        {/* --- Footer and Actions --- */}
-        <div className="flex items-center justify-between p-3 border-t">
+        {/* Footer */}
+        <div className="flex-shrink-0 flex items-center justify-between p-3 border-t">
           <div className="flex items-center space-x-2">
-            <Button type="submit" disabled={isSending || !form.formState.isValid || !form.formState.isDirty}>
+            <Button type="submit" disabled={isSending || !form.formState.isValid}>
               {isSending ? "Sending..." : "Send"}
               <PaperAirplaneIcon className="h-4 w-4 ml-2" />
             </Button>
             <input type="file" multiple ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
-            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} aria-label="Attach files">
-              <PaperClipIcon className="h-4 w-4" />
-            </Button>
+            <Button type="button" onClick={() => fileInputRef.current?.click()} aria-label="Attach files"><Paperclip className="h-4 w-4" /></Button>
           </div>
           <div className="flex items-center space-x-4">
               <span className="text-xs text-muted-foreground">
                   {isSaving ? "Saving..." : lastSaved ? `Saved at ${format(lastSaved, 'h:mm a')}` : ""}
               </span>
-              <Button type="button" variant="ghost" size="icon" onClick={handleDeleteDraft} aria-label="Discard draft">
-                <TrashIcon className="h-5 w-5 text-muted-foreground" />
-              </Button>
+              <Button type="button" onClick={handleDeleteDraft} aria-label="Discard draft"><Trash2 className="h-5 w-5 text-muted-foreground" /></Button>
           </div>
         </div>
       </form>
