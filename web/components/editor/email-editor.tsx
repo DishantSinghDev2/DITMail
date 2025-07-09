@@ -216,6 +216,7 @@ export function EmailEditor({
 
       setIsSaving(true)
       const payload = {
+        type: replyToMessage ? "r" : forwardMessage ? "f" : "d", // d = draft, r = reply, f = forward
         to: data.to.split(",").map((e: string) => e.trim()).filter(Boolean),
         cc: data.cc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
         bcc: data.bcc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],

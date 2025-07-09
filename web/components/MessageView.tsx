@@ -426,6 +426,13 @@ export default function MessageView({
   const displayMessages = threadMessages.length > 0 ? threadMessages : [message]
   const latestMessage = displayMessages[displayMessages.length - 1]
 
+  // show the inline composer when there is a draft present in localstorage
+  const localDrafts = JSON.parse(localStorage.getItem(`draft-${latestMessage._id}`) || "[]")
+  const hasDraft = localDrafts.length > 0
+  if (hasDraft && editorMode === "closed") {
+    setEditorMode(localDrafts[0].type === "r" ? "reply" : "forward")
+  }
+
   return (
     <div className="flex h-full flex-col bg-white">
       {/* Header */}

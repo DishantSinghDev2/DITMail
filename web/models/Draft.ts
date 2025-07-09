@@ -2,6 +2,8 @@ import mongoose, { Schema, type Document } from "mongoose"
 
 export interface IDraft extends Document {
   user_id: mongoose.Types.ObjectId
+  type: "d" | "r" | "f" // d = draft, r = reply, f = forward
+  in_reply_to_id?: string
   to: string[]
   cc?: string[]
   bcc?: string[]
@@ -17,6 +19,8 @@ export interface IDraft extends Document {
 
 const DraftSchema = new Schema<IDraft>({
   user_id: { type: Schema.Types.ObjectId, ref: "User", required: true },
+  type: { type: String, enum: ["d", "r", "f"], default: "d" }, // d = draft, r = reply, f = forward
+  in_reply_to_id: { type: String, default: "" },
   to: [{ type: String, lowercase: true }],
   cc: [{ type: String, lowercase: true }],
   bcc: [{ type: String, lowercase: true }],
