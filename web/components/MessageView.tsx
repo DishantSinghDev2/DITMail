@@ -10,8 +10,6 @@ import {
   PaperClipIcon,
   EllipsisVerticalIcon,
   PrinterIcon,
-  FlagIcon,
-  ArchiveBoxIcon,
   TagIcon,
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline"
@@ -20,23 +18,20 @@ import Dropdown from "./ui/Dropdown"
 import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react"
 import SpamBanner from "./messages/SpamBanner"
 import EmailViewer from "./messages/EmailViewer"
-// --- NEW IMPORT ---
-import InlineComposer from "./InlineCompose" 
+import InlineReplyComposer from "@/components/inline-reply-composer" // Added import for the composer
 
 interface MessageViewProps {
   message: any
   threadMessages: any[]
-  // The onReply and onForward props are now handled internally
-  // They can be removed if they are only used for the modal
   onReply: (message: any) => void
   onForward: (message: any) => void
   onDelete: (messageId: string) => void
   onStar: (messageId: string, starred: boolean) => void
-  onBack: () => void;
-  totalMessages: number;
-  currentMessage: number;
-  onNext: () => void;
-  onPrevious: () => void;
+  onBack: () => void
+  totalMessages: number
+  currentMessage: number
+  onNext: () => void
+  onPrevious: () => void
 }
 
 export default function MessageView({
@@ -50,14 +45,14 @@ export default function MessageView({
   totalMessages,
   currentMessage,
   onNext,
-  onPrevious
+  onPrevious,
 }: MessageViewProps) {
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const [showFullHeaders, setShowFullHeaders] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // --- NEW STATE for inline editor ---
-  const [editorMode, setEditorMode] = useState<'closed' | 'reply' | 'forward'>('closed');
+  // --- State for inline editor ---
+  const [editorMode, setEditorMode] = useState<"closed" | "reply" | "forward">("closed")
 
   useEffect(() => {
     if (threadMessages.length > 0) {
@@ -67,7 +62,7 @@ export default function MessageView({
       setExpandedMessages(new Set([message._id]))
     }
     // Close composer if the message/thread changes
-    setEditorMode('closed');
+    setEditorMode("closed")
   }, [message, threadMessages])
 
   const toggleMessageExpansion = (messageId: string) => {
@@ -148,7 +143,6 @@ export default function MessageView({
         },
         body: JSON.stringify({ folder: "spam" }),
       }).then(() => onBack())
-
     } catch (error) {
       console.error("Mark as spam error:", error)
     }
@@ -193,7 +187,6 @@ export default function MessageView({
         },
         body: JSON.stringify({ folder: "inbox" }),
       }).then(() => onBack())
-
     } catch (error) {
       console.error("Mark as non spam error:", error)
     }
@@ -207,9 +200,8 @@ export default function MessageView({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-        }
+        },
       }).then(() => onBack())
-
     } catch (error) {
       console.error("Delete forever error:", error)
     }
@@ -217,7 +209,6 @@ export default function MessageView({
 
   const onArchive = async (messageId: string) => {
     try {
-
       const token = localStorage.getItem("accessToken")
       fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
@@ -291,11 +282,7 @@ export default function MessageView({
               )}
             </div>
           </div>
-          {!isExpanded && isThread && (
-            <div className="mt-2">
-              <p className="text-sm text-gray-600 truncate">{msg.text}</p>
-            </div>
-          )}
+          {!isExpanded && isThread && <div className="mt-2">{<p className="text-sm text-gray-600 truncate">{msg.text}</p>}</div>}
         </div>
 
         {/* Message Content */}
@@ -303,10 +290,7 @@ export default function MessageView({
           <div className="p-4">
             {/* Full Headers Toggle */}
             <div className="mb-4">
-              <button
-                onClick={() => setShowFullHeaders(!showFullHeaders)}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
+              <button onClick={() => setShowFullHeaders(!showFullHeaders)} className="text-xs text-blue-600 hover:text-blue-800">
                 {showFullHeaders ? "Hide" : "Show"} full headers
               </button>
             </div>
@@ -363,46 +347,46 @@ export default function MessageView({
             {/* Attachments */}
             {msg.attachments?.length > 0 && (
               <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-                  Attachments ({msg.attachments.length})
-                </h4>
+                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Attachments ({msg.attachments.length})</h4>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {msg.attachments.map((attachment: any) => {
-                    const isSpam = msg.folder === 'spam';
+                    const isSpam = msg.folder === "spam"
                     return (
                       <div
                         key={attachment._id}
                         className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition
-              ${isSpam
-                            ? 'bg-red-50 dark:bg-red-900 border border-red-300 text-red-700 dark:text-red-200 cursor-not-allowed'
-                            : 'bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700'
-                          }`}
+              ${
+                isSpam
+                  ? "bg-red-50 dark:bg-red-900 border border-red-300 text-red-700 dark:text-red-200 cursor-not-allowed"
+                  : "bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700"
+              }`}
                         onClick={() => {
-                          if (!isSpam) downloadAttachment(attachment._id, attachment.filename);
+                          if (!isSpam) downloadAttachment(attachment._id, attachment.filename)
                         }}
                       >
-                        <PaperClipIcon className={`h-5 w-5 ${isSpam ? 'text-red-400' : 'text-gray-400'}`} />
+                        <PaperClipIcon className={`h-5 w-5 ${isSpam ? "text-red-400" : "text-gray-400"}`} />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isSpam ? 'text-red-800 dark:text-red-100' : 'text-gray-900 dark:text-white'}`}>
+                          <p
+                            className={`text-sm font-medium truncate ${
+                              isSpam ? "text-red-800 dark:text-red-100" : "text-gray-900 dark:text-white"
+                            }`}
+                          >
                             {attachment.filename}
                           </p>
-                          <p className={`text-xs ${isSpam ? 'text-red-600 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                          <p className={`text-xs ${isSpam ? "text-red-600 dark:text-red-300" : "text-gray-500 dark:text-gray-400"}`}>
                             {attachment.mimeType} • {Math.round(attachment.size / 1024)} KB
                           </p>
                           {isSpam && (
-                            <p className="text-xs text-red-500 mt-1">
-                              ⚠ Attachment blocked for your safety — mark as not spam to download.
-                            </p>
+                            <p className="text-xs text-red-500 mt-1">⚠ Attachment blocked for your safety — mark as not spam to download.</p>
                           )}
                         </div>
                       </div>
-                    );
+                    )
                   })}
                 </div>
               </div>
             )}
-
 
             {/* Labels */}
             {msg.labels?.length > 0 && (
@@ -455,84 +439,63 @@ export default function MessageView({
 
             {latestMessage.folder === "inbox" ? (
               <>
-                <button
-                  title="Archive"
-                  onClick={() => onArchive(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
+                <button title="Archive" onClick={() => onArchive(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
                   <Archive className="h-4 w-4 text-gray-400" />
                 </button>
+                <button title="Mark as spam" onClick={() => markAsSpam(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <OctagonAlert className="h-4 w-4 text-gray-400" />
+                </button>
+              </>
+            ) : latestMessage.folder === "spam" ? (
+              <>
                 <button
-                  title="Mark as spam"
-                  onClick={() => markAsSpam(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
+                  title="Delete forever"
+                  onClick={() => handleDeleteForever(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
                 >
+                  Delete forever
+                </button>
+                <div className="bg-gray-400 w-0.5 h-[14px] "></div>
+                <button
+                  title="Mark as not spam"
+                  onClick={() => handleUnMarkSpam(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
+                >
+                  Not spam
+                </button>
+              </>
+            ) : latestMessage.folder === "trash" ? (
+              <>
+                <button
+                  title="Delete forever"
+                  onClick={() => handleDeleteForever(latestMessage._id)}
+                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
+                >
+                  Delete forever
+                </button>
+              </>
+            ) : (
+              <>
+                <button title="Mark as spam" onClick={() => markAsSpam(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
                   <OctagonAlert className="h-4 w-4 text-gray-400" />
                 </button>
-              </>) : latestMessage.folder === "spam" ? (
-                <>
-                  <button
-                    title="Delete forever"
-                    onClick={() => handleDeleteForever(latestMessage._id)}
-                    className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                  >
-                    Delete forever
-                  </button>
-                  <div className="bg-gray-400 w-0.5 h-[14px] "></div>
-                  <button
-                    title="Mark as not spam"
-                    onClick={() => handleUnMarkSpam(latestMessage._id)}
-                    className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                  >
-                    Not spam
-                  </button>
-                </>
-              ): latestMessage.folder === "trash" ? (
-                <>
-                  <button
-                    title="Delete forever"
-                    onClick={() => handleDeleteForever(latestMessage._id)}
-                    className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                  >
-                    Delete forever
-                  </button>
-                </>
-              ): (
-                <>
-                  <button
-                  title="Mark as spam"
-                  onClick={() => markAsSpam(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-full"
-                >
-                  <OctagonAlert className="h-4 w-4 text-gray-400" />
-                </button>
-                </>
-              )}
+              </>
+            )}
             <div className="bg-gray-400 w-0.5 h-[14px] "></div>
-            <button
-              title="Mark as unread"
-              onClick={() => markAsUnRead(latestMessage._id)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
+            <button title="Mark as unread" onClick={() => markAsUnRead(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
               <MailMinus className="h-4 w-4 text-gray-400" />
             </button>
-            {latestMessage.folder === "inbox" && <button
-              title="Delete"
-              onClick={() => onDelete(latestMessage._id)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              <TrashIcon className="h-4 w-4 text-red-400" />
-            </button>}
+            {latestMessage.folder === "inbox" && (
+              <button title="Delete" onClick={() => onDelete(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
+                <TrashIcon className="h-4 w-4 text-red-400" />
+              </button>
+            )}
             <button
               title="Star"
               onClick={() => onStar(latestMessage._id, !latestMessage.starred)}
               className="p-2 hover:bg-gray-100 rounded-full"
             >
-              {latestMessage.starred ? (
-                <StarIconSolid className="h-5 w-5 text-yellow-500" />
-              ) : (
-                <StarIcon className="h-5 w-5 text-gray-400" />
-              )}
+              {latestMessage.starred ? <StarIconSolid className="h-5 w-5 text-yellow-500" /> : <StarIcon className="h-5 w-5 text-gray-400" />}
             </button>
             <Dropdown
               trigger={
@@ -543,12 +506,12 @@ export default function MessageView({
               items={[
                 {
                   label: "Reply",
-                  onClick: () => setEditorMode('reply'),
+                  onClick: () => setEditorMode("reply"),
                   icon: ArrowUturnLeftIcon,
                 },
                 {
                   label: "Forward",
-                  onClick: () => setEditorMode('forward'),
+                  onClick: () => setEditorMode("forward"),
                   icon: ArrowUturnRightIcon,
                 },
                 {
@@ -585,7 +548,6 @@ export default function MessageView({
           </div>
         </div>
 
-
         <div>
           <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
         </div>
@@ -598,18 +560,18 @@ export default function MessageView({
         )}
         {displayMessages.map((msg) => renderMessage(msg, displayMessages.length > 1))}
 
-        {/* --- MODIFIED: Reply/Forward Buttons --- */}
-        {editorMode === 'closed' && (
+        {/* --- MODIFIED: Reply/Forward Buttons and Inline Composer --- */}
+        {editorMode === "closed" && (
           <div className="flex items-center gap-3 ml-5 mt-3 mb-10">
             <button
-              onClick={() => setEditorMode('reply')}
+              onClick={() => setEditorMode("reply")}
               className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
             >
               <ArrowUturnLeftIcon className="h-4 w-4" />
               <span>Reply</span>
             </button>
             <button
-              onClick={() => setEditorMode('forward')}
+              onClick={() => setEditorMode("forward")}
               className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
             >
               <ArrowUturnRightIcon className="h-4 w-4" />
@@ -617,23 +579,24 @@ export default function MessageView({
             </button>
           </div>
         )}
+
+        {/* --- NEW: Render Inline Composer when in reply/forward mode --- */}
+        {editorMode !== "closed" && latestMessage && (
+          <div className="mt-6">
+            <InlineReplyComposer
+              originalMessage={latestMessage}
+              mode={editorMode}
+              onClose={() => setEditorMode("closed")}
+              onSent={() => {
+                // After sending, close the composer and trigger a refresh/back action
+                // to show the updated conversation.
+                setEditorMode("closed")
+                onBack()
+              }}
+            />
+          </div>
+        )}
       </div>
-
-
-      {/* --- NEW: Inline Composer --- */}
-      {editorMode !== 'closed' && (
-        <InlineComposer
-          mode={editorMode}
-          originalMessage={latestMessage}
-          onClose={() => setEditorMode('closed')}
-          onSent={() => {
-            setEditorMode('closed');
-            // Optionally, you can trigger a refresh of the messages here
-            // e.g., onBack();
-          }}
-        />
-      )}
-
 
       {/* Loading Overlay */}
       {loading && (
