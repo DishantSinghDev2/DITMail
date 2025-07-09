@@ -17,7 +17,7 @@ interface InlineReplyComposerProps {
 export default function InlineReplyComposer({ originalMessage, onClose, onSent, composeMode }: InlineReplyComposerProps) {
   const [mode, setMode] = useState<"reply" | "forward" | undefined>(composeMode)
   const [showMiniComposer, setShowMiniComposer] = useState(false)
-  const [showFullComposer, setShowFullComposer] = useState(false)
+  const [showFullComposer, setShowFullComposer] = useState(true)
 
   const handleMinimize = () => {
     setShowFullComposer(false)
