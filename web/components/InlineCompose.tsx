@@ -1,28 +1,14 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { useState, useEffect, useCallback, useRef } from "react"
-import { useForm, Controller } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { format } from "date-fns"
-
-// Tiptap Imports
-import { useEditor, EditorContent, EditorContext } from "@tiptap/react"
-import { StarterKit } from "@tiptap/starter-kit"
-import { Underline } from "@tiptap/extension-underline"
-import { Link } from "@/components/tiptap/tiptap-extension/link-extension"
-import Placeholder from "@tiptap/extension-placeholder"
-import { Image as TiptapImage } from "@tiptap/extension-image"
+import * as React from "react";
+import { useState, useEffect, useRef } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { format } from "date-fns";
 
 // UI and Icons
-import { Button } from "@/components/tiptap/tiptap-ui-primitive/button"
-import { Toolbar } from "@/components/tiptap/tiptap-ui-primitive/toolbar"
-import { HeadingDropdownMenu } from "@/components/tiptap/tiptap-ui/heading-dropdown-menu"
-import { MarkButton } from "@/components/tiptap/tiptap-ui/mark-button"
-import { ListDropdownMenu } from "@/components/tiptap/tiptap-ui/list-dropdown-menu"
-import { LinkPopover } from "@/components/tiptap/tiptap-ui/link-popover"
-import { UndoRedoButton } from "@/components/tiptap/tiptap-ui/undo-redo-button"
+import { Button } from "@/components/tiptap/tiptap-ui-primitive/button";
 import {
   PaperClipIcon,
   TrashIcon,
@@ -30,16 +16,17 @@ import {
   ArrowsPointingOutIcon,
   ArrowsPointingInIcon,
   XMarkIcon,
-} from "@heroicons/react/24/outline"
-import { useToast } from "@/hooks/use-toast"
+} from "@heroicons/react/24/outline";
+import { useToast } from "@/hooks/use-toast";
+import { EmailEditor } from "@/components/editor/email-editor";
 
 // Helper function to validate emails
 const validateEmails = (emails: string) => {
-  if (!emails || emails.trim() === "") return true
-  const emailArray = emails.split(",").map((e) => e.trim())
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  return emailArray.every((email) => emailRegex.test(email))
-}
+  if (!emails || emails.trim() === "") return true;
+  const emailArray = emails.split(",").map((e) => e.trim());
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailArray.every((email) => emailRegex.test(email));
+};
 
 // Zod Schema for validation
 const emailSchema = z.object({
@@ -48,23 +35,23 @@ const emailSchema = z.object({
   bcc: z.string().optional().refine(validateEmails, "Please enter valid BCC email addresses."),
   subject: z.string().min(1, "Subject is required."),
   content: z.string().min(1, "Message body cannot be empty."),
-})
+});
 
 interface InlineComposerProps {
-  mode: "reply" | "forward"
-  originalMessage: any
-  onClose: () => void
-  onSent: () => void
+  mode: "reply" | "forward";
+  originalMessage: any;
+  onClose: () => void;
+  onSent: () => void;
 }
 
 export default function InlineComposer({ mode, originalMessage, onClose, onSent }: InlineComposerProps) {
-  const { toast } = useToast()
-  const [isMaximized, setIsMaximized] = useState(false)
-  const [showCcBcc, setShowCcBcc] = useState(false)
-  const [isSending, setIsSending] = useState(false)
-  const [attachments, setAttachments] = useState<File[]>([])
-  const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const { toast } = useToast();
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [showCcBcc, setShowCcBcc] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -76,49 +63,27 @@ export default function InlineComposer({ mode, originalMessage, onClose, onSent 
       subject: "",
       content: "",
     },
-  })
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit.configure({
-        heading: { levels: [1, 2, 3] },
-        blockquote: { HTMLAttributes: { class: "border-l-4 border-gray-300 pl-4" } },
-      }),
-      Underline,
-      Link.configure({ openOnClick: false }),
-      TiptapImage,
-      Placeholder.configure({ placeholder: "Type your message here..." }),
-    ],
-    content: "",
-    editorProps: {
-      attributes: {
-        class: "prose prose-sm sm:prose max-w-none focus:outline-none p-4 min-h-[150px]",
-      },
-    },
-    onUpdate: ({ editor }) => {
-      form.setValue("content", editor.getHTML(), { shouldValidate: true, shouldDirty: true })
-    },
-  })
+  });
 
   // Pre-fill form based on mode (reply/forward)
   useEffect(() => {
-    if (!originalMessage || !editor) return
+    if (!originalMessage) return;
 
-    let to = ""
-    let subject = ""
-    let content = ""
+    let to = "";
+    let subject = "";
+    let content = "";
 
-    const originalSender = originalMessage.from
-    const formattedDate = format(new Date(originalMessage.created_at), "MMM d, yyyy, h:mm a")
-    const quoteHeader = `<p>On ${formattedDate}, ${originalSender} wrote:</p>`
-    const originalContent = `<blockquote>${originalMessage.html}</blockquote>`
+    const originalSender = originalMessage.from;
+    const formattedDate = format(new Date(originalMessage.created_at), "MMM d, yyyy, h:mm a");
+    const quoteHeader = `<p>On ${formattedDate}, ${originalSender} wrote:</p>`;
+    const originalContent = `<blockquote>${originalMessage.html}</blockquote>`;
 
     if (mode === "reply") {
-      to = originalMessage.from
-      subject = originalMessage.subject.startsWith("Re:") ? originalMessage.subject : `Re: ${originalMessage.subject}`
-      content = `<br><br>${quoteHeader}${originalContent}`
-    } else { // forward
-      subject = originalMessage.subject.startsWith("Fwd:") ? originalMessage.subject : `Fwd: ${originalMessage.subject}`
+      to = originalMessage.from;
+      subject = originalMessage.subject.startsWith("Re:") ? originalMessage.subject : `Re: ${originalMessage.subject}`;
+      content = `<br><br>${quoteHeader}${originalContent}`;
+    } else {
+      subject = originalMessage.subject.startsWith("Fwd:") ? originalMessage.subject : `Fwd: ${originalMessage.subject}`;
       const forwardHeader = `
         <p>---------- Forwarded message ---------</p>
         <p>From: ${originalMessage.from}</p>
@@ -127,71 +92,67 @@ export default function InlineComposer({ mode, originalMessage, onClose, onSent 
         <p>To: ${originalMessage.to.join(", ")}</p>
         ${originalMessage.cc?.length > 0 ? `<p>Cc: ${originalMessage.cc.join(", ")}</p>` : ""}
         <br>
-      `
-      content = `<br><br>${forwardHeader}${originalContent}`
-      // For forwarding, we might want to carry over attachments.
-      // This example just prepares them for display, sending logic needs to handle them.
-      setUploadedAttachments(originalMessage.attachments || [])
+      `;
+      content = `<br><br>${forwardHeader}${originalContent}`;
+      setUploadedAttachments(originalMessage.attachments || []);
     }
 
-    form.reset({ to, subject, cc: "", bcc: "", content })
-    editor.commands.setContent(content)
-    editor.commands.focus("end")
-  }, [mode, originalMessage, editor, form])
+    form.reset({ to, subject, cc: "", bcc: "", content });
+  }, [mode, originalMessage, form]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setAttachments((prev) => [...prev, ...Array.from(e.target.files)])
+      setAttachments((prev) => [...prev, ...Array.from(e.target.files)]);
     }
-  }
+  };
 
   const handleRemoveAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index))
-  }
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const uploadFiles = async (files: File[]) => {
-    const uploadedFileIds = []
-    const token = localStorage.getItem("accessToken")
+    const uploadedFileIds = [];
+    const token = localStorage.getItem("accessToken");
 
     for (const file of files) {
-      const formData = new FormData()
-      formData.append("file", file)
+      const formData = new FormData();
+      formData.append("file", file);
       try {
         const response = await fetch("/api/attachments", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
-        })
-        if (!response.ok) throw new Error(`Failed to upload ${file.name}`)
-        const result = await response.json()
-        uploadedFileIds.push(result.attachment._id)
+        });
+        if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
+        const result = await response.json();
+        uploadedFileIds.push(result.attachment._id);
       } catch (error) {
-        console.error("Upload error:", error)
-        toast({ title: "Attachment Error", description: `Could not upload ${file.name}.`, variant: "destructive" })
-        return null // Indicate failure
+        console.error("Upload error:", error);
+        toast({ title: "Attachment Error", description: `Could not upload ${file.name}.`, variant: "destructive" });
+        return null;
       }
     }
-    return uploadedFileIds
-  }
+    return uploadedFileIds;
+  };
 
   const onSubmit = async (values: z.infer<typeof emailSchema>) => {
-    setIsSending(true)
+    setIsSending(true);
 
-    let newAttachmentIds: string[] = []
+    let newAttachmentIds: string[] = [];
     if (attachments.length > 0) {
-      const result = await uploadFiles(attachments)
+      const result = await uploadFiles(attachments);
       if (result === null) {
-        setIsSending(false)
-        return // Stop submission if an upload failed
+        setIsSending(false);
+        return;
       }
-      newAttachmentIds = result
+      newAttachmentIds = result;
     }
 
-    const existingAttachmentIds = mode === "forward" ? uploadedAttachments.map((att) => att._id) : []
-    const allAttachmentIds = [...existingAttachmentIds, ...newAttachmentIds]
+    const existingAttachmentIds = mode === "forward" ? uploadedAttachments.map((att) => att._id) : [];
+    const allAttachmentIds = [...existingAttachmentIds, ...newAttachmentIds];
 
     try {
-      const token = localStorage.getItem("accessToken")
+      const token = localStorage.getItem("accessToken");
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -201,26 +162,23 @@ export default function InlineComposer({ mode, originalMessage, onClose, onSent 
           bcc: values.bcc ? values.bcc.split(",").map((email) => email.trim()) : [],
           subject: values.subject,
           html: values.content,
-          text: editor?.getText(), // Tiptap can provide plain text version
           attachments: allAttachmentIds,
           in_reply_to: mode === "reply" ? originalMessage.message_id : undefined,
           references: mode === "reply" ? [...(originalMessage.references || []), originalMessage.message_id] : undefined,
         }),
-      })
+      });
 
-      if (!response.ok) throw new Error("Failed to send email.")
+      if (!response.ok) throw new Error("Failed to send email.");
 
-      toast({ title: "Success", description: "Your email has been sent." })
-      onSent()
+      toast({ title: "Success", description: "Your email has been sent." });
+      onSent();
     } catch (error: any) {
-      console.error("Error sending message:", error)
-      toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" })
+      console.error("Error sending message:", error);
+      toast({ title: "Error", description: error.message || "An unexpected error occurred.", variant: "destructive" });
     } finally {
-      setIsSending(false)
+      setIsSending(false);
     }
-  }
-
-  if (!editor) return null
+  };
 
   return (
     <div className={`fixed bottom-0 right-4 bg-white shadow-2xl rounded-t-lg border border-gray-300 ${isMaximized ? "w-full h-full right-0 rounded-none" : "w-[600px]"}`}>
@@ -270,40 +228,31 @@ export default function InlineComposer({ mode, originalMessage, onClose, onSent 
           {form.formState.errors.subject && <p className="text-xs text-red-500 mt-1">{form.formState.errors.subject.message}</p>}
         </div>
 
-        {/* Tiptap Editor */}
+        {/* Email Editor */}
         <div className="flex-1 overflow-y-auto">
-          <EditorContext.Provider value={{ editor }}>
-            <Toolbar className="sticky top-0 z-10 bg-white border-b">
-              <UndoRedoButton action="undo" />
-              <UndoRedoButton action="redo" />
-              <HeadingDropdownMenu levels={[1, 2, 3]} />
-              <MarkButton type="bold" />
-              <MarkButton type="italic" />
-              <MarkButton type="underline" />
-              <ListDropdownMenu types={["bulletList", "orderedList"]} />
-              <LinkPopover />
-            </Toolbar>
-            <EditorContent editor={editor} />
-          </EditorContext.Provider>
+          <EmailEditor
+            value={form.watch("content")}
+            onChange={(content) => form.setValue("content", content, { shouldValidate: true, shouldDirty: true })}
+          />
         </div>
-        
+
         {/* Attachment List */}
         {(attachments.length > 0 || uploadedAttachments.length > 0) && (
-            <div className="px-4 py-2 border-t text-xs">
-                {uploadedAttachments.map((att) => (
-                    <div key={att._id} className="inline-flex items-center bg-gray-100 rounded-full px-2 py-1 mr-1 mb-1">
-                        <span>{att.filename}</span>
-                    </div>
-                ))}
-                {attachments.map((file, index) => (
-                    <div key={index} className="inline-flex items-center bg-blue-100 text-blue-800 rounded-full px-2 py-1 mr-1 mb-1">
-                        <span>{file.name}</span>
-                        <button type="button" onClick={() => handleRemoveAttachment(index)} className="ml-2 text-blue-600 hover:text-blue-900">
-                            <XMarkIcon className="h-3 w-3" />
-                        </button>
-                    </div>
-                ))}
-            </div>
+          <div className="px-4 py-2 border-t text-xs">
+            {uploadedAttachments.map((att) => (
+              <div key={att._id} className="inline-flex items-center bg-gray-100 rounded-full px-2 py-1 mr-1 mb-1">
+                <span>{att.filename}</span>
+              </div>
+            ))}
+            {attachments.map((file, index) => (
+              <div key={index} className="inline-flex items-center bg-blue-100 text-blue-800 rounded-full px-2 py-1 mr-1 mb-1">
+                <span>{file.name}</span>
+                <button type="button" onClick={() => handleRemoveAttachment(index)} className="ml-2 text-blue-600 hover:text-blue-900">
+                  <XMarkIcon className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
         )}
 
         {/* Footer Actions */}
@@ -324,5 +273,5 @@ export default function InlineComposer({ mode, originalMessage, onClose, onSent 
         </div>
       </form>
     </div>
-  )
+  );
 }
