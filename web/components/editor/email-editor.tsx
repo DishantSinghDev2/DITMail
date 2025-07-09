@@ -98,7 +98,7 @@ import { generateSlug } from "@/lib/utils" // Assuming you have a slug generatio
 
 // --- Styles ---
 import "./simple-editor.scss"
-import "@/styles/globals.css"
+import "@/app/globals.css"
 
 // --- Default Content (Optional) ---
 import defaultContent from "./data/content"
