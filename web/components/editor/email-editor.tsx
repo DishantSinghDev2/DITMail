@@ -1,18 +1,21 @@
 "use client"
 
 import * as React from "react"
-import { useState, useEffect, useCallback, useRef } from "react" // Added useRef
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Editor, Node } from '@tiptap/core' // Import Editor and Node types
+import { debounce } from "lodash"
+import { format } from "date-fns"
 
+// --- Tiptap Core and React ---
+import { Editor } from '@tiptap/core'
 import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
 
-// --- Tiptap Core Extensions ---
+// --- Tiptap Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
-import { Image as TiptapImage } from "@tiptap/extension-image" // Renamed to avoid conflict
+import { Image as TiptapImage } from "@tiptap/extension-image"
 import { TaskItem } from "@tiptap/extension-task-item"
 import { TaskList } from "@tiptap/extension-task-list"
 import { TextAlign } from "@tiptap/extension-text-align"
@@ -22,689 +25,464 @@ import { Subscript } from "@tiptap/extension-subscript"
 import { Superscript } from "@tiptap/extension-superscript"
 import { Underline } from "@tiptap/extension-underline"
 import Placeholder from '@tiptap/extension-placeholder'
-
-// --- Custom Extensions ---
 import { Link } from "@/components/tiptap/tiptap-extension/link-extension"
 import { Selection } from "@/components/tiptap/tiptap-extension/selection-extension"
 import { TrailingNode } from "@/components/tiptap/tiptap-extension/trailing-node-extension"
 import Iframe from "@/components/tiptap/tiptap-extension/iframe-extension"
-import { AdPlaceholder } from "@/components/tiptap/tiptap-extension/ad-placeholder-extension"
 
-// --- UI Primitives ---
+// --- UI Primitives and Shadcn/UI Components ---
 import { Button } from "@/components/tiptap/tiptap-ui-primitive/button"
 import { Spacer } from "@/components/tiptap/tiptap-ui-primitive/spacer"
-import {
-  Toolbar,
-  ToolbarGroup,
-  ToolbarSeparator,
-} from "@/components/tiptap/tiptap-ui-primitive/toolbar"
-
-// --- Shadcn/UI Components ---
-import {
-  Form,
-  FormControl,
-  FormDescription, // Added for helper text
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { Toolbar, ToolbarGroup, ToolbarSeparator } from "@/components/tiptap/tiptap-ui-primitive/toolbar"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { Separator } from "@/components/ui/separator"
-import { CodeIcon, DollarSign, Save, Sparkles, Upload } from "lucide-react" // Added Upload icon
+import { PaperAirplaneIcon, PaperClipIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline"
 
-// --- Tiptap Node ---
-import { ImageUploadNode } from "@/components/tiptap/tiptap-node/image-upload-node/image-upload-node-extension"
-import "@/components/tiptap/tiptap-node/code-block-node/code-block-node.scss"
-import "@/components/tiptap/tiptap-node/list-node/list-node.scss"
-import "@/components/tiptap/tiptap-node/image-node/image-node.scss"
-import "@/components/tiptap/tiptap-node/paragraph-node/paragraph-node.scss"
-
-// --- Tiptap UI ---
+// --- Tiptap UI Components (assumed to exist from original code) ---
 import { HeadingDropdownMenu } from "@/components/tiptap/tiptap-ui/heading-dropdown-menu"
-import { ImageUploadButton } from "@/components/tiptap/tiptap-ui/image-upload-button"
 import { ListDropdownMenu } from "@/components/tiptap/tiptap-ui/list-dropdown-menu"
 import { NodeButton } from "@/components/tiptap/tiptap-ui/node-button"
-import {
-  HighlightPopover,
-  HighlightContent,
-  HighlighterButton,
-} from "@/components/tiptap/tiptap-ui/highlight-popover"
-import {
-  LinkPopover,
-  LinkContent,
-  LinkButton,
-} from "@/components/tiptap/tiptap-ui/link-popover"
+import { HighlightPopover, HighlightContent, HighlighterButton } from "@/components/tiptap/tiptap-ui/highlight-popover"
+import { LinkPopover, LinkContent, LinkButton } from "@/components/tiptap/tiptap-ui/link-popover"
 import { MarkButton } from "@/components/tiptap/tiptap-ui/mark-button"
 import { TextAlignButton } from "@/components/tiptap/tiptap-ui/text-align-button"
 import { UndoRedoButton } from "@/components/tiptap/tiptap-ui/undo-redo-button"
 import { EmbedButton, EmbedContent, EmbedPopover } from "@/components/tiptap/tiptap-ui/embed-button"
-import { AdPlaceholderButton, AdPlaceholderContent, AdPlaceholderPopover } from "@/components/tiptap/tiptap-ui/ad-placeholder-button"
-
-// --- Icons ---
 import { ArrowLeftIcon } from "@/components/tiptap/tiptap-icons/arrow-left-icon"
 import { HighlighterIcon } from "@/components/tiptap/tiptap-icons/highlighter-icon"
 import { LinkIcon } from "@/components/tiptap/tiptap-icons/link-icon"
-
-// --- Hooks ---
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useWindowSize } from "@/hooks/use-window-size"
-
-// --- Lib ---
-import { handleImageUpload, MAX_FILE_SIZE } from "@/lib/tiptap-utils"
-import { generateSlug } from "@/lib/utils" // Assuming you have a slug generation utility
 
 // --- Styles ---
 import "./simple-editor.scss"
 import "@/app/globals.css"
 
-// --- Default Content (Optional) ---
-import defaultContent from "./data/content"
-import { AiAssistant } from "./ai-assistant"
+// --- Helper to validate comma-separated emails ---
+const validateEmails = (emails: string) => {
+  if (!emails || emails.trim() === "") return true // Optional fields are valid if empty
+  const emailArray = emails.split(",").map((e) => e.trim()).filter(Boolean)
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  return emailArray.every((email) => emailRegex.test(email))
+};
 
-// --- Feature Image Uploader Component ---
-// (Assuming ImageUploader component provided in the prompt is in this path)
-import { ImageUploader } from "./image-uploader" // Adjust path if needed
-
-// --- Zod Schema for Validation ---
-const postSchema = z.object({
-  id: z.string().optional(),
-  title: z.string().min(1, "Title is required"),
-  slug: z.string().min(1, "Slug is required").regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase alphanumeric with hyphens"),
-  excerpt: z.string().optional(),
-  featuredImage: z.string().url("Must be a valid URL").optional().or(z.literal("")),
-  content: z.string().min(1, "Content is required"), // Keep this, but content comes from editor
-  metaTitle: z.string().optional(),
-  metaDescription: z.string().optional(),
+// --- Zod Schema for Email Validation ---
+const emailSchema = z.object({
+  to: z.string().min(1, "At least one recipient is required.").refine(validateEmails, "Please enter valid, comma-separated email addresses."),
+  cc: z.string().optional().refine(validateEmails, "Please enter valid, comma-separated CC email addresses."),
+  bcc: z.string().optional().refine(validateEmails, "Please enter valid, comma-separated BCC email addresses."),
+  subject: z.string().min(1, "Subject is required."),
+  content: z.string().min(1, "Message body cannot be empty."),
+  attachments: z.array(z.object({ _id: z.string(), filename: z.string(), size: z.number() })).optional(),
 })
 
-// --- Toolbar Components (Keep as is - no changes needed) ---
-const MainToolbarContent = ({
-  onHighlighterClick,
-  onLinkClick,
-  onEmbedClick,
-  onAdPlaceholderClick,
-  isMobile,
-  setShowAiAssistant
-}: {
-  onHighlighterClick: () => void
-  onLinkClick: () => void
-  onEmbedClick: () => void
-  onAdPlaceholderClick: () => void
-  isMobile: boolean
-  setShowAiAssistant: (show: boolean) => void
-}) => {
-  return (
-    <>
-      <Spacer />
-      <ToolbarGroup>
-        <UndoRedoButton action="undo" />
-        <UndoRedoButton action="redo" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <HeadingDropdownMenu levels={[1, 2, 3, 4]} />
-        <ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} />
-        <NodeButton type="codeBlock" />
-        <NodeButton type="blockquote" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <MarkButton type="bold" />
-        <MarkButton type="italic" />
-        <MarkButton type="strike" />
-        <MarkButton type="code" />
-        <MarkButton type="underline" />
-        {!isMobile ? (
-          <HighlightPopover />
-        ) : (
-          <HighlighterButton onClick={onHighlighterClick} />
-        )}
-        {!isMobile ? <LinkPopover /> : <LinkButton onClick={onLinkClick} />}
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <MarkButton type="superscript" />
-        <MarkButton type="subscript" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <TextAlignButton align="left" />
-        <TextAlignButton align="center" />
-        <TextAlignButton align="right" />
-        <TextAlignButton align="justify" />
-      </ToolbarGroup>
-      <ToolbarSeparator />
-      <ToolbarGroup>
-        <ImageUploadButton />
-        {!isMobile ? <EmbedPopover /> : <EmbedButton onClick={onEmbedClick} />}
-         {!isMobile ? <AdPlaceholderPopover /> : <AdPlaceholderButton onClick={onAdPlaceholderClick} />}
-      </ToolbarGroup>
-      <ToolbarGroup>
-         <Button type="button" onClick={() => setShowAiAssistant(true)} aria-label="AI Assistant">
-          <Sparkles className="h-4 w-4" />
-        </Button>
-      </ToolbarGroup>
-      <Spacer />
-      {isMobile && <ToolbarSeparator />}
-    </>
-  )
+// --- Component Props Interface ---
+interface EmailEditorProps {
+  onClose: () => void
+  onSent: () => void
+  replyToMessage?: any
+  forwardMessage?: any
+  draftId?: string
 }
 
-const MobileToolbarContent = ({
-  type,
-  onBack,
-}: {
-  type: "highlighter" | "link" | "embed" | "ad-placeholder"
-  onBack: () => void
-}) => (
-  <>
-    <ToolbarGroup>
-      <Button data-style="ghost" onClick={onBack}>
-        <ArrowLeftIcon className="tiptap-button-icon" />
-        {type === "highlighter" ? (
-          <HighlighterIcon className="tiptap-button-icon" />
-        ) : type === "link" ? (
-          <LinkIcon className="tiptap-button-icon" />
-        ) : type === "embed" ? (
-          <CodeIcon className="tiptap-button-icon" />
-        ) : (
-          <DollarSign className="tiptap-button-icon" />
-        )}
-      </Button>
-    </ToolbarGroup>
+// --- Toolbar (Largely Unchanged) ---
+const MainToolbarContent = ({ editor, isMobile }: { editor: Editor, isMobile: boolean }) => (
+  <EditorContext.Provider value={{ editor }}>
+    <Spacer />
+    <ToolbarGroup><UndoRedoButton action="undo" /><UndoRedoButton action="redo" /></ToolbarGroup>
     <ToolbarSeparator />
-    {type === "highlighter" ? (
-      <HighlightContent />
-    ) : type === "link" ? (
-      <LinkContent />
-    ) : type === "embed" ? (
-      <EmbedContent />
-    ) : (
-      <AdPlaceholderContent />
-    )}
-  </>
+    <ToolbarGroup><HeadingDropdownMenu levels={[1, 2, 3, 4]} /><ListDropdownMenu types={["bulletList", "orderedList", "taskList"]} /><NodeButton type="codeBlock" /><NodeButton type="blockquote" /></ToolbarGroup>
+    <ToolbarSeparator />
+    <ToolbarGroup><MarkButton type="bold" /><MarkButton type="italic" /><MarkButton type="strike" /><MarkButton type="code" /><MarkButton type="underline" />{!isMobile && <HighlightPopover />}{!isMobile && <LinkPopover />}</ToolbarGroup>
+    <ToolbarSeparator />
+    <ToolbarGroup><MarkButton type="superscript" /><MarkButton type="subscript" /></ToolbarGroup>
+    <ToolbarSeparator />
+    <ToolbarGroup><TextAlignButton align="left" /><TextAlignButton align="center" /><TextAlignButton align="right" /><TextAlignButton align="justify" /></ToolbarGroup>
+    <ToolbarSeparator />
+    <ToolbarGroup>{!isMobile && <EmbedPopover />}</ToolbarGroup>
+    <Spacer />
+    {isMobile && <ToolbarSeparator />}
+  </EditorContext.Provider>
 )
-// --- Main Editor Component ---
-export function EmailEditor({ post }: { post?: z.infer<typeof postSchema> }) {
-  const router = useRouter()
+
+// --- Main Email Editor Component ---
+export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, draftId: initialDraftId }: EmailEditorProps) {
   const { toast } = useToast()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSending, setIsSending] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [draftId, setDraftId] = useState(initialDraftId)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [showCcBcc, setShowCcBcc] = useState(false)
+  const [uploadedAttachments, setUploadedAttachments] = useState<any[]>([])
+  
   const isMobile = useIsMobile()
-  const windowSize = useWindowSize()
-  const [mobileView, setMobileView] = React.useState<
-    "main" | "highlighter" | "link" | "embed" | "ad-placeholder"
-  >("main")
-  const [rect, setRect] = React.useState({ y: 0 })
-  const [editorContent, setEditorContent] = useState<any>(post?.content || defaultContent)
-  const [showAiAssistant, setShowAiAssistant] = useState(false)
-  const [showImageUploader, setShowImageUploader] = useState(false); // <-- State for Image Uploader Modal
-  const isSlugManuallyEdited = useRef(false); // <-- Ref to track manual slug edits
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-
-  // --- Function to find first H1 and its text ---
-  const findFirstH1Text = (editorInstance: Editor): string | null => {
-    let firstH1Text: string | null = null;
-    editorInstance.state.doc.forEach((node) => {
-      if (!firstH1Text && node.type.name === 'heading' && node.attrs.level === 1) {
-        firstH1Text = node.textContent.trim()
-      }
-    })
-    return firstH1Text
-  }
-
-  // --- React Hook Form Setup ---
-  const form = useForm<z.infer<typeof postSchema>>({
-    resolver: zodResolver(postSchema),
+  const form = useForm<z.infer<typeof emailSchema>>({
+    resolver: zodResolver(emailSchema),
+    mode: "onChange",
     defaultValues: {
-      id: post?.id,
-      title: post?.title || "", // Will be potentially overwritten by H1
-      slug: post?.slug || "",   // Will be potentially overwritten by H1->Title
-      excerpt: post?.excerpt || "",
-      featuredImage: post?.featuredImage || "",
-      metaTitle: post?.metaTitle || post?.title || "",
-      metaDescription: post?.metaDescription || post?.excerpt || "",
-      content: post?.content || defaultContent,
+      to: "",
+      cc: "",
+      bcc: "",
+      subject: "",
+      content: "",
+      attachments: [],
     },
-    mode: 'onChange', // Needed for isDirty state to update promptly
   })
 
-  // --- Tiptap Editor Instance ---
+  // --- Initialize form based on props (Reply, Forward, Draft) ---
+  useEffect(() => {
+    const initialize = async () => {
+      // Load from Draft
+      if (initialDraftId) {
+        try {
+          const token = localStorage.getItem("accessToken");
+          const response = await fetch(`/api/drafts/${initialDraftId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!response.ok) throw new Error("Failed to load draft");
+          const data = await response.json();
+          const draft = data.draft;
+          form.reset({
+            to: draft.to?.join(", ") || "",
+            cc: draft.cc?.join(", ") || "",
+            bcc: draft.bcc?.join(", ") || "",
+            subject: draft.subject || "",
+            content: draft.html || "",
+          });
+          setUploadedAttachments(draft.attachments || []);
+          if (draft.cc?.length > 0 || draft.bcc?.length > 0) setShowCcBcc(true);
+        } catch (error) {
+          console.error("Error loading draft:", error);
+          toast({ title: "Error", description: "Could not load draft.", variant: "destructive" });
+        }
+        return;
+      }
+      
+      let content = "";
+      // Handle Reply
+      if (replyToMessage) {
+        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
+        const quoteHeader = `<p><br>--- On ${formattedDate}, ${replyToMessage.from} wrote: ---</p>`;
+        const originalContent = `<blockquote>${replyToMessage.html}</blockquote>`;
+        content = `${quoteHeader}${originalContent}`;
+        form.reset({
+          to: replyToMessage.from,
+          subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
+          content: content,
+        });
+      }
+      
+      // Handle Forward
+      if (forwardMessage) {
+        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
+        const forwardHeader = `
+          <p><br>---------- Forwarded message ---------</p>
+          <p>From: ${forwardMessage.from}</p>
+          <p>Date: ${formattedDate}</p>
+          <p>Subject: ${forwardMessage.subject}</p>
+          <p>To: ${forwardMessage.to?.join(", ")}</p>
+          ${forwardMessage.cc?.length > 0 ? `<p>Cc: ${forwardMessage.cc.join(", ")}</p>` : ""}
+        `;
+        const originalContent = `<blockquote>${forwardMessage.html}</blockquote>`;
+        content = `${forwardHeader}${originalContent}`;
+        form.reset({
+          subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
+          content: content,
+        });
+        setUploadedAttachments(forwardMessage.attachments || []);
+      }
+    };
+    initialize();
+  }, [replyToMessage, forwardMessage, initialDraftId, form, toast]);
+  
+
   const editor = useEditor({
     immediatelyRender: false,
     editorProps: {
       attributes: {
-        autocomplete: "off",
-        autocorrect: "off",
-        autocapitalize: "off",
-        class: "prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none focus:outline-none p-4 min-h-[300px]", // Added padding & min-height
-        "aria-label": "Main content area, start typing to enter text.",
+        class: "prose prose-sm sm:prose lg:prose-lg xl:prose-xl max-w-none focus:outline-none p-4 min-h-[250px]",
+        "aria-label": "Email content area",
       },
     },
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }), // Ensure H1 is enabled
-      Placeholder.configure({ placeholder: 'Start with a Heading 1 for your title...' }),
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Underline,
-      TaskList,
-      TaskItem.configure({ nested: true }),
-      Highlight.configure({ multicolor: true }),
-      TiptapImage, // Use renamed import
-      Iframe,
-      AdPlaceholder,
-      Typography,
-      Superscript,
-      Subscript,
-      Selection,
-      ImageUploadNode.configure({
-        accept: "image/*",
-        maxSize: MAX_FILE_SIZE,
-        limit: 5,
-        upload: handleImageUpload,
-        onError: (error) => {
-          console.error("Upload failed:", error)
-          toast({
-            title: "Image Upload Failed",
-            description: error.message || "Could not upload image.",
-            variant: "destructive",
-          })
-        },
-      }),
-      TrailingNode,
-      Link.configure({ openOnClick: false }),
+      StarterKit, Placeholder.configure({ placeholder: 'Compose your epic email...' }),
+      TextAlign.configure({ types: ["heading", "paragraph"] }), Underline, TaskList, TaskItem, Highlight,
+      TiptapImage, Iframe, Typography, Superscript, Subscript, Selection, TrailingNode, Link,
     ],
-    content: editorContent, // Use state derived from props/default
+    content: form.getValues("content"),
     onUpdate: ({ editor }) => {
-      const htmlContent = editor.getHTML();
-      const jsonContent = editor.getJSON();
-      setEditorContent(jsonContent); // For AI Assistant
-      form.setValue("content", htmlContent, { shouldValidate: true, shouldDirty: true });
-
-      // --- Auto-update Title from H1 ---
-      const firstH1 = findFirstH1Text(editor);
-      if (firstH1 !== null) {
-          const currentTitle = form.getValues("title");
-          if(firstH1 !== currentTitle) {
-              form.setValue("title", firstH1, { shouldValidate: true, shouldDirty: true });
-              // Reset slug manual edit flag only if title changes *programmatically*
-              // This allows the slug useEffect to take over if it wasn't manually changed
-              if (!form.formState.dirtyFields.slug) {
-                 isSlugManuallyEdited.current = false;
-              }
-          }
-      } else {
-        // Optional: Clear title if H1 is removed? Or keep the last known title?
-        // Decide based on desired UX. Let's keep it for now unless explicitly cleared.
-        // if (form.getValues("title")) {
-        //    form.setValue("title", "", { shouldValidate: true, shouldDirty: true });
-        //    isSlugManuallyEdited.current = false; // Reset if title becomes empty
-        // }
-      }
+      form.setValue("content", editor.getHTML(), { shouldValidate: true, shouldDirty: true });
     },
-  })
+  });
 
-    // --- Effect to auto-generate Slug from Title ---
-    useEffect(() => {
-        const subscription = form.watch((value, { name, type }) => {
-            if (name === 'title' && value.title) {
-                // Only update slug if it hasn't been manually edited *since the last title change*
-                if (!isSlugManuallyEdited.current) {
-                    const newSlug = generateSlug(value.title); // Use your utility function
-                    if (newSlug !== form.getValues('slug')) {
-                       form.setValue("slug", newSlug, { shouldValidate: true, shouldDirty: true });
-                    }
-                }
-            }
-        });
-        return () => subscription.unsubscribe();
-    }, [form, isSlugManuallyEdited]); // Watch form, ref doesn't trigger re-run but is accessible
-
-    // --- Effect to set initial title/slug from loaded content ---
-    useEffect(() => {
-        if (editor && !form.formState.isDirty) { // Only on initial load or reset
-            const initialContent = form.getValues('content');
-            // Need to temporarily set content to parse it if editor loaded with default/empty
-            if (initialContent && editor.isEmpty) {
-                 editor.commands.setContent(initialContent, false);
-            }
-
-            const initialH1 = findFirstH1Text(editor);
-            const currentTitle = form.getValues('title');
-            const currentSlug = form.getValues('slug');
-
-            if (initialH1 && (!currentTitle || post?.title === currentTitle)) { // Update if title is empty or matches original post prop title
-                form.setValue('title', initialH1, { shouldDirty: !!post?.id }); // Mark dirty only if editing
-                 if (!currentSlug || post?.slug === currentSlug) { // Update slug only if empty or matches original
-                     form.setValue('slug', generateSlug(initialH1), { shouldDirty: !!post?.id });
-                     isSlugManuallyEdited.current = false; // Reset slug flag
-                 }
-            }
-             // Set initial meta fields if empty
-             const currentMetaTitle = form.getValues('metaTitle');
-             const currentMetaDesc = form.getValues('metaDescription');
-             const currentExcerpt = form.getValues('excerpt');
-
-             if (!currentMetaTitle && initialH1) {
-                 form.setValue('metaTitle', initialH1, { shouldDirty: !!post?.id });
-             }
-             if (!currentMetaDesc && currentExcerpt) {
-                 form.setValue('metaDescription', currentExcerpt, { shouldDirty: !!post?.id });
-             }
-
+  // --- Set editor content when form values are reset ---
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "content" && editor && !editor.isDestroyed) {
+        if (editor.getHTML() !== value.content) {
+            editor.commands.setContent(value.content || '', false);
         }
-    }, [editor, form, post]); // Re-run if editor instance changes
-
-
-  const handleAiSuggestion = useCallback(
-    (suggestion: any) => {
-      if (editor && suggestion) {
-        console.log("AI suggestion:", suggestion);
-        // Use JSON for better structure preservation if suggestion is JSON
-        const isJson = typeof suggestion === 'object';
-        editor.commands.setContent(suggestion, false);
-         // Re-trigger title/slug update after AI content sets
-         const newH1 = findFirstH1Text(editor);
-         if (newH1) {
-             form.setValue('title', newH1, { shouldValidate: true, shouldDirty: true });
-             // Only auto-slug if not manually edited
-             if (!isSlugManuallyEdited.current) {
-                 form.setValue('slug', generateSlug(newH1), { shouldValidate: true, shouldDirty: true });
-             }
-         }
-         form.setValue('content', isJson ? editor.getHTML() : suggestion, { shouldValidate: true, shouldDirty: true });
       }
-    },
-    [editor, form],
-  )
+    });
+    return () => subscription.unsubscribe();
+  }, [form, editor]);
 
-  // --- Mobile Toolbar Positioning ---
-  React.useEffect(() => {
-    setRect(document.body.getBoundingClientRect())
-  }, [])
-
-  // --- Reset Mobile View on Resize ---
-  React.useEffect(() => {
-    if (!isMobile && mobileView !== "main") {
-      setMobileView("main")
-    }
-  }, [isMobile, mobileView])
-
-    // --- Handle Featured Image Upload ---
-    const handleFeaturedImageUploaded = (url: string) => {
-        form.setValue("featuredImage", url, { shouldValidate: true, shouldDirty: true });
-        setShowImageUploader(false); // Close modal on success
-    };
-
-  // --- Form Submission Handler ---
-  async function onSubmit(values: z.infer<typeof postSchema>) {
-    setIsSubmitting(true)
+  // --- Auto-save Drafts ---
+  const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>) => {
+    if (!data.subject && !data.content) return; // Don't save empty drafts
+    setIsSaving(true);
     try {
-      // Final check to ensure editor content is included
-      const finalValues = { ...values, content: editor?.getHTML() || values.content };
+      const token = localStorage.getItem("accessToken");
+      const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
+      const method = draftId ? "PATCH" : "POST";
+      
+      const payload = {
+          to: data.to.split(",").map(e => e.trim()).filter(Boolean),
+          cc: data.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+          bcc: data.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+          subject: data.subject,
+          html: data.content,
+          attachments: uploadedAttachments.map(att => att._id)
+      };
 
-       // Add default meta title/description if empty
-       if (!finalValues.metaTitle) {
-          finalValues.metaTitle = finalValues.title;
-       }
-       if (!finalValues.metaDescription) {
-          finalValues.metaDescription = finalValues.excerpt || ''; // Use excerpt if available
-       }
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (!draftId) setDraftId(result.draft._id);
+        setLastSaved(new Date());
+      } else {
+        throw new Error("Failed to save draft");
+      }
+    } catch (error) {
+      console.error("Auto-save error:", error);
+      // Optional: show a non-intrusive toast
+    } finally {
+      setIsSaving(false);
+    }
+  }, [draftId, uploadedAttachments]);
+
+  const debouncedSave = useCallback(debounce(saveDraft, 2500), [saveDraft]);
+
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+        if (form.formState.isDirty) {
+           debouncedSave(value as z.infer<typeof emailSchema>);
+        }
+    });
+    return () => subscription.unsubscribe();
+  }, [form, debouncedSave]);
 
 
-      console.log("Submitting:", finalValues); // Debug log
+  // --- File Handling ---
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    const token = localStorage.getItem("accessToken");
 
-      const response = await fetch("/api/posts", {
-        method: post?.id ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(finalValues),
-      })
+    for (const file of Array.from(files)) {
+      const formData = new FormData();
+      formData.append("file", file);
+      try {
+        const response = await fetch("/api/attachments", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (!response.ok) throw new Error(`Failed to upload ${file.name}`);
+        const result = await response.json();
+        setUploadedAttachments(prev => [...prev, result.attachment]);
+      } catch (error) {
+        console.error("Upload error:", error);
+        toast({ title: "Attachment Error", description: (error as Error).message, variant: "destructive" });
+      }
+    }
+     // Clear file input value to allow re-selecting the same file
+    if(fileInputRef.current) fileInputRef.current.value = "";
+  };
+  
+  const handleRemoveAttachment = async (attachmentIdToRemove: string) => {
+      try {
+          const token = localStorage.getItem("accessToken");
+          await fetch(`/api/attachments/${attachmentIdToRemove}`, {
+              method: "DELETE",
+              headers: { Authorization: `Bearer ${token}` },
+          });
+          setUploadedAttachments(prev => prev.filter(att => att._id !== attachmentIdToRemove));
+      } catch (error) {
+          console.error("Error deleting attachment:", error);
+          toast({ title: "Error", description: "Could not remove attachment.", variant: "destructive" });
+      }
+  };
+  
+  // --- Form Actions ---
+  const handleDeleteDraft = async () => {
+    if (draftId) {
+      try {
+        const token = localStorage.getItem("accessToken");
+        await fetch(`/api/drafts/${draftId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast({ title: "Draft Discarded" });
+      } catch (error) {
+        console.error("Error discarding draft:", error);
+        // Fail silently, as user intent is just to close.
+      }
+    }
+    onClose();
+  };
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: "Failed to save post. Server response invalid." }));
-        console.error("Server error response:", errorData);
-        throw new Error(errorData.message || `Failed to save post (Status: ${response.status})`);
+  async function onSubmit(values: z.infer<typeof emailSchema>) {
+    setIsSending(true);
+    try {
+      const token = localStorage.getItem("accessToken");
+      const payload = {
+        to: values.to.split(",").map(e => e.trim()),
+        cc: values.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+        bcc: values.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+        subject: values.subject,
+        html: values.content,
+        attachments: uploadedAttachments.map(att => att._id),
+        ...(replyToMessage && {
+          in_reply_to: replyToMessage.message_id,
+          references: [...(replyToMessage.references || []), replyToMessage.message_id],
+        }),
+      };
+      
+      const response = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error("Failed to send email.");
+      
+      if (draftId) { // Delete draft after successful send
+          await fetch(`/api/drafts/${draftId}`, {
+             method: "DELETE", headers: { Authorization: `Bearer ${token}` }
+          });
       }
 
-      const savedPost = await response.json()
-
-      toast({
-        title: post?.id ? "Post updated" : "Post created",
-        description: "Your post has been saved successfully.",
-      })
-
-      form.reset(savedPost); // Reset form with saved data
-      isSlugManuallyEdited.current = false; // Reset slug flag after successful save/reset
-      router.push(`/dashboard/posts`)
-      router.refresh();
-
-    } catch (error: any) {
-      console.error("Submission error:", error);
-      toast({
-        title: "Error Saving Post",
-        description: error.message || "An unexpected error occurred. Please try again.",
-        variant: "destructive",
-      })
+      toast({ title: "Success", description: "Your email has been sent." });
+      onSent();
+      onClose();
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
     } finally {
-      setIsSubmitting(false)
+      setIsSending(false);
     }
   }
 
-  // Render loading or null if editor isn't ready
   if (!editor) {
-    return <div className="p-4 text-center">Loading editor...</div>
+    return <div className="p-4 text-center">Loading composer...</div>
   }
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 p-4 md:p-6">
-        {/* --- Top Level Fields --- */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Title</FormLabel>
-                 <FormDescription>Automatically updated from the first H1 in the editor.</FormDescription>
-                <FormControl>
-                  {/* Title is read-only or visually disabled as it's auto-populated */}
-                  <Input placeholder="Auto-generated from editor H1" {...field} readOnly className="bg-muted/50 border-dashed" />
-                </FormControl>
-                <FormMessage />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full bg-background border rounded-lg shadow-lg">
+        {/* --- Header Fields --- */}
+        <div className="p-4 space-y-3 border-b">
+          <div className="flex items-center">
+            <FormField control={form.control} name="to" render={({ field }) => (
+                <FormItem className="flex-1">
+                  <div className="flex items-center">
+                    <FormLabel className="w-12 text-sm text-muted-foreground">To</FormLabel>
+                    <FormControl><Input placeholder="Recipients" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
+                  </div>
+                   <FormMessage className="ml-12" />
+                </FormItem>
+              )}
+            />
+            <Button type="button" variant="link" size="sm" onClick={() => setShowCcBcc(!showCcBcc)} className="text-muted-foreground">Cc/Bcc</Button>
+          </div>
+          
+          {showCcBcc && (
+            <>
+            <Separator />
+            <FormField control={form.control} name="cc" render={({ field }) => (
+                <FormItem className="flex items-center">
+                  <FormLabel className="w-12 text-sm text-muted-foreground">Cc</FormLabel>
+                  <FormControl><Input placeholder="Carbon Copy" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
+                  <FormMessage className="ml-2" />
+                </FormItem>
+            )}/>
+            <Separator />
+            <FormField control={form.control} name="bcc" render={({ field }) => (
+                <FormItem className="flex items-center">
+                  <FormLabel className="w-12 text-sm text-muted-foreground">Bcc</FormLabel>
+                  <FormControl><Input placeholder="Blind Carbon Copy" {...field} className="border-0 shadow-none focus-visible:ring-0" /></FormControl>
+                   <FormMessage className="ml-2" />
+                </FormItem>
+            )}/>
+            </>
+          )}
+
+          <Separator />
+          
+          <FormField control={form.control} name="subject" render={({ field }) => (
+              <FormItem className="flex items-center">
+                <FormLabel className="w-12 text-sm text-muted-foreground">Subject</FormLabel>
+                <FormControl><Input placeholder="Email Subject" {...field} className="border-0 shadow-none focus-visible:ring-0 font-medium" /></FormControl>
+                <FormMessage className="ml-2" />
               </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="slug"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Slug</FormLabel>
-                 <FormDescription>Auto-generated, or edit manually.</FormDescription>
-                <FormControl>
-                  <Input
-                    placeholder="auto-generated-slug"
-                    {...field}
-                    onChange={(e) => {
-                        // Set flag on manual change
-                        isSlugManuallyEdited.current = true;
-                        field.onChange(e); // Propagate change to RHF
-                    }}
-                    />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          )}/>
         </div>
-
-        <FormField
-          control={form.control}
-          name="excerpt"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Excerpt (Optional)</FormLabel>
-              <FormControl>
-                <Textarea placeholder="A short summary for previews and meta description fallback" {...field} rows={3} />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="featuredImage"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Featured Image URL (Optional)</FormLabel>
-              <div className="flex items-center space-x-2">
-                 <FormControl>
-                  <Input placeholder="https://..." {...field} />
-                </FormControl>
-                 <Button
-                    type="button"
-                    onClick={() => setShowImageUploader(true)}
-                    aria-label="Upload Featured Image"
-                >
-                    <Upload className="h-4 w-4" />
-                </Button>
-              </div>
-               <FormDescription>Enter a URL directly or upload an image.</FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <Separator />
 
         {/* --- Tiptap Editor and Toolbar --- */}
-        <EditorContext.Provider value={{ editor }}>
-            <Toolbar
-            style={
-              isMobile
-              ? {
-                position: 'sticky',
-                top: '0', // Adjust based on your header height if necessary
-                zIndex: 10,
-                backgroundColor: 'hsl(var(--background))', // Add background to prevent content showing through
-                 borderBottom: '1px solid hsl(var(--border))', // Add separator
-              }
-              : { position: 'sticky', top: '0', zIndex: 10, overflowX: 'auto', backgroundColor: 'hsl(var(--background))', borderBottom: '1px solid hsl(var(--border))'}
-            }
-            className="custom-toolbar-scroll"
-            >
-             {/* Toolbar Content (MainToolbarContent / MobileToolbarContent) */}
-            {mobileView === "main" ? (
-              <MainToolbarContent
-              onEmbedClick={() => setMobileView("embed")}
-              onAdPlaceholderClick={() => setMobileView("ad-placeholder")}
-              onHighlighterClick={() => setMobileView("highlighter")}
-              onLinkClick={() => setMobileView("link")}
-              isMobile={isMobile}
-              setShowAiAssistant={setShowAiAssistant}
-              />
-            ) : (
-              <MobileToolbarContent
-              type={mobileView}
-              onBack={() => setMobileView("main")}
-              />
-            )}
-            </Toolbar>
-
-           {/* Added border and bg for better visual separation */}
-          <div className="content-wrapper mt-2 rounded-md border bg-background shadow-sm">
-            <EditorContent
-              editor={editor}
-              role="presentation"
-              className="simple-editor-content" // Ensure this class provides padding if not using prose p-4 above
-            />
-          </div>
-
-        </EditorContext.Provider>
-
-        <Separator />
-
-        {/* --- SEO Fields --- */}
-        <h2 className="text-lg font-semibold">SEO Settings (Optional)</h2>
-        <div className="space-y-4 rounded-md border p-4">
-          <FormField
-            control={form.control}
-            name="metaTitle"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta Title</FormLabel>
-                <FormControl>
-                  <Input placeholder="SEO Title (defaults to post title)" {...field} />
-                </FormControl>
-                 <FormDescription>Recommended length: 50-60 characters.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="metaDescription"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Meta Description</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="SEO Description (defaults to excerpt)" {...field} rows={3} />
-                </FormControl>
-                 <FormDescription>Recommended length: 150-160 characters.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <Toolbar className="sticky top-0 z-10 custom-toolbar-scroll border-b bg-background/80 backdrop-blur-sm">
+          <MainToolbarContent editor={editor} isMobile={isMobile} />
+        </Toolbar>
+        
+        <div className="flex-1 overflow-y-auto content-wrapper">
+          <EditorContent editor={editor} />
         </div>
+        
+        {/* --- Attachments List --- */}
+        {uploadedAttachments.length > 0 && (
+            <div className="px-4 py-2 border-t">
+                <ul className="flex flex-wrap gap-2">
+                    {uploadedAttachments.map(att => (
+                        <li key={att._id} className="flex items-center text-sm bg-muted text-muted-foreground rounded-full px-3 py-1">
+                           <PaperClipIcon className="h-4 w-4 mr-2" />
+                           <span>{att.filename}</span>
+                           <button type="button" onClick={() => handleRemoveAttachment(att._id)} className="ml-2 rounded-full hover:bg-destructive/20 p-0.5">
+                               <XMarkIcon className="h-3 w-3" />
+                           </button>
+                        </li>
+                    ))}
+                </ul>
+            </div>
+        )}
 
-        <Separator />
-
-        {/* --- Action Buttons --- */}
-        <div className="flex justify-end space-x-4">
-          <Button type="button"  onClick={() => router.back()} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={isSubmitting || !form.formState.isDirty || !form.formState.isValid}>
-            {isSubmitting ? (
-              "Saving..."
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                {post?.id ? "Update Post" : "Save Post"}
-              </>
-            )}
-          </Button>
+        {/* --- Footer and Actions --- */}
+        <div className="flex items-center justify-between p-3 border-t">
+          <div className="flex items-center space-x-2">
+            <Button type="submit" disabled={isSending || !form.formState.isValid || !form.formState.isDirty}>
+              {isSending ? "Sending..." : "Send"}
+              <PaperAirplaneIcon className="h-4 w-4 ml-2" />
+            </Button>
+            <input type="file" multiple ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+            <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()} aria-label="Attach files">
+              <PaperClipIcon className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="flex items-center space-x-4">
+              <span className="text-xs text-muted-foreground">
+                  {isSaving ? "Saving..." : lastSaved ? `Saved at ${format(lastSaved, 'h:mm a')}` : ""}
+              </span>
+              <Button type="button" variant="ghost" size="icon" onClick={handleDeleteDraft} aria-label="Discard draft">
+                <TrashIcon className="h-5 w-5 text-muted-foreground" />
+              </Button>
+          </div>
         </div>
       </form>
-
-      {/* AI Assistant Modal */}
-       {showAiAssistant && editor && ( // Ensure editor is available
-        <AiAssistant
-          onClose={() => setShowAiAssistant(false)}
-          onSuggestion={handleAiSuggestion}
-          currentContent={JSON.stringify(editorContent)} // Pass current JSON content
-        />
-      )}
-
-       {/* Feature Image Uploader Modal */}
-        {showImageUploader && (
-            <ImageUploader
-                onClose={() => setShowImageUploader(false)}
-                onImageUploaded={handleFeaturedImageUploaded}
-            />
-        )}
     </Form>
   )
 }
-
-
-// --- Helper function for slug generation (Example) ---
-// Create this in "@/lib/utils.ts" or similar
-/*
-
-*/
