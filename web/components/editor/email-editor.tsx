@@ -226,15 +226,7 @@ export function EmailEditor({
         in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
       }
 
-      // save draft to local storage immediately
-      try {
-        const existingDrafts = JSON.parse(localStorage.getItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`) || "[]")
-        const updatedDrafts = existingDrafts.filter((d: any) => d._id !== draftId) // Remove any existing draft with the same ID
-        updatedDrafts.push({ ...payload, _id: draftId || `temp-${Date.now()}` }) // Use a temp ID if no draftId exists
-        localStorage.setItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`, JSON.stringify(updatedDrafts))
-      } catch (error) {
-        console.error("Failed to save draft to local storage:", error)
-      }
+
 
       try {
         const token = localStorage.getItem("accessToken")
@@ -248,14 +240,15 @@ export function EmailEditor({
         if (response.ok) {
           const result = await response.json()
           if (!draftId) setDraftId(result.draft._id)
-          // Update the local storage with the new draft ID
-          const updatedDrafts = JSON.parse(localStorage.getItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`) || "[]")
-          const draftIndex = updatedDrafts.findIndex((d: any) => d._id === draftId)
-          if (draftIndex !== -1) {
-            updatedDrafts[draftIndex] = { ...updatedDrafts[draftIndex], ...payload, _id: result.draft._id }
+          // save draft to local storage immediately
+          try {
+            const existingDrafts = JSON.parse(localStorage.getItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`) || "[]")
+            const updatedDrafts = existingDrafts.filter((d: any) => d._id !== draftId) // Remove any existing draft with the same ID
+            updatedDrafts.push({ ...payload, _id: result.draft._id }) // Use a temp ID if no draftId exists
+            localStorage.setItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`, JSON.stringify(updatedDrafts))
+          } catch (error) {
+            console.error("Failed to save draft to local storage:", error)
           }
-          localStorage.setItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`, JSON.stringify(updatedDrafts))
-          toast({ title: "Draft saved", description: `Last saved at ${format(new Date(), "h:mm a")}` })
           setLastSaved(new Date())
         }
       } catch (error) {
