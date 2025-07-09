@@ -247,6 +247,14 @@ export function EmailEditor({
         if (response.ok) {
           const result = await response.json()
           if (!draftId) setDraftId(result.draft._id)
+          // Update the local storage with the new draft ID
+          const updatedDrafts = JSON.parse(localStorage.getItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`) || "[]")
+          const draftIndex = updatedDrafts.findIndex((d: any) => d._id === draftId)
+          if (draftIndex !== -1) {
+            updatedDrafts[draftIndex] = { ...updatedDrafts[draftIndex], ...payload, _id: result.draft._id }
+          }
+          localStorage.setItem(`draft-${replyToMessage?.message_id || forwardMessage?.message_id}`, JSON.stringify(updatedDrafts))
+          toast({ title: "Draft saved", description: `Last saved at ${format(new Date(), "h:mm a")}` })
           setLastSaved(new Date())
         }
       } catch (error) {
