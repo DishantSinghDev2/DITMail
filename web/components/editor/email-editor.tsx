@@ -390,14 +390,6 @@ export function EmailEditor({
     }
   }
 
-  if (isInitializing) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-sm text-gray-500">Loading...</div>
-      </div>
-    )
-  }
-
   if (isMinimized) {
     return (
       <div className="p-2 bg-gray-100 border-b">
@@ -594,27 +586,6 @@ export function EmailEditor({
             />
           </div>
 
-          {/* Quoted Content Toggle */}
-          {quotedContent && (
-            <div className="px-4 flex-shrink-0">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsQuoteVisible(!isQuoteVisible)}
-                className="text-xs text-blue-600 hover:text-blue-800"
-              >
-                {isQuoteVisible ? "Hide quoted text" : "Show quoted text"}
-              </Button>
-              {isQuoteVisible && (
-                <div
-                  className="mt-2 p-3 bg-gray-50 border-l-4 border-gray-300 text-sm max-h-40 overflow-y-auto gmail-scrollbar"
-                  dangerouslySetInnerHTML={{ __html: quotedContent }}
-                />
-              )}
-            </div>
-          )}
-
           {/* Attachments */}
           <div className="px-4 flex-shrink-0">
             <AttachmentManager
@@ -643,17 +614,15 @@ export function EmailEditor({
             <div className="flex items-center space-x-2">
               <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
                 <Send className="h-4 w-4 mr-2" />
-                {isSending ? "Sending..." : "Send"}
-              </Button>
-              <Button type="button" variant="outline" onClick={handleDeleteDraft}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Discard
               </Button>
             </div>
             <div className="flex items-center space-x-2 text-xs text-gray-500">
-              {isSaving && <span>Saving...</span>}
               {lastSaved && !isSaving && <span>Saved {format(lastSaved, "HH:mm")}</span>}
             </div>
+
+            <Button type="button" variant="secondary" onClick={handleDeleteDraft}>
+              <Trash2 className="h-4 w-4 mr-2" />
+            </Button>
           </div>
         </form>
       </Form>

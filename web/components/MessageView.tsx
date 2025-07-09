@@ -585,7 +585,7 @@ export default function MessageView({
           <div className="mt-6">
             <InlineReplyComposer
               originalMessage={latestMessage}
-              mode={editorMode}
+              composeMode={editorMode}
               onClose={() => setEditorMode("closed")}
               onSent={() => {
                 // After sending, close the composer and trigger a refresh/back action

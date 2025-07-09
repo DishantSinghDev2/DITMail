@@ -295,7 +295,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         <div
           ref={editorRef}
           contentEditable
-          className="p-3 focus:outline-none overflow-y-auto gmail-scrollbar"
+          className="p-3 focus:outline-none overflow-y-auto ditmail-scrollbar"
           style={{
             fontFamily: fontFamily,
             fontSize: fontSize + "px",

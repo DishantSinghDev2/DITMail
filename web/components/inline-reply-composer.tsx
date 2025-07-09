@@ -11,22 +11,13 @@ interface InlineReplyComposerProps {
   originalMessage: any
   onClose: () => void
   onSent: () => void
+  composeMode?: "reply" | "forward"
 }
 
-export default function InlineReplyComposer({ originalMessage, onClose, onSent }: InlineReplyComposerProps) {
-  const [mode, setMode] = useState<"reply" | "forward" | null>(null)
+export default function InlineReplyComposer({ originalMessage, onClose, onSent, composeMode }: InlineReplyComposerProps) {
+  const [mode, setMode] = useState<"reply" | "forward" | undefined>(composeMode)
   const [showMiniComposer, setShowMiniComposer] = useState(false)
   const [showFullComposer, setShowFullComposer] = useState(false)
-
-  const handleReply = () => {
-    setMode("reply")
-    setShowFullComposer(true)
-  }
-
-  const handleForward = () => {
-    setMode("forward")
-    setShowFullComposer(true)
-  }
 
   const handleMinimize = () => {
     setShowFullComposer(false)
@@ -39,14 +30,14 @@ export default function InlineReplyComposer({ originalMessage, onClose, onSent }
   }
 
   const handleSent = () => {
-    setMode(null)
+    setMode(undefined)
     setShowFullComposer(false)
     setShowMiniComposer(false)
     onSent()
   }
 
   const handleClose = () => {
-    setMode(null)
+    setMode(undefined)
     setShowFullComposer(false)
     setShowMiniComposer(false)
     onClose()
@@ -54,32 +45,6 @@ export default function InlineReplyComposer({ originalMessage, onClose, onSent }
 
   return (
     <>
-      {/* Original Message */}
-      <Card className="mb-4 overflow-hidden">
-        <div className="p-4 border-b bg-gray-50">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-sm">{originalMessage.subject}</h3>
-              <p className="text-xs text-gray-600">From: {originalMessage.from}</p>
-              <p className="text-xs text-gray-500">{new Date(originalMessage.created_at).toLocaleString()}</p>
-            </div>
-            <div className="flex space-x-2">
-              <Button variant="outline" size="sm" onClick={handleReply}>
-                <Reply className="h-3 w-3 mr-1" />
-                Reply
-              </Button>
-              <Button variant="outline" size="sm" onClick={handleForward}>
-                <Forward className="h-3 w-3 mr-1" />
-                Forward
-              </Button>
-            </div>
-          </div>
-        </div>
-        <div className="p-4 max-h-96 overflow-y-auto gmail-scrollbar">
-          <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: originalMessage.html }} />
-        </div>
-      </Card>
-
       {/* Inline Composer */}
       {showFullComposer && mode && (
         <Card className="mb-4">

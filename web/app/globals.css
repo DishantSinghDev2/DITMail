@@ -94,23 +94,54 @@ body {
 }
 
 
-
-/* Custom scrollbar styling */
-::-webkit-scrollbar {
-  width: 12px;
+/* custom scrollbar */
+.ditmail-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #dadce0 transparent;
 }
 
-::-webkit-scrollbar-track {
-  background: var(--sidebar-background);
-  border-radius: var(--radius);
+.ditmail-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-::-webkit-scrollbar-thumb {
-  background-color: var(--sidebar-primary);
-  border-radius: var(--radius);
-  border: 3px solid var(--sidebar-background);
+.ditmail-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--sidebar-primary-foreground);
+.ditmail-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #dadce0;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.ditmail-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #bdc1c6;
+}
+
+.ditmail-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Rich text editor placeholder */
+[contenteditable]:empty:before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* Ensure proper line height and spacing in editor */
+[contenteditable] {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+[contenteditable] p {
+  margin: 0;
+  padding: 0;
+}
+
+[contenteditable] div {
+  margin: 0;
 }
