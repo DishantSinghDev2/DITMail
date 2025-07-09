@@ -1,9 +1,7 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-
 import type React from "react"
-
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -21,6 +19,7 @@ import ContactAutocomplete from "./contact-autocomplete"
 import SignatureSelector from "./signature-selector"
 import { Send, Paperclip, ChevronUp, Trash2, Minimize2, Maximize2, X } from "lucide-react"
 
+// (Interfaces remain the same)
 interface EmailEditorProps {
   onClose: () => void
   onSent: () => void
@@ -41,6 +40,39 @@ interface Attachment {
   url?: string
 }
 
+// --- NEW HELPER FUNCTION ---
+// This function runs synchronously to get initial form values for an instant render.
+const getInitialFormValues = (replyToMessage?: any, forwardMessage?: any) => {
+  if (replyToMessage) {
+    return {
+      to: replyToMessage.from || "",
+      cc: "",
+      bcc: "",
+      subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
+      content: "",
+      attachments: [],
+    }
+  }
+  if (forwardMessage) {
+    return {
+      to: "",
+      cc: "",
+      bcc: "",
+      subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
+      content: "",
+      attachments: [],
+    }
+  }
+  return {
+    to: "",
+    cc: "",
+    bcc: "",
+    subject: "",
+    content: "",
+    attachments: [],
+  }
+}
+
 export function EmailEditor({
   onClose,
   onSent,
@@ -59,44 +91,35 @@ export function EmailEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [showCcBcc, setShowCcBcc] = useState(false)
   const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([])
-  const [quotedContent, setQuotedContent] = useState<string | null>(null)
-  const [isQuoteVisible, setIsQuoteVisible] = useState(false)
-  const [isInitializing, setIsInitializing] = useState(true)
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
-  const isMobile = useIsMobile()
+  // We no longer need isInitializing, as the UI renders instantly.
+  // const [isInitializing, setIsInitializing] = useState(true);
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<RichTextEditorRef>(null)
+  const formInitialized = useRef(false) // Prevents auto-save on initial load.
 
-  const localStorageKey = useRef<string>(
-    `draft-${replyToMessage?.message_id || forwardMessage?.message_id || initialDraftId || "new"}`,
-  )
-
+  // --- REFACTORED: INSTANT INITIALIZATION ---
+  // The form is initialized instantly with synchronous data.
+  // API-dependent data will be loaded in a useEffect later.
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
     mode: "onChange",
-    defaultValues: {
-      to: "",
-      cc: "",
-      bcc: "",
-      subject: "",
-      content: "",
-      attachments: [],
-    },
+    defaultValues: getInitialFormValues(replyToMessage, forwardMessage),
   })
 
-  // Initialize editor content and form data
+  // --- REFACTORED: ASYNCHRONOUS DATA LOADING ---
+  // This effect runs *after* the initial render to fetch drafts or build quotes
+  // without blocking the UI.
   useEffect(() => {
-    const initialize = async () => {
-      setIsInitializing(true)
+    const loadData = async () => {
       const token = localStorage.getItem("accessToken")
       const conversationId = replyToMessage?.message_id || forwardMessage?.message_id
       let draftToLoadId = initialDraftId
-      let finalContent = "<p></p>"
-      let finalAttachments: Attachment[] = []
-      let finalFormValues = { to: "", cc: "", bcc: "", subject: "", content: "" }
+      let loadedFromApi = false
 
-      // 1. Check for existing draft via API
+      // 1. Check for an existing draft via API
       if (!draftToLoadId && conversationId) {
         try {
           const res = await fetch(`/api/drafts?in_reply_to_id=${encodeURIComponent(conversationId)}`, {
@@ -104,14 +127,16 @@ export function EmailEditor({
           })
           if (res.ok) {
             const data = await res.json()
-            draftToLoadId = data.draft?._id
+            if (data.draft?._id) {
+              draftToLoadId = data.draft._id
+            }
           }
         } catch (e) {
           console.warn("Could not search for existing draft.", e)
         }
       }
 
-      // 2. Load draft from API if found
+      // 2. If a draft exists, load its data
       if (draftToLoadId) {
         try {
           const res = await fetch(`/api/drafts/${draftToLoadId}`, {
@@ -119,93 +144,85 @@ export function EmailEditor({
           })
           if (!res.ok) throw new Error("Draft not found in API")
           const { draft } = await res.json()
-          setDraftId(draft._id)
-          finalFormValues = {
+
+          // Reset the form with the fetched draft data
+          form.reset({
             to: draft.to?.join(", ") || "",
             cc: draft.cc?.join(", ") || "",
             bcc: draft.bcc?.join(", ") || "",
             subject: draft.subject || "",
             content: draft.html || "<p></p>",
+          })
+
+          setDraftId(draft._id)
+          setUploadedAttachments(draft.attachments || [])
+          if (draft.cc?.length || draft.bcc?.length) {
+            setShowCcBcc(true)
           }
-          finalAttachments = draft.attachments || []
+          loadedFromApi = true
         } catch (error) {
-          console.error("Failed to load draft from API.", error)
+          console.error("Failed to load draft from API, proceeding with standard reply/forward.", error)
         }
       }
-      // 3. Set up reply/forward state
-      else if (replyToMessage) {
-        finalFormValues.to = replyToMessage.from
-        finalFormValues.subject = replyToMessage.subject.startsWith("Re:")
-          ? replyToMessage.subject
-          : `Re: ${replyToMessage.subject}`
-        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a")
-        const header = `<p><br></p><p>On ${formattedDate}, ${replyToMessage.from} wrote:</p>`
-        finalContent = `<p></p>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${replyToMessage.html}</blockquote>`
-        setQuotedContent(
-          `<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${replyToMessage.html}</blockquote>`,
-        )
-        setIsQuoteVisible(true)
-      } else if (forwardMessage) {
-        finalFormValues.subject = forwardMessage.subject.startsWith("Fwd:")
-          ? forwardMessage.subject
-          : `Fwd: ${forwardMessage.subject}`
-        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a")
-        const header = `<p><br></p><p>---------- Forwarded message ---------<br>From: ${forwardMessage.from}<br>Date: ${formattedDate}<br>Subject: ${forwardMessage.subject}<br>To: ${forwardMessage.to?.join(", ")}</p>`
-        finalContent = `<p></p>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${forwardMessage.html}</blockquote>`
-        finalAttachments = forwardMessage.attachments || []
-        setQuotedContent(
-          `<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${forwardMessage.html}</blockquote>`,
-        )
-        setIsQuoteVisible(true)
+
+      // 3. If no draft was loaded, set up reply/forward content
+      if (!loadedFromApi) {
+        let content = "<p></p>" // Start with an empty paragraph for the user to type in.
+        let attachments: Attachment[] = []
+
+        const createQuotedBlock = (message: any, type: 'reply' | 'forward') => {
+          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a")
+          let header = ''
+          if (type === 'reply') {
+            header = `<p><br></p><p>On ${formattedDate}, ${message.from} wrote:</p>`
+          } else {
+            header = `<p><br></p><p>---------- Forwarded message ---------<br>From: ${message.from}<br>Date: ${formattedDate}<br>Subject: ${message.subject}<br>To: ${message.to?.join(", ")}</p>`
+          }
+          return `${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`
+        }
+
+        if (replyToMessage) {
+          content += createQuotedBlock(replyToMessage, 'reply')
+        } else if (forwardMessage) {
+          content += createQuotedBlock(forwardMessage, 'forward')
+          attachments = forwardMessage.attachments || []
+          setUploadedAttachments(attachments)
+        }
+
+        // Only set content if it's different from the default
+        if (content !== "<p></p>") {
+          form.setValue("content", content, { shouldDirty: false })
+        }
       }
 
-      // 4. Populate form and editor
-      if (finalFormValues.content === "") {
-        finalFormValues.content = finalContent
-      }
-      form.reset(finalFormValues)
-      setUploadedAttachments(finalAttachments)
-      if (finalFormValues.cc || finalFormValues.bcc) setShowCcBcc(true)
-
-      // Set editor content after a brief delay to ensure editor is ready
+      // 4. Set final content in the editor and focus
+      // A small timeout ensures the editor component is fully ready.
       setTimeout(() => {
         if (editorRef.current) {
-          editorRef.current.setContent(finalFormValues.content)
+          editorRef.current.setContent(form.getValues("content"))
           editorRef.current.focus()
+          formInitialized.current = true; // Enable auto-save now
         }
-      }, 100)
-
-      setIsInitializing(false)
+      }, 50)
     }
 
-    initialize()
-  }, [replyToMessage, forwardMessage, initialDraftId, form])
+    loadData()
+    // We only want this to run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDraftId, replyToMessage, forwardMessage])
 
   // Auto-save drafts
   const saveDraft = useCallback(
     async (data: any, attachments: Attachment[]) => {
       const formContent = editorRef.current?.getContent() || data.content
-      if (!data.subject && formContent === "<p></p>" && attachments.length === 0) return
-
-      const saveData = { ...data, content: formContent }
-      localStorage.setItem(localStorageKey.current, JSON.stringify({ values: saveData, attachments }))
+      // Do not save if the form is empty
+      if (!data.subject && (formContent === "<p></p>" || !formContent) && attachments.length === 0) return
 
       setIsSaving(true)
       const payload = {
-        to: data.to
-          .split(",")
-          .map((e: string) => e.trim())
-          .filter(Boolean),
-        cc:
-          data.cc
-            ?.split(",")
-            .map((e: string) => e.trim())
-            .filter(Boolean) || [],
-        bcc:
-          data.bcc
-            ?.split(",")
-            .map((e: string) => e.trim())
-            .filter(Boolean) || [],
+        to: data.to.split(",").map((e: string) => e.trim()).filter(Boolean),
+        cc: data.cc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
+        bcc: data.bcc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
         subject: data.subject,
         html: formContent,
         attachments: attachments.map((att) => att._id),
@@ -239,19 +256,20 @@ export function EmailEditor({
 
   useEffect(() => {
     const subscription = form.watch((value) => {
-      if (form.formState.isDirty && !isInitializing) {
+      // Only start saving after the form has been initialized to avoid race conditions.
+      if (formInitialized.current && form.formState.isDirty) {
         debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments)
       }
     })
     return () => subscription.unsubscribe()
-  }, [form, debouncedSave, uploadedAttachments, isInitializing])
+  }, [form, debouncedSave, uploadedAttachments])
+
 
   // Handle file uploads
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // This function remains largely the same, as it's already optimistic.
     const files = e.target.files
     if (!files) return
-
-    // Optimistically update UI first
     const tempAttachments = Array.from(files).map((file) => ({
       _id: `temp-${Date.now()}-${Math.random()}`,
       name: file.name,
@@ -260,16 +278,12 @@ export function EmailEditor({
       url: URL.createObjectURL(file),
       isUploading: true,
     }))
-
     setUploadedAttachments((prev) => [...prev, ...tempAttachments])
-
-    // Upload files in background
     for (let i = 0; i < files.length; i++) {
       const file = files[i]
       const tempId = tempAttachments[i]._id
       const formData = new FormData()
       formData.append("file", file)
-
       try {
         const token = localStorage.getItem("accessToken")
         const response = await fetch("/api/attachments", {
@@ -279,77 +293,69 @@ export function EmailEditor({
         })
         if (!response.ok) throw new Error(`Failed to upload ${file.name}`)
         const result = await response.json()
-
-        // Replace temp attachment with real one
         setUploadedAttachments((prev) => prev.map((att) => (att._id === tempId ? result.attachment : att)))
       } catch (error) {
-        // Remove failed upload
         setUploadedAttachments((prev) => prev.filter((att) => att._id !== tempId))
-        toast({
-          title: "Attachment Error",
-          description: (error as Error).message,
-          variant: "destructive",
-        })
+        toast({ title: "Attachment Error", description: (error as Error).message, variant: "destructive" })
       }
     }
-
     if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
+  // (Other handlers: handleRemoveAttachment, cleanup, handleDeleteDraft, handleSignatureChange remain the same)
   const handleRemoveAttachment = (attachmentIdToRemove: string) => {
-    setUploadedAttachments((prev) => prev.filter((att) => att._id !== attachmentIdToRemove))
-  }
+    setUploadedAttachments((prev) => prev.filter((att) => att._id !== attachmentIdToRemove));
+  };
 
   const cleanup = async () => {
-    localStorage.removeItem(localStorageKey.current)
     if (draftId) {
-      const token = localStorage.getItem("accessToken")
-      await fetch(`/api/drafts/${draftId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      try {
+        const token = localStorage.getItem("accessToken");
+        await fetch(`/api/drafts/${draftId}`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (error) {
+        console.error("Failed to delete draft from server, but proceeding.", error)
+      }
     }
-  }
+  };
 
   const handleDeleteDraft = async () => {
-    await cleanup()
-    toast({ title: "Draft Discarded" })
-    onClose()
-  }
+    await cleanup();
+    toast({ title: "Draft Discarded" });
+    onClose();
+  };
 
   const handleSignatureChange = (signatureId: string | null, html: string) => {
-    setSelectedSignature(signatureId)
-    setSignatureHtml(html)
-  }
+    setSelectedSignature(signatureId);
+    setSignatureHtml(html);
+  };
+
 
   async function onSubmit(values: z.infer<typeof emailSchema>) {
     setIsSending(true)
     try {
-      let finalHtml = values.content
+      // NOTE: We get the most up-to-date content directly from the editor ref
+      // to ensure we capture everything, including content set programmatically.
+      let finalHtml = editorRef.current?.getContent() || values.content;
 
-      // Add signature if selected
+      // Add signature if selected.
       if (signatureHtml) {
-        finalHtml = `${values.content}<br><br>${signatureHtml}`
-      }
-
-      // Add quoted content if visible
-      if (isQuoteVisible && quotedContent) {
-        finalHtml = `${finalHtml}<br>${quotedContent}`
+        // A more robust way to add a signature is to check if it's already there.
+        // For simplicity here, we assume the user hasn't manually added it.
+        // Gmail often injects it into a non-editable block or right before the quote.
+        // This logic prepends the signature to the user's content.
+        const userContent = finalHtml.split('<blockquote style=')[0] || '<p></p>'
+        const quotedBlock = finalHtml.includes('<blockquote style=') ? '<blockquote style=' + finalHtml.split('<blockquote style=')[1] : ''
+        finalHtml = `${userContent}<br>--<br>${signatureHtml}<br>${quotedBlock}`
       }
 
       const token = localStorage.getItem("accessToken")
       const payload = {
         to: values.to.split(",").map((e) => e.trim()),
-        cc:
-          values.cc
-            ?.split(",")
-            .map((e) => e.trim())
-            .filter(Boolean) || [],
-        bcc:
-          values.bcc
-            ?.split(",")
-            .map((e) => e.trim())
-            .filter(Boolean) || [],
+        cc: values.cc?.split(",").map((e) => e.trim()).filter(Boolean) || [],
+        bcc: values.bcc?.split(",").map((e) => e.trim()).filter(Boolean) || [],
         subject: values.subject,
         html: finalHtml,
         attachments: uploadedAttachments.map((att) => att._id),
@@ -367,15 +373,8 @@ export function EmailEditor({
 
       if (!response.ok) throw new Error("Failed to send email.")
 
-      if (draftId) {
-        await fetch(`/api/drafts/${draftId}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${token}` },
-        })
-      }
-
+      await cleanup() // Clean up the draft after sending
       toast({ title: "Success", description: "Your email has been sent." })
-      await cleanup()
       onSent()
       onClose()
     } catch (error) {
@@ -390,6 +389,7 @@ export function EmailEditor({
     }
   }
 
+  // (The JSX remains almost identical, as the changes were primarily in logic hooks)
   if (isMinimized) {
     return (
       <div className="p-2 bg-gray-100 border-b">
@@ -463,22 +463,10 @@ export function EmailEditor({
                 <div className="flex items-center ml-2 space-x-1">
                   {!showCcBcc && (
                     <>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowCcBcc(true)}
-                        className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
                         Cc
                       </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setShowCcBcc(true)}
-                        className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2"
-                      >
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
                         Bcc
                       </Button>
                     </>
@@ -509,13 +497,7 @@ export function EmailEditor({
                         </FormItem>
                       )}
                     />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowCcBcc(false)}
-                      className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600"
-                    >
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
                       <ChevronUp className="h-3 w-3" />
                     </Button>
                   </div>
@@ -565,67 +547,59 @@ export function EmailEditor({
           </div>
 
           {/* Editor */}
-          <div className="flex-1 p-4 overflow-hidden">
-            <FormField
-              control={form.control}
-              name="content"
-              render={({ field }) => (
-                <FormItem className="h-full">
-                  <FormControl>
-                    <RichTextEditor
-                      ref={editorRef}
-                      placeholder="Compose your message..."
-                      onChange={field.onChange}
-                      className="h-full"
-                      minHeight="200px"
-                      maxHeight="none"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
+          <div className="flex-1 p-4 overflow-y-auto">
+            <RichTextEditor
+              ref={editorRef}
+              placeholder="Compose your message..."
+              // Pass the form's onChange to keep it in sync, but we will primarily
+              // use the ref for getting the final content.
+              onChange={(content) => form.setValue("content", content, { shouldDirty: true })}
+              className="h-full"
+              minHeight="200px"
             />
           </div>
 
-          {/* Attachments */}
-          <div className="px-4 flex-shrink-0">
+          {/* Attachments & Actions */}
+          <div className="px-4 pt-2 pb-1 flex-shrink-0 border-t">
             <AttachmentManager
               attachments={uploadedAttachments}
-              onAttachmentsChange={setUploadedAttachments}
               onRemoveAttachment={handleRemoveAttachment}
-            />
-            <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" />
-            <div className="flex items-center justify-between mt-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-blue-600 hover:text-blue-800"
-              >
-                <Paperclip className="h-4 w-4 mr-1" />
-                Attach files
-              </Button>
-              <SignatureSelector selectedSignature={selectedSignature} onSignatureChange={handleSignatureChange} />
-            </div>
+              onAttachmentsChange={setUploadedAttachments} />
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between p-4 border-t bg-gray-50 flex-shrink-0">
+          <div className="flex items-center justify-between p-2 bg-gray-50 flex-shrink-0">
             <div className="flex items-center space-x-2">
-              <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
-                <Send className="h-4 w-4 mr-2" />
+              <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 px-4 py-2 rounded-md">
+                <span className="font-semibold">Send</span>
+                <Send className="h-4 w-4 ml-2" />
               </Button>
-            </div>
-            <div className="flex items-center space-x-2 text-xs text-gray-500">
-              {lastSaved && !isSaving && <span>Saved {format(lastSaved, "HH:mm")}</span>}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                className="text-gray-600 hover:text-blue-700"
+                aria-label="Attach files"
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
+              <SignatureSelector selectedSignature={selectedSignature} onSignatureChange={handleSignatureChange} />
             </div>
 
-            <Button type="button" variant="secondary" onClick={handleDeleteDraft}>
-              <Trash2 className="h-4 w-4 mr-2" />
-            </Button>
+            <div className="flex items-center space-x-4">
+              <div className="text-xs text-gray-500 h-4">
+                {isSaving ? "Saving..." : lastSaved && <span>Saved {format(lastSaved, "HH:mm")}</span>}
+              </div>
+              <Button type="button" variant="ghost" size="icon" onClick={handleDeleteDraft} className="text-gray-600 hover:text-red-600" aria-label="Discard draft">
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </div>
           </div>
         </form>
       </Form>
+      {/* Hidden file input */}
+      <input ref={fileInputRef} type="file" multiple onChange={handleFileSelect} className="hidden" />
     </div>
   )
 }
