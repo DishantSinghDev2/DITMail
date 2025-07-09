@@ -11,7 +11,7 @@ import { format } from "date-fns"
 
 // --- Tiptap Core and React ---
 import { Editor } from '@tiptap/core'
-import { EditorContent, EditorContext, useEditor } from "@tiptap/react"
+import { EditorContent, EditorContext, useEditor, Extension } from "@tiptap/react"
 
 // --- Tiptap Extensions ---
 import { StarterKit } from "@tiptap/starter-kit"
@@ -87,6 +87,23 @@ interface EmailEditorProps {
   draftId?: string
 }
 
+const InlineStyleExtension = Extension.create({
+  name: 'inlineStyle',
+  addGlobalAttributes() {
+    return [ {
+        types: ['textStyle'],
+        attributes: {
+          style: {
+            default: null,
+            parseHTML: element => element.getAttribute('style'),
+            renderHTML: attributes => (attributes.style ? { style: attributes.style } : {}),
+          },
+        },
+      },
+    ]
+  },
+});
+
 // --- Toolbar (Largely Unchanged) ---
 const MainToolbarContent = ({ editor, isMobile }: { editor: Editor, isMobile: boolean }) => (
   <EditorContext.Provider value={{ editor }}>
@@ -131,85 +148,6 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
     defaultValues: { to: "", cc: "", bcc: "", subject: "", content: "", attachments: [] },
   });
 
-  // --- Initialize form based on props (Reply, Forward, Draft) ---
-  useEffect(() => {
-    const initialize = async () => {
-      const token = localStorage.getItem("accessToken");
-
-      // 1. Try to load from localStorage for instant UI
-      const localDraft = localStorage.getItem(localStorageKey.current);
-      if (localDraft) {
-        const { values, attachments } = JSON.parse(localDraft);
-        form.reset(values);
-        setUploadedAttachments(attachments || []);
-        if (values.cc || values.bcc) setShowCcBcc(true);
-      }
-
-      // 2. Determine initial state from props (Reply, Forward, or existing Draft)
-      let draftToLoadId = initialDraftId;
-
-      // If replying/forwarding, search for a draft related to this message
-      if (replyToMessage || forwardMessage) {
-        const messageId = replyToMessage?.message_id || forwardMessage?.message_id;
-        try {
-          // This assumes an API endpoint like `/api/drafts?in_reply_to_id=...`
-          // If not available, this part can be skipped.
-          const res = await fetch(`/api/drafts?in_reply_to_id=${messageId}`, { headers: { Authorization: `Bearer ${token}` } });
-          if (res.ok) {
-            const data = await res.json();
-            if (data.draft) draftToLoadId = data.draft._id;
-          }
-        } catch (e) { console.warn("Could not search for existing draft.") }
-      }
-
-      // 3. Fetch from API if a draft ID is determined
-      if (draftToLoadId) {
-        try {
-          const res = await fetch(`/api/drafts/${draftToLoadId}`, { headers: { Authorization: `Bearer ${token}` } });
-          if (!res.ok) throw new Error("Draft not found");
-          const { draft } = await res.json();
-          setDraftId(draft._id);
-          const formValues = {
-            to: draft.to?.join(", ") || "",
-            cc: draft.cc?.join(", ") || "",
-            bcc: draft.bcc?.join(", ") || "",
-            subject: draft.subject || "",
-            content: draft.html || "<p></p>",
-          };
-          form.reset(formValues);
-          setUploadedAttachments(draft.attachments || []);
-          if (draft.cc?.length > 0 || draft.bcc?.length > 0) setShowCcBcc(true);
-          // Also update localStorage with the official version
-          localStorage.setItem(localStorageKey.current, JSON.stringify({ values: formValues, attachments: draft.attachments || [] }));
-        } catch (error) {
-          console.error("Failed to load draft from API, using local or new.", error);
-        }
-      }
-
-      // 4. If no draft was loaded, set up a new reply/forward state
-      else if (replyToMessage) {
-        form.reset({
-          to: replyToMessage.from,
-          subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
-          content: "<p></p>",
-        });
-        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
-        const quoteHeader = `<p>On ${formattedDate}, ${replyToMessage.from} wrote:</p>`;
-        setQuotedContent(`${quoteHeader}<blockquote>${replyToMessage.html}</blockquote>`);
-      } else if (forwardMessage) {
-        form.reset({
-          subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
-          content: "<p></p>",
-        });
-        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
-        const forwardHeader = `<p>---------- Forwarded message ---------<br>From: ${forwardMessage.from}<br>Date: ${formattedDate}<br>Subject: ${forwardMessage.subject}<br>To: ${forwardMessage.to?.join(", ")}</p>`;
-        setQuotedContent(`${forwardHeader}<blockquote>${forwardMessage.html}</blockquote>`);
-        setUploadedAttachments(forwardMessage.attachments || []);
-      }
-      setIsInitializing(false);
-    };
-    initialize();
-  }, [initialDraftId, replyToMessage, forwardMessage, form]);
 
 
   const editor = useEditor({
@@ -223,13 +161,93 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
     extensions: [
       StarterKit, Placeholder.configure({ placeholder: 'Compose your epic email...' }),
       TextAlign.configure({ types: ["heading", "paragraph"] }), Underline, TaskList, TaskItem, Highlight,
-      TiptapImage, Iframe, Typography, Superscript, Subscript, Selection, TrailingNode, Link,
+      TiptapImage, Iframe, Typography, Superscript, Subscript, Selection, TrailingNode, Link, InlineStyleExtension
     ],
     content: form.getValues("content"),
     onUpdate: ({ editor }) => {
-      form.setValue("content", editor.getHTML(), { shouldValidate: true, shouldDirty: true });
+      // Prevent updating form if editor is not yet initialized with content
+      if(!isInitializing) {
+        form.setValue("content", editor.getHTML(), { shouldValidate: true, shouldDirty: true });
+      }
     }
   });
+
+  
+  useEffect(() => {
+    if (!editor) return;
+
+    const initialize = async () => {
+      setIsInitializing(true);
+      const token = localStorage.getItem("accessToken");
+      const conversationId = replyToMessage?.message_id || forwardMessage?.message_id;
+
+      let draftToLoadId = initialDraftId;
+      let finalContent = '<p></p>';
+      let finalAttachments: any[] = [];
+      let finalFormValues = { to: "", cc: "", bcc: "", subject: "", content: "" };
+
+      // 1. Check for a draft related to this conversation via API
+      if (!draftToLoadId && conversationId) {
+        try {
+          const res = await fetch(`/api/drafts?in_reply_to_id=${encodeURIComponent(conversationId)}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (res.ok) {
+            const data = await res.json();
+            draftToLoadId = data.draft?._id;
+          }
+        } catch (e) { console.warn("Could not search for existing draft.", e) }
+      }
+
+      // 2. Load the draft from API if an ID is found
+      if (draftToLoadId) {
+        try {
+          const res = await fetch(`/api/drafts/${draftToLoadId}`, { headers: { Authorization: `Bearer ${token}` } });
+          if (!res.ok) throw new Error("Draft not found in API");
+          const { draft } = await res.json();
+          setDraftId(draft._id);
+          finalFormValues = {
+            to: draft.to?.join(", ") || "",
+            cc: draft.cc?.join(", ") || "",
+            bcc: draft.bcc?.join(", ") || "",
+            subject: draft.subject || "",
+            content: draft.html || "<p></p>",
+          };
+          finalAttachments = draft.attachments || [];
+        } catch (error) {
+          console.error("Failed to load draft from API.", error);
+        }
+      }
+      
+      // 3. If no API draft, set up a new reply/forward state
+      else if (replyToMessage) {
+        finalFormValues.to = replyToMessage.from;
+        finalFormValues.subject = replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`;
+        const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
+        const header = `<p><br></p><p>On ${formattedDate}, ${replyToMessage.from} wrote:</p>`;
+        finalContent = `${header}<blockquote>${replyToMessage.html}</blockquote>`;
+      } else if (forwardMessage) {
+        finalFormValues.subject = forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`;
+        const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
+        const header = `<p><br></p><p>---------- Forwarded message ---------<br>From: ${forwardMessage.from}<br>Date: ${formattedDate}<br>Subject: ${forwardMessage.subject}<br>To: ${forwardMessage.to?.join(", ")}</p>`;
+        finalContent = `${header}<blockquote>${forwardMessage.html}</blockquote>`;
+        finalAttachments = forwardMessage.attachments || [];
+      }
+      
+      // 4. Populate form and editor
+      if (finalFormValues.content === "") {
+          finalFormValues.content = finalContent;
+      }
+      form.reset(finalFormValues);
+      setUploadedAttachments(finalAttachments);
+      if(finalFormValues.cc || finalFormValues.bcc) setShowCcBcc(true);
+      
+      editor.commands.setContent(finalFormValues.content);
+      editor.commands.focus('start');
+      
+      setIsInitializing(false);
+    };
+
+    initialize();
+  }, [editor]); // Run only when editor is ready
 
 
   // --- Set editor content when form values are reset ---
@@ -245,19 +263,20 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
   }, [form, editor]);
 
   // --- Auto-save Drafts ---
-  const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>, attachments: any[]) => {
-    if (!data.subject && !data.content && attachments.length === 0) return;
+  const saveDraft = useCallback(async (data: any, attachments: any[]) => {
+    const formContent = editor?.getHTML() || data.content;
+    if (!data.subject && formContent === '<p></p>' && attachments.length === 0) return;
 
-    // Save to localStorage immediately
-    localStorage.setItem(localStorageKey.current, JSON.stringify({ values: data, attachments }));
+    const saveData = { ...data, content: formContent };
+    localStorage.setItem(localStorageKey.current, JSON.stringify({ values: saveData, attachments }));
 
     setIsSaving(true);
     const payload = {
-      to: data.to.split(",").map(e => e.trim()).filter(Boolean),
-      cc: data.cc?.split(",").map(e => e.trim()).filter(Boolean) || [],
-      bcc: data.bcc?.split(",").map(e => e.trim()).filter(Boolean) || [],
+      to: data.to.split(",").map((e:string) => e.trim()).filter(Boolean),
+      cc: data.cc?.split(",").map((e:string) => e.trim()).filter(Boolean) || [],
+      bcc: data.bcc?.split(",").map((e:string) => e.trim()).filter(Boolean) || [],
       subject: data.subject,
-      html: data.content,
+      html: formContent,
       attachments: attachments.map(att => att._id),
       in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
     };
@@ -272,9 +291,9 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
         if (!draftId) setDraftId(result.draft._id);
         setLastSaved(new Date());
       }
-    } catch (error) { console.error("Auto-save error:", error); }
+    } catch (error) { console.error("Auto-save error:", error); } 
     finally { setIsSaving(false); }
-  }, [draftId, replyToMessage, forwardMessage]);
+}, [draftId, editor, replyToMessage, forwardMessage]);
 
   const debouncedSave = useCallback(debounce(saveDraft, 2000), [saveDraft]);
 
@@ -374,14 +393,13 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
     }
   }
 
-  if (isInitializing || !editor) { return <div className="p-8 text-center">Loading composer...</div> }
-  // *** NEW: Compact input style class ***
+  if (isInitializing) { return <div className="p-8 text-center text-muted-foreground">Loading composer...</div> }
+
   const compactInputStyle = "border-0 border-b rounded-none shadow-none focus-visible:ring-0 focus:border-primary py-1 h-auto text-sm px-1";
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-full bg-background border rounded-lg shadow-lg">
-        {/* --- Header Fields --- */}
         {/* --- Header Fields (with new compact style) --- */}
         <div className="p-3 space-y-2 border-b">
           <div className="flex items-center gap-2">
@@ -426,34 +444,14 @@ export function EmailEditor({ onClose, onSent, replyToMessage, forwardMessage, d
         </div>
 
 
-        {/* --- Tiptap Editor and Toolbar --- */}
-        <Toolbar className="sticky top-0 z-10 custom-toolbar-scroll border-b bg-background/80 backdrop-blur-sm">
-          <MainToolbarContent editor={editor} isMobile={isMobile} />
-        </Toolbar>
-
-        <div className="flex-1 overflow-y-auto p-4">
+       {/* Toolbar */}
+       <div className="flex-shrink-0 border-b"><MainToolbarContent editor={editor!} isMobile /></div>
+        
+        {/* Editor Content Area */}
+        <div className="flex-1 overflow-y-auto">
           <EditorContent editor={editor} />
-
-          {/* --- NEW: Collapsible Quoted Content Display --- */}
-          {quotedContent && (
-            <div className="mt-6">
-              <button
-                type="button"
-                onClick={() => setIsQuoteVisible(!isQuoteVisible)}
-                className="flex items-center gap-2 text-muted-foreground hover:text-primary"
-              >
-                <Ellipsis className="h-4 w-4" />
-              </button>
-              {isQuoteVisible && (
-                <div
-                  className="prose prose-sm max-w-none text-muted-foreground mt-2 border-l-2 pl-4"
-                  dangerouslySetInnerHTML={{ __html: quotedContent }}
-                />
-              )}
-            </div>
-          )}
         </div>
-
+        
         {/* Attachments List */}
         {uploadedAttachments.length > 0 && (
             <div className="flex-shrink-0 px-4 py-2 border-t">
