@@ -76,7 +76,18 @@ export async function getAuthUser(request: NextRequest) {
   if (!token) return null
 
   const payload = verifyToken(token)
-  if (!payload) return null
+  if (!payload) {
+    // If token is invalid, check for a valid refresh token
+    const refreshToken = request.headers.get("x-refresh-token")
+    if (!refreshToken) return null
+
+    const newTokens = await refreshAccessToken(refreshToken)
+    if (!newTokens) return null
+
+    // Set new access token in headers for future requests
+    request.headers.set("authorization", `Bearer ${newTokens.accessToken}`)
+    return getAuthUser(request) // Retry with new access token
+  }
 
   await connectDB()
   const user = await User.findById(payload.userId).populate("org_id")
