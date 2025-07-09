@@ -20,12 +20,14 @@ import Dropdown from "./ui/Dropdown"
 import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react"
 import SpamBanner from "./messages/SpamBanner"
 import EmailViewer from "./messages/EmailViewer"
-import InlineCompose from "./InlineCompose" // <-- IMPORT NEW COMPONENT
-import "./email-editor/EmailEditor.css" // <-- IMPORT EDITOR CSS
+// --- NEW IMPORT ---
+import InlineComposer from "./InlineCompose" 
 
 interface MessageViewProps {
   message: any
   threadMessages: any[]
+  // The onReply and onForward props are now handled internally
+  // They can be removed if they are only used for the modal
   onReply: (message: any) => void
   onForward: (message: any) => void
   onDelete: (messageId: string) => void
@@ -40,8 +42,8 @@ interface MessageViewProps {
 export default function MessageView({
   message,
   threadMessages,
-  onReply, // This will be handled internally now, but kept for other uses if any
-  onForward, // This will be handled internally now, but kept for other uses if any
+  onReply, // Kept for compatibility, but not used by new buttons
+  onForward, // Kept for compatibility, but not used by new buttons
   onDelete,
   onStar,
   onBack,
@@ -53,8 +55,9 @@ export default function MessageView({
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const [showFullHeaders, setShowFullHeaders] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [composeMode, setComposeMode] = useState<'reply' | 'forward' | null>(null) // <-- STATE FOR INLINE EDITOR
-  const [composeKey, setComposeKey] = useState(Date.now()) // <-- KEY TO RESET EDITOR
+
+  // --- NEW STATE for inline editor ---
+  const [editorMode, setEditorMode] = useState<'closed' | 'reply' | 'forward'>('closed');
 
   useEffect(() => {
     if (threadMessages.length > 0) {
@@ -63,12 +66,9 @@ export default function MessageView({
     } else if (message) {
       setExpandedMessages(new Set([message._id]))
     }
+    // Close composer if the message/thread changes
+    setEditorMode('closed');
   }, [message, threadMessages])
-  
-  // Reset compose mode if the message changes
-  useEffect(() => {
-    setComposeMode(null)
-  }, [message?._id, threadMessages[0]?._id])
 
   const toggleMessageExpansion = (messageId: string) => {
     const newExpanded = new Set(expandedMessages)
@@ -80,8 +80,6 @@ export default function MessageView({
     setExpandedMessages(newExpanded)
   }
 
-  // --- All other functions (downloadAttachment, printMessage, etc.) remain unchanged ---
-  // ... (keep all your existing functions here)
   const downloadAttachment = async (attachmentId: string, filename: string) => {
     try {
       setLoading(true)
@@ -253,27 +251,8 @@ export default function MessageView({
         return null
     }
   }
-  
-  // --- END of unchanged functions ---
-
-  const handleReplyClick = () => {
-    setComposeKey(Date.now()); // Reset editor state by changing key
-    setComposeMode('reply');
-  };
-
-  const handleForwardClick = () => {
-    setComposeKey(Date.now()); // Reset editor state
-    setComposeMode('forward');
-  };
-
-  const handleSendSuccess = () => {
-    setComposeMode(null);
-    onBack(); // Go back to the list view after sending
-  };
-
 
   const renderMessage = (msg: any, isThread = false) => {
-    // ... Your existing renderMessage function remains completely unchanged ...
     const isExpanded = expandedMessages.has(msg._id)
 
     return (
@@ -464,11 +443,10 @@ export default function MessageView({
   const latestMessage = displayMessages[displayMessages.length - 1]
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white">
       {/* Header */}
       <div className="border-b border-gray-200 p-4 bg-white">
-        {/* ... (Your header and its buttons remain unchanged) ... */}
-         <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2">
           {/* Action Buttons */}
           <div className="flex items-center space-x-3">
             <button onClick={onBack} title="Go back" className="p-2 hover:bg-gray-100 rounded-full">
@@ -565,12 +543,12 @@ export default function MessageView({
               items={[
                 {
                   label: "Reply",
-                  onClick: handleReplyClick, // <-- CHANGE
+                  onClick: () => setEditorMode('reply'),
                   icon: ArrowUturnLeftIcon,
                 },
                 {
                   label: "Forward",
-                  onClick: handleForwardClick, // <-- CHANGE
+                  onClick: () => setEditorMode('forward'),
                   icon: ArrowUturnRightIcon,
                 },
                 {
@@ -607,6 +585,7 @@ export default function MessageView({
           </div>
         </div>
 
+
         <div>
           <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
         </div>
@@ -618,19 +597,19 @@ export default function MessageView({
           <div className="mb-4 text-sm text-gray-600">{displayMessages.length} messages in this conversation</div>
         )}
         {displayMessages.map((msg) => renderMessage(msg, displayMessages.length > 1))}
-        
-        {/* HIDE original buttons if compose mode is active */}
-        {!composeMode && (
+
+        {/* --- MODIFIED: Reply/Forward Buttons --- */}
+        {editorMode === 'closed' && (
           <div className="flex items-center gap-3 ml-5 mt-3 mb-10">
             <button
-              onClick={handleReplyClick} // <-- CHANGE
-              className="flex items-center space-x-2 px-3 py-1 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              onClick={() => setEditorMode('reply')}
+              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
             >
               <ArrowUturnLeftIcon className="h-4 w-4" />
               <span>Reply</span>
             </button>
             <button
-              onClick={handleForwardClick} // <-- CHANGE
+              onClick={() => setEditorMode('forward')}
               className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
             >
               <ArrowUturnRightIcon className="h-4 w-4" />
@@ -640,20 +619,25 @@ export default function MessageView({
         )}
       </div>
 
-      {/* RENDER inline compose component if active */}
-      {composeMode && (
-        <InlineCompose
-          key={composeKey}
-          mode={composeMode}
-          messageToRespond={latestMessage}
-          onCancel={() => setComposeMode(null)}
-          onSend={handleSendSuccess}
+
+      {/* --- NEW: Inline Composer --- */}
+      {editorMode !== 'closed' && (
+        <InlineComposer
+          mode={editorMode}
+          originalMessage={latestMessage}
+          onClose={() => setEditorMode('closed')}
+          onSent={() => {
+            setEditorMode('closed');
+            // Optionally, you can trigger a refresh of the messages here
+            // e.g., onBack();
+          }}
         />
       )}
 
+
       {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
+        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       )}
