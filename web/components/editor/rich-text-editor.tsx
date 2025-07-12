@@ -47,6 +47,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     ref,
   ) => {
     const editorRef = useRef<HTMLDivElement>(null)
+    const quotedRef = useRef<HTMLDivElement>(null)
     const [fontSize, setFontSize] = useState("12")
     const [fontFamily, setFontFamily] = useState("Arial")
     const [quotedHtml, setQuotedHtml] = useState("")
@@ -198,18 +199,34 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             data-placeholder={placeholder}
           />
 
-          {!isQuotedContentExpanded && mode === 'reply' && quotedHtml && (
-            <button
-              type="button"
-              onClick={() => {
-                if (editorRef.current) editorRef.current.innerHTML += quotedHtml
-                setIsQuotedContentExpanded(true)
-              }}
-              className="flex items-center text-gray-500 hover:bg-gray-200 rounded-full p-2"
-              aria-label="Show quoted text"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </button>
+          {(mode === 'reply' || mode === 'forward') && quotedHtml && (
+            <div className="">
+              {!isQuotedContentExpanded && mode === 'reply' ? (
+                <button
+                  type="button"
+                  onClick={() => setIsQuotedContentExpanded(true)}
+                  className="flex items-center text-gray-500 hover:bg-gray-200 rounded-full p-2"
+                  aria-label="Show quoted text"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </button>
+              ) : (
+                <div
+                  ref={quotedRef}
+                  onChange={(e) => {
+                    if (onChange) {
+                      const userContent = editorRef.current?.innerHTML || ""
+                      const quotedContent = quotedRef.current?.innerHTML || ""
+                      setQuotedHtml(quotedContent)
+                      onChange(userContent + quotedContent)
+                    }
+                  }}
+                  className="border-l-2 border-gray-300 pl-3 text-sm text-gray-600"
+                  dangerouslySetInnerHTML={{ __html: quotedHtml }}
+                  contentEditable
+                />
+              )}
+            </div>
           )}
         </div>
 
