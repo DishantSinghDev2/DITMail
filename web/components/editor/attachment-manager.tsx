@@ -21,8 +21,15 @@ interface AttachmentManagerProps {
 }
 
 export default function AttachmentManager({ attachments, onRemoveAttachment, className = "" }: AttachmentManagerProps) {
+  
+  // --- CORRECTED FUNCTION ---
+  // This function is now safe and handles cases where 'type' might be undefined.
   const getFileIcon = (type: string) => {
-    if (type.startsWith("image/")) return <ImageIcon className="h-4 w-4" />
+    // Check if 'type' is a string and starts with "image/"
+    if (typeof type === 'string' && type.startsWith("image/")) {
+      return <ImageIcon className="h-4 w-4" />
+    }
+    // For all other cases, including undefined, return the default file icon.
     return <FileText className="h-4 w-4" />
   }
 
@@ -52,10 +59,12 @@ export default function AttachmentManager({ attachments, onRemoveAttachment, cla
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => window.open(attachment.url, "_blank")}
+                  asChild
                   className="h-6 w-6 p-0"
                 >
-                  <Download className="h-3 w-3" />
+                  <a href={attachment.url} target="_blank" rel="noopener noreferrer">
+                    <Download className="h-3 w-3" />
+                  </a>
                 </Button>
               )}
               <Button
@@ -64,6 +73,7 @@ export default function AttachmentManager({ attachments, onRemoveAttachment, cla
                 onClick={() => onRemoveAttachment(attachment._id)}
                 className="h-6 w-6 p-0 text-red-500 hover:text-red-700"
                 disabled={attachment.isUploading}
+                aria-label="Remove attachment"
               >
                 <X className="h-3 w-3" />
               </Button>

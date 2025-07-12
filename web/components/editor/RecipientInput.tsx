@@ -108,8 +108,6 @@ export default function RecipientInput({ value, onChange, placeholder }: Recipie
             <ContactAutocomplete
                 value={inputValue}
                 onChange={setInputValue} // Update input value as user types
-                onSelect={handleSelectSuggestion} // Handle when a suggestion is clicked
-                onKeyDown={handleKeyDown} // Handle Enter, Comma, Backspace
                 placeholder={emails.length === 0 ? placeholder : ''}
                 className="flex-1 bg-transparent border-none outline-none focus:ring-0 min-w-[120px] p-0 h-auto"
             />

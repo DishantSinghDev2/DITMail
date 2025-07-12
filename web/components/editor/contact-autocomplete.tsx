@@ -64,7 +64,7 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
           localStorage.setItem(
             "gmail-contacts",
             JSON.stringify(
-              apiContacts.map((c) => ({
+              apiContacts.map((c: any) => ({
                 ...c,
                 // store as ISO string for consistency
                 lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined,
