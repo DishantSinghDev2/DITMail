@@ -15,10 +15,10 @@ import {
 } from "@heroicons/react/24/outline"
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid"
 import Dropdown from "./ui/Dropdown"
-import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react"
+import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert, Settings2 } from "lucide-react"
 import SpamBanner from "./messages/SpamBanner"
 import EmailViewer from "./messages/EmailViewer"
-import InlineReplyComposer from "@/components/inline-reply-composer" // Added import for the composer
+import InlineReplyComposer from "@/components/inline-reply-composer"
 
 interface MessageViewProps {
   message: any
@@ -46,18 +46,14 @@ export default function MessageView({
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set())
   const [showFullHeaders, setShowFullHeaders] = useState(false)
   const [loading, setLoading] = useState(false)
-
-  // --- State for inline editor ---
   const [editorMode, setEditorMode] = useState<"closed" | "reply" | "forward">("closed")
 
   useEffect(() => {
-    if (threadMessages.length > 0) {
-      const latestMessage = threadMessages[threadMessages.length - 1]
+    const messages = threadMessages.length > 0 ? threadMessages : message ? [message] : []
+    if (messages.length > 0) {
+      const latestMessage = messages[messages.length - 1]
       setExpandedMessages(new Set([latestMessage._id]))
-    } else if (message) {
-      setExpandedMessages(new Set([message._id]))
     }
-    // Close composer if the message/thread changes
     setEditorMode("closed")
   }, [message, threadMessages])
 
@@ -104,11 +100,7 @@ export default function MessageView({
         <html>
           <head>
             <title>Print Message</title>
-            <style>
-              body { font-family: Arial, sans-serif; margin: 20px; }
-              .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
-              .content { line-height: 1.6; }
-            </style>
+            <style>body { font-family: Arial, sans-serif; margin: 20px; } .header { border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; } .content { line-height: 1.6; }</style>
           </head>
           <body>
             <div class="header">
@@ -117,9 +109,7 @@ export default function MessageView({
               <p><strong>To:</strong> ${message.to.join(", ")}</p>
               <p><strong>Date:</strong> ${new Date(message.created_at).toLocaleString()}</p>
             </div>
-            <div class="content">
-              ${message.html}
-            </div>
+            <div class="content">${message.html}</div>
           </body>
         </html>
       `)
@@ -133,10 +123,7 @@ export default function MessageView({
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ folder: "spam" }),
       }).then(() => onBack())
     } catch (error) {
@@ -149,10 +136,7 @@ export default function MessageView({
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}/labels`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ label }),
       }).then(() => onBack())
     } catch (error) {
@@ -164,10 +148,7 @@ export default function MessageView({
     const token = localStorage.getItem("accessToken")
     fetch(`/api/messages/${messageId}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       body: JSON.stringify({ read: false }),
     }).then(() => onBack())
   }
@@ -177,10 +158,7 @@ export default function MessageView({
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ folder: "inbox" }),
       }).then(() => onBack())
     } catch (error) {
@@ -193,10 +171,7 @@ export default function MessageView({
       const token = localStorage.getItem("accessToken")
       await fetch(`/api/messages/${messageId}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
       }).then(() => onBack())
     } catch (error) {
       console.error("Delete forever error:", error)
@@ -208,10 +183,7 @@ export default function MessageView({
       const token = localStorage.getItem("accessToken")
       fetch(`/api/messages/${messageId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ folder: "archive" }),
       }).then(() => onBack())
     } catch (error) {
@@ -244,7 +216,6 @@ export default function MessageView({
 
     return (
       <div key={msg._id} className={`border rounded-lg ${isThread ? "mb-4" : ""}`}>
-        {/* Message Header */}
         <div
           className={`p-4 cursor-pointer hover:bg-gray-50 ${isExpanded ? "border-b" : ""}`}
           onClick={() => isThread && toggleMessageExpansion(msg._id)}
@@ -268,9 +239,7 @@ export default function MessageView({
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <span className="text-xs text-gray-500">
-                {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
-              </span>
+              <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
               {isThread && (
                 <button className="p-1 hover:bg-gray-200 rounded">
                   <EllipsisVerticalIcon className="h-4 w-4 text-gray-400" />
@@ -281,100 +250,56 @@ export default function MessageView({
           {!isExpanded && isThread && <div className="mt-2">{<p className="text-sm text-gray-600 truncate">{msg.text}</p>}</div>}
         </div>
 
-        {/* Message Content */}
         {isExpanded && (
           <div className="p-4">
-            {/* Full Headers Toggle */}
             <div className="mb-4">
               <button onClick={() => setShowFullHeaders(!showFullHeaders)} className="text-xs text-blue-600 hover:text-blue-800">
                 {showFullHeaders ? "Hide" : "Show"} full headers
               </button>
             </div>
-
-            {/* Full Headers */}
             {showFullHeaders && (
-              <div className="mb-4 p-3 bg-gray-50 rounded text-xs font-mono">
-                <div>
-                  <strong>Message-ID:</strong> {msg.message_id}
-                </div>
-                <div>
-                  <strong>Date:</strong> {new Date(msg.created_at).toISOString()}
-                </div>
-                <div>
-                  <strong>From:</strong> {msg.from}
-                </div>
-                <div>
-                  <strong>To:</strong> {msg.to.join(", ")}
-                </div>
-                {msg.cc?.length > 0 && (
-                  <div>
-                    <strong>CC:</strong> {msg.cc.join(", ")}
-                  </div>
-                )}
-                {msg.bcc?.length > 0 && (
-                  <div>
-                    <strong>BCC:</strong> {msg.bcc.join(", ")}
-                  </div>
-                )}
-                <div>
-                  <strong>Subject:</strong> {msg.subject}
-                </div>
-                {msg.in_reply_to && (
-                  <div>
-                    <strong>In-Reply-To:</strong> {msg.in_reply_to}
-                  </div>
-                )}
-                {msg.references?.length > 0 && (
-                  <div>
-                    <strong>References:</strong> {msg.references.join(" ")}
-                  </div>
-                )}
+              <div className="mb-4 p-3 bg-gray-50 rounded text-xs font-mono overflow-x-auto">
+                <div><strong>Message-ID:</strong> {msg.message_id}</div>
+                <div><strong>Date:</strong> {new Date(msg.created_at).toISOString()}</div>
+                <div><strong>From:</strong> {msg.from}</div>
+                <div><strong>To:</strong> {msg.to.join(", ")}</div>
+                {msg.cc?.length > 0 && <div><strong>CC:</strong> {msg.cc.join(", ")}</div>}
+                {msg.bcc?.length > 0 && <div><strong>BCC:</strong> {msg.bcc.join(", ")}</div>}
+                <div><strong>Subject:</strong> {msg.subject}</div>
+                {msg.in_reply_to && <div><strong>In-Reply-To:</strong> {msg.in_reply_to}</div>}
+                {msg.references?.length > 0 && <div><strong>References:</strong> {msg.references.join(" ")}</div>}
               </div>
             )}
-
-            {/* Show a banner when its a spam email */}
             {msg.folder === "spam" && <SpamBanner onMarkNotSpam={() => handleUnMarkSpam(msg._id)} />}
-
-            {/* Message Body */}
             <div className="mb-4">
               <EmailViewer html={msg.html} isSpam={msg.folder === "spam"} />
             </div>
-
-            {/* Attachments */}
             {msg.attachments?.length > 0 && (
               <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Attachments ({msg.attachments.length})</h4>
-
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Attachments ({msg.attachments.length})</h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {msg.attachments.map((attachment: any) => {
                     const isSpam = msg.folder === "spam"
                     return (
                       <div
                         key={attachment._id}
-                        className={`flex items-center space-x-3 p-3 rounded-lg cursor-pointer transition
-              ${
-                isSpam
-                  ? "bg-red-50 dark:bg-red-900 border border-red-300 text-red-700 dark:text-red-200 cursor-not-allowed"
-                  : "bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700"
-              }`}
-                        onClick={() => {
-                          if (!isSpam) downloadAttachment(attachment._id, attachment.filename)
-                        }}
+                        className={`flex items-center space-x-3 p-3 rounded-lg transition ${
+                          isSpam
+                            ? "bg-red-50 border border-red-200 text-red-700 cursor-not-allowed"
+                            : "bg-gray-50 hover:bg-gray-100 cursor-pointer"
+                        }`}
+                        onClick={() => !isSpam && downloadAttachment(attachment._id, attachment.filename)}
                       >
                         <PaperClipIcon className={`h-5 w-5 ${isSpam ? "text-red-400" : "text-gray-400"}`} />
                         <div className="flex-1 min-w-0">
-                          <p
-                            className={`text-sm font-medium truncate ${
-                              isSpam ? "text-red-800 dark:text-red-100" : "text-gray-900 dark:text-white"
-                            }`}
-                          >
+                          <p className={`text-sm font-medium truncate ${isSpam ? "text-red-800" : "text-gray-900"}`}>
                             {attachment.filename}
                           </p>
-                          <p className={`text-xs ${isSpam ? "text-red-600 dark:text-red-300" : "text-gray-500 dark:text-gray-400"}`}>
+                          <p className={`text-xs ${isSpam ? "text-red-600" : "text-gray-500"}`}>
                             {attachment.mimeType} • {Math.round(attachment.size / 1024)} KB
                           </p>
                           {isSpam && (
-                            <p className="text-xs text-red-500 mt-1">⚠ Attachment blocked for your safety — mark as not spam to download.</p>
+                            <p className="text-xs text-red-500 mt-1">⚠ Attachment blocked. Mark as "not spam" to download.</p>
                           )}
                         </div>
                       </div>
@@ -383,18 +308,13 @@ export default function MessageView({
                 </div>
               </div>
             )}
-
-            {/* Labels */}
             {msg.labels?.length > 0 && (
-              <div className="border-t pt-4">
+              <div className="border-t pt-4 mt-4">
                 <div className="flex items-center space-x-2">
                   <TagIcon className="h-4 w-4 text-gray-400" />
                   <div className="flex flex-wrap gap-1">
                     {msg.labels.map((label: string) => (
-                      <span
-                        key={label}
-                        className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800"
-                      >
+                      <span key={label} className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                         {label}
                       </span>
                     ))}
@@ -413,7 +333,7 @@ export default function MessageView({
       <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
           <div className="text-4xl mb-4">📧</div>
-          <p>No message is selected to read</p>
+          <p>No message selected</p>
         </div>
       </div>
     )
@@ -422,160 +342,112 @@ export default function MessageView({
   const displayMessages = threadMessages.length > 0 ? threadMessages : [message]
   const latestMessage = displayMessages[displayMessages.length - 1]
 
-  // show the inline composer when there is a draft present in localstorage
-  const localDrafts = JSON.parse(localStorage.getItem(`draft-${latestMessage._id}`) || "[]")
-  const hasDraft = localDrafts.length > 0
-  if (hasDraft && editorMode === "closed") {
-    setEditorMode(localDrafts[0].type === "r" ? "reply" : "forward")
+  const localDraft = localStorage.getItem(`draft-${latestMessage._id}`)
+  if (localDraft && editorMode === "closed") {
+    const draft = JSON.parse(localDraft)
+    setEditorMode(draft.type === "reply" ? "reply" : "forward")
   }
 
   return (
     <div className="flex h-full flex-col bg-white">
-      {/* Header */}
       <div className="border-b border-gray-200 p-4 bg-white">
         <div className="flex items-center justify-between mb-2">
-          {/* Action Buttons */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-1 sm:space-x-2">
             <button onClick={onBack} title="Go back" className="p-2 hover:bg-gray-100 rounded-full">
-              <ArrowLeft className="h-5 w-5 text-gray-400" />
+              <ArrowLeft className="h-5 w-5 text-gray-500" />
             </button>
 
-            {latestMessage.folder === "inbox" ? (
+            <div className="w-px bg-gray-200 h-6 mx-1"></div>
+
+            {latestMessage.folder === "inbox" && (
               <>
                 <button title="Archive" onClick={() => onArchive(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <Archive className="h-4 w-4 text-gray-400" />
+                  <Archive className="h-5 w-5 text-gray-500" />
                 </button>
                 <button title="Mark as spam" onClick={() => markAsSpam(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <OctagonAlert className="h-4 w-4 text-gray-400" />
+                  <OctagonAlert className="h-5 w-5 text-gray-500" />
                 </button>
-              </>
-            ) : latestMessage.folder === "spam" ? (
-              <>
-                <button
-                  title="Delete forever"
-                  onClick={() => handleDeleteForever(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                >
-                  Delete forever
-                </button>
-                <div className="bg-gray-400 w-0.5 h-[14px] "></div>
-                <button
-                  title="Mark as not spam"
-                  onClick={() => handleUnMarkSpam(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                >
-                  Not spam
-                </button>
-              </>
-            ) : latestMessage.folder === "trash" ? (
-              <>
-                <button
-                  title="Delete forever"
-                  onClick={() => handleDeleteForever(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
-                >
-                  Delete forever
-                </button>
-              </>
-            ) : (
-              <>
-                <button title="Mark as spam" onClick={() => markAsSpam(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
-                  <OctagonAlert className="h-4 w-4 text-gray-400" />
+                <button title="Delete" onClick={() => onDelete(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
+                  <TrashIcon className="h-5 w-5 text-gray-500" />
                 </button>
               </>
             )}
-            <div className="bg-gray-400 w-0.5 h-[14px] "></div>
-            <button title="Mark as unread" onClick={() => markAsUnRead(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
-              <MailMinus className="h-4 w-4 text-gray-400" />
-            </button>
-            {latestMessage.folder === "inbox" && (
-              <button title="Delete" onClick={() => onDelete(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
-                <TrashIcon className="h-4 w-4 text-red-400" />
-              </button>
+
+            {latestMessage.folder === "spam" && (
+               <>
+                <button onClick={() => handleDeleteForever(latestMessage._id)} className="px-3 py-2 text-sm hover:bg-gray-100 rounded-md text-gray-600">Delete forever</button>
+                <button onClick={() => handleUnMarkSpam(latestMessage._id)} className="px-3 py-2 text-sm hover:bg-gray-100 rounded-md text-gray-600 bg-gray-50">Not spam</button>
+              </>
             )}
-            <button
-              title="Star"
-              onClick={() => onStar(latestMessage._id, !latestMessage.starred)}
-              className="p-2 hover:bg-gray-100 rounded-full"
-            >
-              {latestMessage.starred ? <StarIconSolid className="h-5 w-5 text-yellow-500" /> : <StarIcon className="h-5 w-5 text-gray-400" />}
+
+            {latestMessage.folder === "trash" && (
+                <button onClick={() => handleDeleteForever(latestMessage._id)} className="px-3 py-2 text-sm hover:bg-gray-100 rounded-md text-gray-600">Delete forever</button>
+            )}
+            
+            {(latestMessage.folder === "inbox" || latestMessage.folder === "archive") && (
+                <>
+                    <div className="w-px bg-gray-200 h-6 mx-1"></div>
+                    <button title="Mark as unread" onClick={() => markAsUnRead(latestMessage._id)} className="p-2 hover:bg-gray-100 rounded-full">
+                      <MailMinus className="h-5 w-5 text-gray-500" />
+                    </button>
+                </>
+            )}
+
+            <button title={latestMessage.starred ? "Unstar" : "Star"} onClick={() => onStar(latestMessage._id, !latestMessage.starred)} className="p-2 hover:bg-gray-100 rounded-full">
+              {latestMessage.starred ? <StarIconSolid className="h-5 w-5 text-yellow-500" /> : <StarIcon className="h-5 w-5 text-gray-500" />}
             </button>
+
             <Dropdown
               trigger={
                 <button title="More options" className="p-2 hover:bg-gray-100 rounded-full">
-                  <EllipsisVerticalIcon className="h-5 w-5 text-gray-400" />
+                  <EllipsisVerticalIcon className="h-5 w-5 text-gray-500" />
                 </button>
               }
               items={[
-                {
-                  label: "Reply",
-                  onClick: () => setEditorMode("reply"),
-                  icon: ArrowUturnLeftIcon,
-                },
-                {
-                  label: "Forward",
-                  onClick: () => setEditorMode("forward"),
-                  icon: ArrowUturnRightIcon,
-                },
-                {
-                  label: "Print",
-                  onClick: printMessage,
-                  icon: PrinterIcon,
-                },
+                { label: "Reply", onClick: () => setEditorMode("reply"), icon: ArrowUturnLeftIcon },
+                { label: "Forward", onClick: () => setEditorMode("forward"), icon: ArrowUturnRightIcon },
+                { label: "Print", onClick: printMessage, icon: PrinterIcon },
               ]}
             />
           </div>
 
           <div className="flex items-center space-x-3">
-            <div className="text-sm">
+            <div className="text-sm text-gray-600">
               {currentMessage} of {totalMessages}
             </div>
-            <div className="flex flex-row gap-3">
-              <button
-                title="Back"
-                onClick={() => onPrevious()}
-                className="p-2 hover:bg-gray-100 rounded-full"
-                disabled={currentMessage == 1}
-              >
-                <ChevronLeft className="w-3 h-3" />
+            <div className="flex flex-row">
+              <button onClick={onPrevious} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50" disabled={currentMessage <= 1}>
+                <ChevronLeft className="w-4 h-4 text-gray-500" />
               </button>
-              <button
-                title="Next"
-                onClick={() => onNext()}
-                className="p-2 hover:bg-gray-100 rounded-full"
-                disabled={currentMessage == totalMessages}
-              >
-                <ChevronRight className="w-3 h-3" />
+              <button onClick={onNext} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50" disabled={currentMessage >= totalMessages}>
+                <ChevronRight className="w-4 h-4 text-gray-500" />
               </button>
             </div>
           </div>
         </div>
-
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
+          <h2 className="text-xl font-semibold text-gray-800 truncate">{latestMessage.subject}</h2>
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {displayMessages.length > 1 && (
-          <div className="mb-4 text-sm text-gray-600">{displayMessages.length} messages in this conversation</div>
+          <div className="mb-4 text-sm font-semibold text-gray-700">{displayMessages.length} messages in this conversation</div>
         )}
         {displayMessages.map((msg) => renderMessage(msg, displayMessages.length > 1))}
 
-        {/* --- MODIFIED: Reply/Forward Buttons and Inline Composer --- */}
         {editorMode === "closed" && (
-          <div className="flex items-center gap-3 ml-5 mt-3 mb-10">
+          <div className="flex items-center gap-3 ml-4 mt-5">
             <button
               onClick={() => setEditorMode("reply")}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium border border-gray-300 rounded-md hover:bg-gray-100"
             >
               <ArrowUturnLeftIcon className="h-4 w-4" />
               <span>Reply</span>
             </button>
             <button
               onClick={() => setEditorMode("forward")}
-              className="flex items-center space-x-2 px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
+              className="flex items-center space-x-2 px-4 py-2 text-sm font-medium border border-gray-300 rounded-md hover:bg-gray-100"
             >
               <ArrowUturnRightIcon className="h-4 w-4" />
               <span>Forward</span>
@@ -583,7 +455,6 @@ export default function MessageView({
           </div>
         )}
 
-        {/* --- NEW: Render Inline Composer when in reply/forward mode --- */}
         {editorMode !== "closed" && latestMessage && (
           <div className="mt-6">
             <InlineReplyComposer
@@ -591,8 +462,6 @@ export default function MessageView({
               composeMode={editorMode}
               onClose={() => setEditorMode("closed")}
               onSent={() => {
-                // After sending, close the composer and trigger a refresh/back action
-                // to show the updated conversation.
                 setEditorMode("closed")
                 onBack()
               }}
@@ -601,7 +470,24 @@ export default function MessageView({
         )}
       </div>
 
-      {/* Loading Overlay */}
+      {/* Footer */}
+      <div className="flex-shrink-0 border-t p-4 bg-white">
+          <div className="flex items-center justify-center text-xs text-gray-500">
+            <div className="flex-1">
+              <div className="w-full bg-gray-200 rounded-full h-1.5 mb-1">
+                  <div className="bg-blue-600 h-1.5 rounded-full" style={{width: '45%'}}></div>
+              </div>
+              <p>9.5 GB of 15 GB used</p>
+            </div>
+            <div className="flex-shrink-0 ml-6 space-x-4">
+              <a href="#" className="hover:underline">Terms</a>
+              <a href="#" className="hover:underline">Privacy</a>
+              <a href="#" className="hover:underline">Program Policies</a>
+            </div>
+          </div>
+      </div>
+
+
       {loading && (
         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center z-50">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
