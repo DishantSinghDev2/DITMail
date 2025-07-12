@@ -89,7 +89,8 @@ export function EmailEditor({
   const [isSaving, setIsSaving] = useState(false)
   const [draftId, setDraftId] = useState(initialDraftId)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
-  const [showCcBcc, setShowCcBcc] = useState(false)
+  const [showCc, setShowCc] = useState(false)
+  const [showBcc, setShowBcc] = useState(false)
   const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([])
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
@@ -152,8 +153,11 @@ export function EmailEditor({
 
           setDraftId(draft._id)
           setUploadedAttachments(draft.attachments || [])
-          if (draft.cc?.length || draft.bcc?.length) {
-            setShowCcBcc(true)
+          if (draft.cc?.length) {
+            setShowCc(true)
+          }
+          if (draft.bcc?.length) {
+            setShowBcc(true)
           }
           loadedFromApi = true
         } catch (error) {
@@ -424,9 +428,6 @@ export function EmailEditor({
       {/* Window Controls */}
       {showWindowControls && (
         <div className="flex items-center justify-between p-2 bg-gray-100 border-b">
-          <span className="text-sm font-medium text-gray-700">
-            {replyToMessage ? "Reply" : forwardMessage ? "Forward" : "New Message"}
-          </span>
           <div className="flex items-center space-x-1">
             {onMinimize && (
               <Button variant="ghost" size="sm" onClick={onMinimize} className="h-6 w-6 p-0">
@@ -438,9 +439,6 @@ export function EmailEditor({
                 <Maximize2 className="h-3 w-3" />
               </Button>
             )}
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0">
-              <X className="h-3 w-3" />
-            </Button>
           </div>
         </div>
       )}
@@ -470,22 +468,24 @@ export function EmailEditor({
                   )}
                 />
                 <div className="flex items-center ml-2 space-x-1">
-                  {!showCcBcc && (
+                  {!showCc && (
                     <>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowCc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
                         Cc
                       </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
-                        Bcc
-                      </Button>
                     </>
+                  )}
+                  {!showBcc && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowBcc(true)} className="text-xs text-blue-600 hover:text-blue-800 h-6 px-2">
+                      Bcc
+                    </Button>
                   )}
                 </div>
               </div>
             </div>
 
             {/* CC/BCC Fields */}
-            {showCcBcc && (
+            {showCc && (
               <>
                 <div className="flex items-center">
                   <label className="w-12 text-sm text-gray-600 flex-shrink-0">Cc</label>
@@ -506,53 +506,39 @@ export function EmailEditor({
                         </FormItem>
                       )}
                     />
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowCcBcc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setShowCc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
                       <ChevronUp className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex items-center">
-                  <label className="w-12 text-sm text-gray-600 flex-shrink-0">Bcc</label>
-                  <FormField
-                    control={form.control}
-                    name="bcc"
-                    render={({ field }) => (
-                      <FormItem className="flex-1">
-                        <FormControl>
-                          <ContactAutocomplete
-                            value={field.value || ""}
-                            onChange={field.onChange}
-                            placeholder="Blind carbon copy recipients"
-                            className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500"
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
               </>
             )}
+            {showBcc && (
+              <div className="flex items-center">
+                <label className="w-12 text-sm text-gray-600 flex-shrink-0">Bcc</label>
+                <FormField
+                  control={form.control}
+                  name="bcc"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <ContactAutocomplete
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Blind carbon copy recipients"
+                          className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500"
+                        />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowBcc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
 
-            {/* Subject Field */}
-            <div className="flex items-center">
-              <label className="w-12 text-sm text-gray-600 flex-shrink-0">Subject</label>
-              <FormField
-                control={form.control}
-                name="subject"
-                render={({ field }) => (
-                  <FormItem className="flex-1">
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="Subject"
-                        className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500"
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
           </div>
 
           {/* Editor */}

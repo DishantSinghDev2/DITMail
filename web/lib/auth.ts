@@ -75,7 +75,17 @@ export async function getAuthUser(request: NextRequest) {
   if (!token) return null
 
   const payload = verifyToken(token)
-  if (!payload) return null
+  if (!payload) {
+    const user = await fetch(`/api/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "x-refresh-token": request.headers.get("x-refresh-token") || "",
+      },
+    }).then(res => res.json()).catch(() => null)
+
+    if (!user) return null
+    return user
+  }
 
   await connectDB()
   const user = await User.findById(payload.userId).populate("org_id")
