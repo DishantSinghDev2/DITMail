@@ -490,7 +490,10 @@ export function EmailEditor({
                 render={({ field }) => (
                   <FormItem className="flex items-center">
                     <FormControl>
-                      <input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]" />
+                      <div className="border-0 border-b rounded-none focus-within:border-blue-500">
+
+                        <input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]" />
+                      </div>
                     </FormControl>
                   </FormItem>
                 )}
@@ -520,7 +523,7 @@ export function EmailEditor({
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between p-2 bg-gray-50 flex-shrink-0">
+          <div className="flex items-center bottom-0 justify-between p-2 bg-gray-50 flex-shrink-0">
             <div className="flex items-center space-x-2">
               <Button type="submit" disabled={isSending} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50">
                 <span className="font-semibold">Send</span>
