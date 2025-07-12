@@ -17,6 +17,8 @@ import { BellIcon, AdjustmentsHorizontalIcon, SparklesIcon, InformationCircleIco
 import { clientNotificationService } from "@/lib/notifications-client"
 import { Settings } from "lucide-react"
 import MiniComposer from "./mini-composer"
+import MainComposer from "./main-composer"
+import { set } from "lodash"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -29,6 +31,7 @@ export default function MailInterface() {
   const [searchQuery, setSearchQuery] = useState("")
   const [notifications, setNotifications] = useState([])
   const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [isMaximize, setIsMaximize] = useState(false)
 
   // New state variables for requested features
   const [showNotifications, setShowNotifications] = useState(false)
@@ -237,6 +240,7 @@ export default function MailInterface() {
     setThreadMessages([])
     fetchMessages()
   }
+  
 
   function handleOnPrevious(): void {
     const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
@@ -379,11 +383,24 @@ export default function MailInterface() {
         <MiniComposer
           isOpen={isComposeOpen}
           onClose={handleComposeClose}
-          onMaximize={() => setIsComposeOpen(true)}
+          onMaximize={() => {
+            setIsComposeOpen(false)
+            setIsMaximize(true)}}
         />
       )}
       {isUpgradeModalOpen && (
         <UpgradeModal onClose={() => setIsUpgradeModalOpen(false)} />
+      )}
+
+
+      {isMaximize && (
+        <MainComposer
+          isOpen={isMaximize}
+          onClose={() => setIsMaximize(false)}
+          onMinimize={() => {
+            setIsComposeOpen(true)
+            setIsMaximize(false)}}
+        />
       )}
     </div>
   )
