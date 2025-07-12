@@ -482,7 +482,7 @@ export function EmailEditor({
               className="h-full"
               minHeight="150px"
               mode={replyToMessage ? "reply" : forwardMessage ? "forward" : "compose"}
-              initialContent={form.getValues("content").split('<blockquote style=')[0] || "<p><br></p>"}
+              initialContent={form.getValues("content") || "<p><br></p>"}
             />
           </div>
 
