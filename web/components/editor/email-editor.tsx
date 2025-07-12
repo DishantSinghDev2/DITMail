@@ -490,9 +490,9 @@ export function EmailEditor({
                 render={({ field }) => (
                   <FormItem className="flex items-center">
                     <FormControl>
-                      <div className="border-0 border-b rounded-none focus-within:border-blue-500">
+                      <div className="border-0 border-b rounded-none p-1 w-full focus-within:border-blue-500">
 
-                        <input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]" />
+                        <input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto w-full bg-transparent min-w-[120px]" />
                       </div>
                     </FormControl>
                   </FormItem>

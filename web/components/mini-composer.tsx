@@ -51,7 +51,7 @@ export default function MiniComposer({
           </div>
         </div>
       ) : (
-        <div className="flex flex-col">
+        <div className="flex flex-col h-full">
           <EmailEditor
             onClose={onClose}
             onSent={handleSent}
