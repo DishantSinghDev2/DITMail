@@ -5,6 +5,7 @@ export interface IPlan extends Document {
   limits: {
     users: number
     domains: number
+    storage: number // in GB
   }
   price: number
   customizable: boolean
@@ -16,6 +17,7 @@ const PlanSchema = new Schema<IPlan>({
   limits: {
     users: { type: Number, required: true },
     domains: { type: Number, required: true },
+    storage: { type: Number, required: true }, // in GB
   },
   price: { type: Number, required: true },
   customizable: { type: Boolean, default: false },

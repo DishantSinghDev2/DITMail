@@ -40,6 +40,10 @@ export default function MailInterface() {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [theme, setTheme] = useState('theme-default')
+  const [totalMessages, setTotalMessages] = useState(0)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage, setItemsPerPage] = useState(50) // Default items per page
+  const [storageInfo, setStorageInfo] = useState({ used: 0, total: 15 })
 
   const [filters, setFilters] = useState({
     unread: false,
@@ -63,12 +67,15 @@ export default function MailInterface() {
   const { newMessages, markMessagesRead } = useRealtime()
 
   // --- Core fetching logic remains the same ---
-  const fetchMessages = useCallback(async () => {
+  
+  const fetchMessages = useCallback(async (page = 1) => {
     setLoading(true)
     try {
       const token = localStorage.getItem("accessToken")
       const params = new URLSearchParams({
         folder: selectedFolder,
+        page: String(page),
+        limit: String(itemsPerPage),
         ...(searchQuery && { search: searchQuery }),
         ...(filters.unread && { unread: "true" }),
         ...(filters.starred && { starred: "true" }),
@@ -89,14 +96,18 @@ export default function MailInterface() {
       if (response.ok) {
         const data = await response.json()
         setMessages(data.messages)
-        triggerRefresh()
+        setTotalMessages(data.pagination.total)
+        setCurrentPage(data.pagination.page)
+        setItemsPerPage(data.pagination.limit)
+        setStorageInfo(data.storage) // Assuming API returns storage info
+        sidebarRef.current?.refreshCount() // Refresh sidebar counts
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
     } finally {
       setLoading(false)
     }
-  }, [selectedFolder, searchQuery, filters])
+  }, [selectedFolder, searchQuery, itemsPerPage, filters])
 
   const fetchThreadMessages = useCallback(async (threadId: string) => {
     try {
@@ -125,7 +136,7 @@ export default function MailInterface() {
   }, [])
 
 
-  // Add effect for Dark Mode and Theme
+  
   useEffect(() => {
     const root = window.document.documentElement
     if (isDarkMode) {
@@ -133,19 +144,13 @@ export default function MailInterface() {
     } else {
       root.classList.remove('dark')
     }
-    // Remove old theme classes
-    root.classList.forEach(className => {
-      if (className.startsWith('theme-')) {
-        root.classList.remove(className);
-      }
-    });
-    // Add new theme class
+    root.className = root.className.replace(/theme-\S+/g, '').trim()
     root.classList.add(theme)
   }, [isDarkMode, theme])
 
   useEffect(() => {
-    fetchMessages()
-  }, [fetchMessages])
+    fetchMessages(1) // Fetch first page when folder/search changes
+  }, [selectedFolder, searchQuery, filters]) // Dependency array now correctly triggers refetch
 
   useEffect(() => {
     fetchNotifications()
@@ -159,21 +164,29 @@ export default function MailInterface() {
 
   useEffect(() => {
     if (newMessages > 0 && selectedFolder === "inbox") {
-      fetchMessages()
-      fetchNotifications()
+      fetchMessages(currentPage)
     }
-  }, [newMessages, selectedFolder, fetchMessages, fetchNotifications])
+  }, [newMessages])
 
-  // --- Handlers (handleFolderSelect, etc.) remain the same ---
+  // --- Handlers ---
   const handleFolderSelect = (folder: string) => {
     setSelectedFolder(folder)
     setSelectedMessage(null)
     setSelectedThread(null)
     setThreadMessages([])
+    setCurrentPage(1) // Reset to first page
     if (folder === "inbox") {
       markMessagesRead()
     }
   }
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage > 0 && (newPage - 1) * itemsPerPage < totalMessages) {
+        setCurrentPage(newPage)
+        fetchMessages(newPage)
+    }
+  }
+
 
   const handleMessageSelect = (message: any) => {
     setSelectedMessage(message)
@@ -240,7 +253,35 @@ export default function MailInterface() {
     setThreadMessages([])
     fetchMessages()
   }
+
   
+  // --- BULK ACTION HANDLERS ---
+  const handleBulkUpdate = async (action: string, ids: string[]) => {
+    try {
+      const token = localStorage.getItem("accessToken")
+      await fetch(`/api/messages/bulk-update`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action, messageIds: ids }),
+      })
+      triggerRefresh() // Refresh the list after action
+    } catch (error) {
+      console.error(`Error performing bulk ${action}:`, error)
+    }
+  }
+
+  const handleBulkDelete = (messageIds: string[]) => handleBulkUpdate("delete", messageIds)
+  const handleBulkArchive = (messageIds: string[]) => handleBulkUpdate("archive", messageIds)
+  const handleBulkMarkAsSpam = (messageIds: string[]) => handleBulkUpdate("spam", messageIds)
+  const handleBulkMarkAsUnread = (messageIds: string[]) => handleBulkUpdate("unread", messageIds)
+
+  // Handler for single message deletion from MessageView
+  const handleDeleteSingleMessage = (messageId: string) => {
+    handleBulkDelete([messageId]);
+    setSelectedMessage(null);
+    setSelectedThread(null);
+  }
+
 
   function handleOnPrevious(): void {
     const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
@@ -338,8 +379,6 @@ export default function MailInterface() {
                 )}
               </div>
 
-
-
               {/* Upgrade Button */}
               <button
                 onClick={() => setIsUpgradeModalOpen(true)}
@@ -365,14 +404,27 @@ export default function MailInterface() {
             onPrevious={handleOnPrevious}
             onNext={handleOnNext}
           /> : <MessageList
-            messages={messages}
-            loading={loading}
-            selectedMessage={selectedMessage}
-            onMessageSelect={handleMessageSelect}
-            onRefresh={fetchMessages}
-            onStar={handleStarMessage}
-            onDelete={handleDeleteMessage}
-            folder={selectedFolder}
+          messages={messages}
+          loading={loading}
+          selectedMessage={selectedMessage}
+          onMessageSelect={handleMessageSelect}
+          onRefresh={triggerRefresh}
+          onStar={handleStarMessage}
+          folder={selectedFolder}
+          searchQuery={searchQuery}
+          // --- Pass new props here ---
+          totalMessages={totalMessages}
+          currentPage={currentPage}
+          itemsPerPage={itemsPerPage}
+          onPageChange={handlePageChange}
+          storageUsedGB={storageInfo.used}
+          storageTotalGB={storageInfo.total}
+          // --- Pass bulk action handlers ---
+          onDelete={handleBulkDelete}
+          onArchive={handleBulkArchive}
+          markAsSpam={handleBulkMarkAsSpam}
+          markAsUnread={handleBulkMarkAsUnread}
+
           />
           }
         </div>
