@@ -23,8 +23,6 @@ import InlineReplyComposer from "@/components/inline-reply-composer" // Added im
 interface MessageViewProps {
   message: any
   threadMessages: any[]
-  onReply: (message: any) => void
-  onForward: (message: any) => void
   onDelete: (messageId: string) => void
   onStar: (messageId: string, starred: boolean) => void
   onBack: () => void
@@ -37,8 +35,6 @@ interface MessageViewProps {
 export default function MessageView({
   message,
   threadMessages,
-  onReply, // Kept for compatibility, but not used by new buttons
-  onForward, // Kept for compatibility, but not used by new buttons
   onDelete,
   onStar,
   onBack,

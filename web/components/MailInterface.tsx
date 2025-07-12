@@ -16,6 +16,7 @@ import FilterPopover from "./mail/FilterPopover" // <-- Import new component
 import { BellIcon, AdjustmentsHorizontalIcon, SparklesIcon, InformationCircleIcon } from "@heroicons/react/24/outline"
 import { clientNotificationService } from "@/lib/notifications-client"
 import { Settings } from "lucide-react"
+import MiniComposer from "./mini-composer"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -39,20 +40,18 @@ export default function MailInterface() {
 
   const [filters, setFilters] = useState({
     unread: false,
-      starred: false,
-      hasAttachments: false,
-      priority: "",
-      dateRange: "",
-      sender: "",
-      recipient: "",
-      size: "",
-      folder: "",
-      label: "",
+    starred: false,
+    hasAttachments: false,
+    priority: "",
+    dateRange: "",
+    sender: "",
+    recipient: "",
+    size: "",
+    folder: "",
+    label: "",
   })
-  const [composeMode, setComposeMode] = useState<"compose" | "reply" | "forward">("compose")
-  const [replyMessage, setReplyMessage] = useState<any>(null)
   const sidebarRef = useRef<MailSidebarHandle>(null)
-  
+
   const triggerRefresh = () => {
     sidebarRef.current?.refreshCount()
   }
@@ -95,7 +94,7 @@ export default function MailInterface() {
       setLoading(false)
     }
   }, [selectedFolder, searchQuery, filters])
-  
+
   const fetchThreadMessages = useCallback(async (threadId: string) => {
     try {
       const token = localStorage.getItem("accessToken")
@@ -133,9 +132,9 @@ export default function MailInterface() {
     }
     // Remove old theme classes
     root.classList.forEach(className => {
-        if(className.startsWith('theme-')) {
-            root.classList.remove(className);
-        }
+      if (className.startsWith('theme-')) {
+        root.classList.remove(className);
+      }
     });
     // Add new theme class
     root.classList.add(theme)
@@ -224,18 +223,12 @@ export default function MailInterface() {
       setSelectedThread(null)
     } catch (error) { console.error("Error deleting message:", error) }
   }
-  
-  const handleReply = (message: any) => {
-    setReplyMessage(message); setComposeMode("reply"); setIsComposeOpen(true);
-  }
-  const handleForward = (message: any) => {
-    setReplyMessage(message); setComposeMode("forward"); setIsComposeOpen(true);
-  }
+
   const handleCompose = () => {
-    setReplyMessage(null); setComposeMode("compose"); setIsComposeOpen(true);
+    setIsComposeOpen(true);
   }
   const handleComposeClose = () => {
-    setIsComposeOpen(false); setReplyMessage(null); setComposeMode("compose");
+    setIsComposeOpen(false);
   }
 
   function handleOnBack(): void {
@@ -298,12 +291,12 @@ export default function MailInterface() {
                   <Settings className="h-5 w-5" />
                 </button>
                 <SettingsDropdown
-                    isOpen={isSettingsOpen}
-                    onClose={() => setIsSettingsOpen(false)}
-                    isDarkMode={isDarkMode}
-                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-                    currentTheme={theme}
-                    onChangeTheme={setTheme}
+                  isOpen={isSettingsOpen}
+                  onClose={() => setIsSettingsOpen(false)}
+                  isDarkMode={isDarkMode}
+                  onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                  currentTheme={theme}
+                  onChangeTheme={setTheme}
                 />
               </div>
 
@@ -340,9 +333,9 @@ export default function MailInterface() {
                   />
                 )}
               </div>
-              
 
-              
+
+
               {/* Upgrade Button */}
               <button
                 onClick={() => setIsUpgradeModalOpen(true)}
@@ -360,8 +353,6 @@ export default function MailInterface() {
           {selectedMessage ? <MessageView
             message={selectedMessage}
             threadMessages={threadMessages}
-            onReply={handleReply}
-            onForward={handleForward}
             onDelete={handleDeleteMessage}
             onStar={handleStarMessage}
             onBack={handleOnBack}
@@ -385,11 +376,10 @@ export default function MailInterface() {
 
       {/* Modals */}
       {isComposeOpen && (
-        <ComposeModal
+        <MiniComposer
+          isOpen={isComposeOpen}
           onClose={handleComposeClose}
-          onSent={() => { fetchMessages(); handleComposeClose(); }}
-          replyTo={composeMode === "reply" ? replyMessage : undefined}
-          forwardMessage={composeMode === "forward" ? replyMessage : undefined}
+          onMaximize={() => setIsComposeOpen(true)}
         />
       )}
       {isUpgradeModalOpen && (

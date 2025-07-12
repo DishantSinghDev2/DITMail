@@ -17,7 +17,7 @@ import RichTextEditor, { type RichTextEditorRef } from "./rich-text-editor"
 import AttachmentManager from "./attachment-manager"
 import SignatureSelector from "./signature-selector"
 // Updated imports to include MoreHorizontal for the expand icon
-import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp } from "lucide-react"
+import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp, Minus } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import ContactAutocomplete from "./contact-autocomplete"
 
@@ -234,6 +234,19 @@ export function EmailEditor({
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
+
+    // Validate file size and type
+    for (const file of files) {
+      if (file.size > 25 * 1024 * 1024) { // 25MB limit
+        toast({ title: "File too large", description: `${file.name} exceeds the 10MB limit.`, variant: "destructive" })
+        return
+      }
+      if (!["image/jpeg", "image/png", "application/pdf", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"].includes(file.type)) {
+        toast({ title: "Invalid file type", description: `${file.name} is not a valid file type.`, variant: "destructive" })
+        return
+      }
+    }
+
     // Optimistic UI update
     const tempAttachments = Array.from(files).map((file) => ({
       _id: `temp-${Date.now()}-${Math.random()}`,
@@ -290,8 +303,8 @@ export function EmailEditor({
   };
   const handleEditSubject = () => {
     setIsEditingSubject(true);
-    if (onMaximize) {
-      onMaximize();
+    if (onMinimize) {
+      onMinimize();
     }
   };
 
@@ -374,7 +387,7 @@ export function EmailEditor({
         <div className="flex items-center space-x-1">
           {onMinimize && (
             <Button variant="ghost" size="sm" onClick={onMinimize} className="h-6 w-6 p-0">
-              <ArrowUpRightFromSquare className="h-3 w-3" />
+              <Minus className="h-3 w-3" />
             </Button>
           )}
           {onMaximize && (
