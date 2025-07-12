@@ -196,17 +196,17 @@ export default function MessageList({
       <div className="border-b border-gray-200 p-2 sm:p-4 bg-white sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
-            <div className="flex items-center">
+            <div className="flex items-center relative z-50 p-1 cursor-pointer hover:bg-gray-200 rounded">
               <input
                 type="checkbox"
                 ref={selectAllCheckboxRef}
                 checked={selectAll}
                 onChange={(e) => handleSelectionChange(e.target.checked ? "all" : "none")}
-                className="rounded border-gray-300 p-1.5 text-blue-600 focus:ring-blue-500"
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <Dropdown
                 trigger={
-                  <button className="px-1 text-sm text-gray-600 hover:bg-gray-200 rounded">
+                  <button className="px-1 text-sm text-gray-600 ">
                     <ChevronDown className="h-4 w-4" />
                   </button>
                 }
@@ -218,8 +218,10 @@ export default function MessageList({
                   { label: "Starred", onClick: () => handleSelectionChange("starred") },
                   { label: "Unstarred", onClick: () => handleSelectionChange("unstarred") },
                 ]}
+                align="left"
               />
             </div>
+
 
             {selectedMessages.size > 0 ? (
               <div className="flex items-center space-x-1">
@@ -326,15 +328,13 @@ export default function MessageList({
             {currentMessages.map((message) => (
               <div
                 key={message._id}
-                className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${
-                  selectedMessage?._id === message._id ? "bg-blue-50" : ""
-                } ${!message.read ? "bg-blue-25 font-semibold" : ""} ${
-                  selectedMessages.has(message._id) ? "bg-blue-100" : ""
-                }`}
+                className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${selectedMessage?._id === message._id ? "bg-blue-50" : ""
+                  } ${!message.read ? "bg-blue-25 font-semibold" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""
+                  }`}
                 onClick={() => onMessageSelect(message)}
               >
-                 {selectedMessage?._id === message._id && (
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>
+                {selectedMessage?._id === message._id && (
+                  <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-600"></div>
                 )}
                 {/* Checkbox & Star */}
                 <div className="flex flex-col sm:flex-row items-center gap-2 mr-3">
@@ -364,12 +364,12 @@ export default function MessageList({
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start">
                     <div className="text-sm truncate pr-2">
-                        <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
-                            {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from}
-                        </span>
+                      <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
+                        {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-2 flex-shrink-0">
-                       {message.attachments?.length > 0 && <PaperClipIcon className="h-4 w-4 text-gray-400" />}
+                      {message.attachments?.length > 0 && <PaperClipIcon className="h-4 w-4 text-gray-400" />}
                       <span className={`text-xs whitespace-nowrap ${!message.read ? "text-gray-800 font-bold" : "text-gray-500"}`}>
                         {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
                       </span>
@@ -385,21 +385,21 @@ export default function MessageList({
           </div>
         </div>
       )}
-      
+
       {/* Footer */}
       <div className="border-t border-gray-200 p-2 bg-white text-xs text-gray-600 sticky bottom-0 z-10">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-               <div className="w-1/3">
-                  <p>{storageUsedGB.toFixed(2)} GB of {storageTotalGB} GB used</p>
-                  <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-                      <div className="bg-blue-600 h-1 rounded-full" style={{width: `${(storageUsedGB / storageTotalGB) * 100}%`}}></div>
-                  </div>
-               </div>
-               <div className="flex space-x-4">
-                  <a href="#" className="hover:text-blue-700">Terms</a>
-                  <a href="#" className="hover:text-blue-700">Privacy</a>
-               </div>
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="w-1/3">
+            <p>{storageUsedGB.toFixed(2)} GB of {storageTotalGB} GB used</p>
+            <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+              <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${(storageUsedGB / storageTotalGB) * 100}%` }}></div>
+            </div>
           </div>
+          <div className="flex space-x-4">
+            <a href="#" className="hover:text-blue-700">Terms</a>
+            <a href="#" className="hover:text-blue-700">Privacy</a>
+          </div>
+        </div>
       </div>
     </div>
   )

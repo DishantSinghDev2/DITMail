@@ -61,7 +61,6 @@ export default function MiniComposer({
             forwardMessage={forwardMessage}
             initialDraftId={draftId}
             isMinimized={false}
-            showWindowControls={true}
           />
         </div>
       )}

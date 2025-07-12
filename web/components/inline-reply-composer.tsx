@@ -55,7 +55,6 @@ export default function InlineReplyComposer({ originalMessage, onClose, onSent, 
               onMinimize={handleMinimize}
               replyToMessage={mode === "reply" ? originalMessage : undefined}
               forwardMessage={mode === "forward" ? originalMessage : undefined}
-              showWindowControls={true}
             />
           </div>
         </Card>

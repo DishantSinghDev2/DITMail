@@ -42,7 +42,6 @@ export default function MainComposer({
           forwardMessage={forwardMessage}
           initialDraftId={draftId}
           isMinimized={false}
-          showWindowControls={true}
         />
       </div>
     </Card>

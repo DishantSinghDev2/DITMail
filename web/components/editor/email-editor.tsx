@@ -17,7 +17,7 @@ import RichTextEditor, { type RichTextEditorRef } from "./rich-text-editor"
 import AttachmentManager from "./attachment-manager"
 import SignatureSelector from "./signature-selector"
 // Updated imports to include MoreHorizontal for the expand icon
-import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp, Minus } from "lucide-react"
+import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp, Minus, Baseline } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import ContactAutocomplete from "./contact-autocomplete"
 
@@ -31,7 +31,6 @@ interface EmailEditorProps {
   forwardMessage?: any
   initialDraftId?: string
   isMinimized?: boolean
-  showWindowControls?: boolean
 }
 
 interface Attachment {
@@ -81,8 +80,7 @@ export function EmailEditor({
   replyToMessage,
   forwardMessage,
   initialDraftId,
-  isMinimized = false,
-  showWindowControls = false,
+  isMinimized = false
 }: EmailEditorProps) {
   const { toast } = useToast()
   const [isSending, setIsSending] = useState(false)
@@ -94,6 +92,7 @@ export function EmailEditor({
   const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([])
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
+  const [isToolbarVisible, setIsToolbarVisible] = useState(true)
   // --- NEW STATE VARIABLES ---
   const [isEditingSubject, setIsEditingSubject] = useState(!!forwardMessage || !replyToMessage)
 
@@ -511,6 +510,7 @@ export function EmailEditor({
               minHeight="50px"
               mode={replyToMessage ? "reply" : forwardMessage ? "forward" : "compose"}
               initialContent={form.getValues("content") || "<p><br></p>"}
+              isToolbarVisible={isToolbarVisible}
             />
           </div>
 
@@ -531,6 +531,9 @@ export function EmailEditor({
               </Button>
               <Button type="button" variant="ghost" size="icon" onClick={() => fileInputRef.current?.click()} aria-label="Attach files">
                 <Paperclip className="h-5 w-5" />
+              </Button>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setIsToolbarVisible(!isToolbarVisible)} aria-label="Toggle Toolbar">
+                <Baseline className="h-5 w-5" />
               </Button>
               <SignatureSelector selectedSignature={selectedSignature} onSignatureChange={handleSignatureChange} />
             </div>
