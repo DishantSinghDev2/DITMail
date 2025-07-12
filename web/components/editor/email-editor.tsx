@@ -489,9 +489,8 @@ export function EmailEditor({
                 name="subject"
                 render={({ field }) => (
                   <FormItem className="flex items-center">
-                    <label className="w-12 text-sm text-gray-600 flex-shrink-0">Subject</label>
                     <FormControl>
-                      <Input {...field} placeholder="Subject" className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500" />
+                      <Input {...field} placeholder="Subject" className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500 text-sm" />
                     </FormControl>
                   </FormItem>
                 )}

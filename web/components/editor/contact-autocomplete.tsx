@@ -183,7 +183,7 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
           onChange={e => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={pills.length === 0 ? placeholder : ""}
-          className="flex-1 border-none outline-0 focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
+          className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
           autoComplete="off"
           autoFocus
         />
