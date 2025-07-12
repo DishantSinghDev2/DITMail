@@ -1,5 +1,3 @@
-// components/editor/ContactAutocomplete.tsx
-
 "use client"
 
 import type React from "react"
@@ -56,10 +54,26 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
 
   useEffect(() => {
     const loadContacts = async () => {
-      // Logic to load contacts from localStorage and API
+      const localContacts = localStorage.getItem("ditmail-contacts")
+      if (localContacts) {
+        setContacts(JSON.parse(localContacts).map((c: any) => ({ ...c, lastUsed: toDate(c.lastUsed) })))
+      }
+      try {
+        const token = localStorage.getItem("accessToken")
+        const response = await fetch("/api/contacts", { headers: { Authorization: `Bearer ${token}` }})
+        if (response.ok) {
+          const data = await response.json()
+          const apiContacts = data.contacts.map((c: any) => ({ email: c.email, name: c.name, lastUsed: toDate(c.lastUsed) }))
+          setContacts(apiContacts)
+          localStorage.setItem("ditmail-contacts", JSON.stringify(apiContacts.map((c: any) => ({...c, lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined }))))
+        }
+      } catch (error) {
+        console.error("Error loading contacts:", error)
+      }
     }
     loadContacts()
   }, [])
+
 
   useEffect(() => {
     if (inputValue.length < 1) {
@@ -72,7 +86,9 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
   }, [inputValue, contacts, pills])
 
   const updateContactUsage = (email: string) => {
-    // Logic to update lastUsed date for a contact
+    const updatedContacts = contacts.map(c => c.email === email ? { ...c, lastUsed: new Date() } : c)
+    setContacts(updatedContacts)
+    localStorage.setItem("ditmail-contacts", JSON.stringify(updatedContacts.map(c => ({...c, lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined }))))
   }
 
   const addPill = (email: string) => {
