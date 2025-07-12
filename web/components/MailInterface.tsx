@@ -43,7 +43,7 @@ export default function MailInterface() {
   const [totalMessages, setTotalMessages] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(50) // Default items per page
-  const [storageInfo, setStorageInfo] = useState({ used: 0, total: 15 })
+  const [storageInfo, setStorageInfo] = useState({ used: 0, total: 15 }) // Temporary storage info for demo
 
   const [filters, setFilters] = useState({
     unread: false,
@@ -99,7 +99,6 @@ export default function MailInterface() {
         setTotalMessages(data.pagination.total)
         setCurrentPage(data.pagination.page)
         setItemsPerPage(data.pagination.limit)
-        setStorageInfo(data.storage) // Assuming API returns storage info
         sidebarRef.current?.refreshCount() // Refresh sidebar counts
       }
     } catch (error) {
