@@ -72,26 +72,13 @@ export async function revokeSession(sessionId: string) {
 
 export async function getAuthUser(request: NextRequest) {
   const token = request.headers.get("authorization")?.replace("Bearer ", "")
-
   if (!token) return null
 
   const payload = verifyToken(token)
-  if (!payload) {
-    // If token is invalid, check for a valid refresh token
-    const refreshToken = request.headers.get("x-refresh-token")
-    if (!refreshToken) return null
-
-    const newTokens = await refreshAccessToken(refreshToken)
-    if (!newTokens) return null
-
-    // Set new access token in headers for future requests
-    request.headers.set("authorization", `Bearer ${newTokens.accessToken}`)
-    return getAuthUser(request) // Retry with new access token
-  }
+  if (!payload) return null
 
   await connectDB()
   const user = await User.findById(payload.userId).populate("org_id")
-
   return user
 }
 

@@ -41,22 +41,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchUser = async (token: string) => {
     try {
       const response = await fetch("/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-refresh-token": localStorage.getItem("refreshToken") || "",
+        },
       })
-
+  
       if (response.ok) {
         const userData = await response.json()
         setUser(userData.user)
+  
+        // ✅ Save updated tokens if sent
+        const newAccess = response.headers.get("x-access-token")
+        const newRefresh = response.headers.get("x-refresh-token")
+  
+        if (newAccess) localStorage.setItem("accessToken", newAccess)
+        if (newRefresh) localStorage.setItem("refreshToken", newRefresh)
       } else {
-        localStorage.removeItem("accessToken")
-        localStorage.removeItem("refreshToken")
+        logout()
       }
     } catch (error) {
       console.error("Auth error:", error)
+      logout()
     } finally {
       setLoading(false)
     }
   }
+  
+  
 
   const login = async (email: string, password: string) => {
     const response = await fetch("/api/auth/login", {
