@@ -419,9 +419,8 @@ export function EmailEditor({
     <div className="flex flex-col h-full bg-white">
       {replyToMessage && (
          <div className="flex items-center justify-end p-2 bg-gray-100 border-b">
-            <Button variant="ghost" size="sm" className="h-6 w-auto p-1">
+            <Button variant="ghost" size="sm" title="Pop out reply" onClick={onMinimize} className="h-6 w-auto p-1">
                 <ArrowUpRightFromSquare className="h-3 w-3 mr-1" />
-                Pop out reply
             </Button>
         </div>
       )}
