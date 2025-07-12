@@ -19,9 +19,7 @@ import SignatureSelector from "./signature-selector"
 // Updated imports to include MoreHorizontal for the expand icon
 import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-
-// A new, dedicated component for handling recipient pills and input
-import RecipientInput from "./RecipientInput" // Assuming this component is created as described below
+import ContactAutocomplete from "./contact-autocomplete"
 
 // (Interfaces remain the same)
 interface EmailEditorProps {
@@ -404,7 +402,12 @@ export function EmailEditor({
                   render={({ field }) => (
                     <FormItem className="flex-1">
                       <FormControl>
-                        <RecipientInput value={field.value} onChange={field.onChange} placeholder="Recipients" />
+                        <ContactAutocomplete
+                          value={field.value}
+                          onChange={field.onChange}
+                          placeholder="Recipients"
+                          className="border-0 border-b rounded-none focus-within:border-blue-500" // Add styling as needed
+                        />
                       </FormControl>
                     </FormItem>
                   )}
@@ -426,7 +429,12 @@ export function EmailEditor({
                   render={({ field }) => (
                     <FormItem className="flex-1">
                       <FormControl>
-                        <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Cc" />
+                        <ContactAutocomplete
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Cc"
+                          className="border-0 border-b rounded-none focus-within:border-blue-500" // Add styling as needed
+                        />
                       </FormControl>
                     </FormItem>
                   )}
@@ -445,7 +453,12 @@ export function EmailEditor({
                   render={({ field }) => (
                     <FormItem className="flex-1">
                       <FormControl>
-                        <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Bcc" />
+                        <ContactAutocomplete
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Bcc"
+                          className="border-0 border-b rounded-none focus-within:border-blue-500" // Add styling as needed
+                        />
                       </FormControl>
                     </FormItem>
                   )}
