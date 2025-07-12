@@ -177,7 +177,7 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
         {pills.map(email => (
           <RecipientPill key={email} email={email} onRemove={() => removePill(email)} />
         ))}
-        <Input
+        <input
           ref={inputRef}
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}

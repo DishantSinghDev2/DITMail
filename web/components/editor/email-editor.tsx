@@ -490,7 +490,7 @@ export function EmailEditor({
                 render={({ field }) => (
                   <FormItem className="flex items-center">
                     <FormControl>
-                      <Input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]" />
+                      <input {...field} placeholder="Subject" className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]" />
                     </FormControl>
                   </FormItem>
                 )}
@@ -499,7 +499,7 @@ export function EmailEditor({
           </div>
 
           {/* Editor & Collapsible Content */}
-          <div className="flex-1 p-2 overflow-y-hidden">
+          <div className="flex-1 p-4 overflow-y-hidden">
             <RichTextEditor
               ref={editorRef}
               placeholder=""
