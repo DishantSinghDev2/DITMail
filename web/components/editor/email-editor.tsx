@@ -377,11 +377,14 @@ export function EmailEditor({
       {/* Header Area */}
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b flex-shrink-0">
         <div className="flex items-center space-x-1">
-          {replyToMessage && !isEditingSubject && (
+          {replyToMessage && !isEditingSubject && onMaximize && (
             <Button variant="ghost" size="sm" onClick={handleEditSubject} className="h-6 px-2 text-xs">
               <Edit3 className="h-3 w-3 mr-1" />
               Edit Subject
             </Button>
+          )}
+          {onMinimize && (
+            <span className="text-sm text-gray-600 truncate">{form.getValues("subject") || "New Message"}</span>
           )}
         </div>
         <div className="flex items-center space-x-1">
@@ -407,7 +410,6 @@ export function EmailEditor({
           <div className="p-4 border-b space-y-3 flex-shrink-0">
             {/* To Field with RecipientInput */}
             <div className="flex items-center">
-              <label className="w-12 text-sm text-gray-600 flex-shrink-0">To</label>
               <div className="flex-1 flex items-center">
                 <FormField
                   control={form.control}
@@ -435,7 +437,6 @@ export function EmailEditor({
             {/* CC/BCC Fields */}
             {showCc && (
               <div className="flex items-center">
-                <label className="w-12 text-sm text-gray-600 flex-shrink-0">Cc</label>
                 <FormField
                   control={form.control}
                   name="cc"
@@ -459,7 +460,6 @@ export function EmailEditor({
             )}
             {showBcc && (
               <div className="flex items-center">
-                <label className="w-12 text-sm text-gray-600 flex-shrink-0">Bcc</label>
                 <FormField
                   control={form.control}
                   name="bcc"

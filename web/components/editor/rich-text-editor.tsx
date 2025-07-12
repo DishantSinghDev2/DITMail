@@ -232,7 +232,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         </div>
 
         {/* Editing Area and Quoted Content */}
-        <div className="flex-grow overflow-y-auto ditmail-scrollbar">
+        <div className="flex-grow overflow-y-auto ditmail-scrollbar max-h-[30vh]">
             <div
                 ref={editorRef}
                 contentEditable
@@ -254,7 +254,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             />
 
             {(mode === 'reply' || mode === 'forward') && quotedHtml && (
-                <div className="px-3 pb-3">
+                <div className="">
                     {!isQuotedContentExpanded && mode === 'reply' ? (
                         <button 
                             type="button" 

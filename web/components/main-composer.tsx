@@ -333,7 +333,7 @@ export default function MainComposer({
 
   if (isMinimized) {
     return (
-      <div className="fixed bottom-0 right-20 w-80 z-50">
+      <div className="fixed top- right-20 w-80 z-50">
         <Card className="rounded-t-lg rounded-b-none shadow-2xl">
             <div className="flex items-center justify-between p-2 bg-gray-100 border-b cursor-pointer" onClick={onMaximize}>
               <span className="text-sm font-medium truncate">{form.getValues("subject") || "New Message"}</span>

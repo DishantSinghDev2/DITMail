@@ -72,7 +72,7 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
           const data = await response.json()
           const apiContacts = data.contacts.map((c: any) => ({ email: c.email, name: c.name, lastUsed: toDate(c.lastUsed) }))
           setContacts(apiContacts)
-          localStorage.setItem("ditmail-contacts", JSON.stringify(apiContacts.map(c => ({...c, lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined }))))
+          localStorage.setItem("ditmail-contacts", JSON.stringify(apiContacts.map((c: any) => ({...c, lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined }))))
         }
       } catch (error) { console.error("Error loading contacts:", error) }
     }
@@ -177,13 +177,15 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
         {pills.map(email => (
           <RecipientPill key={email} email={email} onRemove={() => removePill(email)} />
         ))}
-        <Input
+        <input
           ref={inputRef}
           value={inputValue}
           onChange={e => setInputValue(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={pills.length === 0 ? placeholder : ""}
-          className="flex-1 border-none outline-none focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
+          className="flex-1 border-none outline-0 focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
+          autoComplete="off"
+          autoFocus
         />
       </div>
       {showSuggestions && (
