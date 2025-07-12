@@ -36,7 +36,7 @@ export interface RichTextEditorRef {
 const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     (
         {
-            placeholder = "Compose your message...",
+            placeholder = "",
             className = "",
             initialContent = "",
             onChange,

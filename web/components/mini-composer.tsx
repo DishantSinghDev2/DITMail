@@ -33,7 +33,7 @@ export default function MiniComposer({
   if (!isOpen) return null
 
   return (
-    <Card className="fixed bottom-0 right-4 w-[40%] shadow-2xl border-t-4 border-t-blue-500 z-50 bg-white transition-all duration-200">
+    <Card className="fixed bottom-0 right-4 w-[40%] h-[450px] overflow-hidden shadow-2xl border-t-4 border-t-blue-500 z-50 bg-white transition-all duration-200">
       {isMinimized ? (
         <div className="p-2 bg-gray-100">
           <div className="flex items-center justify-between">
@@ -51,7 +51,7 @@ export default function MiniComposer({
           </div>
         </div>
       ) : (
-        <div className="h-[400px] flex flex-col">
+        <div className="flex flex-col">
           <EmailEditor
             onClose={onClose}
             onSent={handleSent}
