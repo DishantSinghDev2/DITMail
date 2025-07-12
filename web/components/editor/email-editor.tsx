@@ -17,7 +17,7 @@ import RichTextEditor, { type RichTextEditorRef } from "./rich-text-editor"
 import AttachmentManager from "./attachment-manager"
 import SignatureSelector from "./signature-selector"
 // Updated imports to include MoreHorizontal for the expand icon
-import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3 } from "lucide-react"
+import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 // A new, dedicated component for handling recipient pills and input
@@ -97,7 +97,6 @@ export function EmailEditor({
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
   // --- NEW STATE VARIABLES ---
-  const [isQuotedContentExpanded, setIsQuotedContentExpanded] = useState(!!forwardMessage)
   const [isEditingSubject, setIsEditingSubject] = useState(!!forwardMessage || !replyToMessage)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -169,7 +168,7 @@ export function EmailEditor({
           attachments = forwardMessage.attachments || []
           setUploadedAttachments(attachments)
         }
-        
+
         form.setValue("content", content, { shouldDirty: false })
       }
 
@@ -218,11 +217,11 @@ export function EmailEditor({
           setLastSaved(new Date())
         }
       } catch (error) { console.error("Auto-save error:", error) }
-       finally { setIsSaving(false) }
+      finally { setIsSaving(false) }
     },
     [draftId, replyToMessage, forwardMessage],
   )
-  
+
   const debouncedSave = useCallback(debounce(saveDraft, 2000), [saveDraft])
 
   useEffect(() => {
@@ -339,10 +338,10 @@ export function EmailEditor({
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" })
     } finally { setIsSending(false) }
   }
-  
+
   // (Minimized view remains the same)
   if (isMinimized) {
-     return (
+    return (
       <div className="p-2 bg-gray-100 border-b">
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-600 truncate">{form.getValues("subject") || "New Message"}</span>
@@ -375,19 +374,19 @@ export function EmailEditor({
           )}
         </div>
         <div className="flex items-center space-x-1">
-            {onMinimize && (
-              <Button variant="ghost" size="sm" onClick={onMinimize} className="h-6 w-6 p-0">
-                <Minimize2 className="h-3 w-3" />
-              </Button>
-            )}
-            {onMaximize && (
-              <Button variant="ghost" size="sm" onClick={onMaximize} className="h-6 w-6 p-0">
-                <ArrowUpRightFromSquare className="h-3 w-3" />
-              </Button>
-            )}
-            <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0">
-                <X className="h-3 w-3" />
+          {onMinimize && (
+            <Button variant="ghost" size="sm" onClick={onMinimize} className="h-6 w-6 p-0">
+              <ArrowUpRightFromSquare className="h-3 w-3" />
             </Button>
+          )}
+          {onMaximize && (
+            <Button variant="ghost" size="sm" onClick={onMaximize} className="h-6 w-6 p-0">
+              <Minimize2 className="h-3 w-3" />
+            </Button>
+          )}
+          {onMaximize && <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0">
+            <X className="h-3 w-3" />
+          </Button>}
         </div>
       </div>
 
@@ -410,7 +409,7 @@ export function EmailEditor({
                     </FormItem>
                   )}
                 />
-                 <div className="flex items-center ml-2 space-x-1">
+                <div className="flex items-center ml-2 space-x-1">
                   {!showCc && <Button type="button" variant="link" size="sm" onClick={() => setShowCc(true)} className="text-xs h-6 px-1">Cc</Button>}
                   {!showBcc && <Button type="button" variant="link" size="sm" onClick={() => setShowBcc(true)} className="text-xs h-6 px-1">Bcc</Button>}
                 </div>
@@ -419,75 +418,72 @@ export function EmailEditor({
 
             {/* CC/BCC Fields */}
             {showCc && (
-               <div className="flex items-center">
-                  <label className="w-12 text-sm text-gray-600 flex-shrink-0">Cc</label>
-                   <FormField
-                      control={form.control}
-                      name="cc"
-                      render={({ field }) => (
-                          <FormItem className="flex-1">
-                              <FormControl>
-                                  <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Cc" />
-                              </FormControl>
-                          </FormItem>
-                      )}
-                  />
+              <div className="flex items-center">
+                <label className="w-12 text-sm text-gray-600 flex-shrink-0">Cc</label>
+                <FormField
+                  control={form.control}
+                  name="cc"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Cc" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowCc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
               </div>
             )}
             {showBcc && (
-               <div className="flex items-center">
-                  <label className="w-12 text-sm text-gray-600 flex-shrink-0">Bcc</label>
-                   <FormField
-                      control={form.control}
-                      name="bcc"
-                      render={({ field }) => (
-                          <FormItem className="flex-1">
-                              <FormControl>
-                                  <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Bcc" />
-                              </FormControl>
-                          </FormItem>
-                      )}
-                  />
+              <div className="flex items-center">
+                <label className="w-12 text-sm text-gray-600 flex-shrink-0">Bcc</label>
+                <FormField
+                  control={form.control}
+                  name="bcc"
+                  render={({ field }) => (
+                    <FormItem className="flex-1">
+                      <FormControl>
+                        <RecipientInput value={field.value || ""} onChange={field.onChange} placeholder="Bcc" />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <Button type="button" variant="ghost" size="sm" onClick={() => setShowBcc(false)} className="ml-2 h-6 w-6 p-0 text-gray-400 hover:text-gray-600">
+                  <ChevronUp className="h-3 w-3" />
+                </Button>
               </div>
             )}
 
             {/* Conditionally Rendered Subject */}
             {isEditingSubject && (
-               <FormField
-                  control={form.control}
-                  name="subject"
-                  render={({ field }) => (
-                      <FormItem className="flex items-center">
-                          <label className="w-12 text-sm text-gray-600 flex-shrink-0">Subject</label>
-                          <FormControl>
-                              <Input {...field} placeholder="Subject" className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500" />
-                          </FormControl>
-                      </FormItem>
-                  )}
+              <FormField
+                control={form.control}
+                name="subject"
+                render={({ field }) => (
+                  <FormItem className="flex items-center">
+                    <label className="w-12 text-sm text-gray-600 flex-shrink-0">Subject</label>
+                    <FormControl>
+                      <Input {...field} placeholder="Subject" className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500" />
+                    </FormControl>
+                  </FormItem>
+                )}
               />
             )}
           </div>
 
           {/* Editor & Collapsible Content */}
-          <div className="flex-1 p-4 overflow-y-auto">
+          <div className="flex-1 p-4 overflow-y-hidden">
             <RichTextEditor
               ref={editorRef}
               placeholder="Compose your message..."
               onChange={(content) => form.setValue("content", content, { shouldDirty: true })}
               className="h-full"
               minHeight="150px"
-              initialContent={isQuotedContentExpanded ? form.getValues("content") : form.getValues("content").split('<blockquote style=')[0] || "<p><br></p>"}
+              mode={replyToMessage ? "reply" : forwardMessage ? "forward" : "compose"}
+              initialContent={form.getValues("content").split('<blockquote style=')[0] || "<p><br></p>"}
             />
-            {replyToMessage && (
-                <div className="mt-4">
-                    <button type="button" onClick={() => setIsQuotedContentExpanded(!isQuotedContentExpanded)} className="flex items-center text-gray-500 hover:bg-gray-200 rounded-full p-2">
-                       <MoreHorizontal className="h-5 w-5" />
-                    </button>
-                    {isQuotedContentExpanded && (
-                       <div className="mt-2" dangerouslySetInnerHTML={{ __html: `<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${replyToMessage.html}</blockquote>` }}></div>
-                    )}
-                </div>
-            )}
           </div>
 
           {/* Attachments & Actions */}

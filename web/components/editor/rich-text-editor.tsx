@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Bold, Italic, Underline, AlignLeft, List, LinkIcon, Undo, Redo, Type, Palette } from "lucide-react"
+import { Bold, Italic, Underline, AlignLeft, List, LinkIcon, Undo, Redo, Type, Palette, MoreHorizontal } from "lucide-react"
 
 const FONT_FAMILIES = [
   "Arial",
@@ -64,6 +64,7 @@ interface RichTextEditorProps {
   onChange?: (content: string) => void
   minHeight?: string
   maxHeight?: string
+  mode?: "compose" | "reply" | "forward"
 }
 
 export interface RichTextEditorRef {
@@ -81,12 +82,14 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       onChange,
       minHeight = "200px",
       maxHeight = "400px",
+      mode = "compose"
     },
     ref,
   ) => {
     const editorRef = useRef<HTMLDivElement>(null)
     const [fontSize, setFontSize] = useState("12")
     const [fontFamily, setFontFamily] = useState("Arial")
+    const [isQuotedContentExpanded, setIsQuotedContentExpanded] = useState(false)
 
     useImperativeHandle(ref, () => ({
       getContent: () => editorRef.current?.innerHTML || "",
@@ -200,7 +203,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     }
 
     return (
-      <div className={`border rounded-lg bg-white ${className}`}>
+      <div className={`border rounded-lg bg-white overflow-hidden ${className}`}>
         {/* Toolbar */}
         <div className="border-b p-2 bg-gray-50 flex flex-wrap items-center gap-1">
           <Button variant="ghost" size="sm" onClick={() => executeCommand("undo")} className="h-7 w-7 p-0">
@@ -291,8 +294,17 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           </Button>
         </div>
 
+
+        {mode == "reply" && (
+          <div className="mt-4">
+            {!isQuotedContentExpanded && <button type="button" onClick={() => setIsQuotedContentExpanded(true)} className="flex items-center text-gray-500 hover:bg-gray-200 rounded-full p-2">
+              <MoreHorizontal className="h-5 w-5" />
+            </button>}
+          </div>
+        )}
+
         {/* Editor with proper scrolling */}
-        <div
+        {isQuotedContentExpanded && <div
           ref={editorRef}
           contentEditable
           className="p-3 focus:outline-none overflow-y-auto ditmail-scrollbar"
@@ -306,7 +318,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           suppressContentEditableWarning={true}
           onInput={() => onChange?.(editorRef.current?.innerHTML || "")}
           data-placeholder={placeholder}
-        />
+        />}
       </div>
     )
   },
