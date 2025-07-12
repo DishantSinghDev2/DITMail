@@ -175,7 +175,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
 
         // --- JSX RENDER ---
         return (
-            <div className={`relative border rounded-lg bg-white overflow-hidden flex max-h-[30vh] flex-col ${className}`}>
+            <div className={`relative border rounded-lg bg-white overflow-hidden flex flex-col ${className}`}>
                 {/* Editing Area and Quoted Content */}
                 <div className="flex-grow overflow-y-auto ditmail-scrollbar">
                     <div
