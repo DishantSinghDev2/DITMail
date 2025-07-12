@@ -273,14 +273,11 @@ export default function MailInterface() {
   const handleBulkArchive = (messageIds: string[]) => handleBulkUpdate("archive", messageIds)
   const handleBulkMarkAsSpam = (messageIds: string[]) => handleBulkUpdate("spam", messageIds)
   const handleBulkMarkAsUnread = (messageIds: string[]) => handleBulkUpdate("unread", messageIds)
-
-  // Handler for single message deletion from MessageView
-  const handleDeleteSingleMessage = (messageId: string) => {
-    handleBulkDelete([messageId]);
-    setSelectedMessage(null);
-    setSelectedThread(null);
+  const handleBulkRead = (messageIds: string[]) => {
+    handleBulkUpdate("read", messageIds)
   }
-
+  const handleBulkStar = (messageIds: string[]) => handleBulkUpdate("star", messageIds)
+  const handleBulkUnstar = (messageIds: string[]) => handleBulkUpdate("unstar", messageIds)
 
   function handleOnPrevious(): void {
     const currentIndex = messages.findIndex((m: any) => m.id === selectedMessage.id);
@@ -423,7 +420,9 @@ export default function MailInterface() {
           onArchive={handleBulkArchive}
           markAsSpam={handleBulkMarkAsSpam}
           markAsUnread={handleBulkMarkAsUnread}
-
+          markAsRead={handleBulkRead}
+          markAsStarred={handleBulkStar}
+          markAsUnstarred={handleBulkUnstar}
           />
           }
         </div>

@@ -20,7 +20,7 @@ import {
 } from "@heroicons/react/24/outline"
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid"
 import Dropdown from "./ui/Dropdown"
-import { ChevronDown } from "lucide-react"
+import { ArrowDownWideNarrow, ChevronDown, MailMinus, MailOpen, OctagonAlert } from "lucide-react"
 
 interface MessageListProps {
   messages: any[]
@@ -33,6 +33,10 @@ interface MessageListProps {
   onArchive: (messageIds: string[]) => void
   markAsSpam: (messageIds: string[]) => void
   markAsUnread: (messageIds: string[]) => void
+  markAsRead: (messageIds: string[]) => void
+  markAsStarred: (messageIds: string[]) => void
+  markAsUnstarred: (messageIds: string[]) => void
+  // Folder and Search Props
   folder: string
   searchQuery?: string
   // Pagination Props
@@ -56,6 +60,9 @@ export default function MessageList({
   onArchive,
   markAsSpam,
   markAsUnread,
+  markAsRead,
+  markAsStarred,
+  markAsUnstarred,
   folder,
   searchQuery,
   totalMessages,
@@ -137,6 +144,21 @@ export default function MessageList({
     setSelectedMessages(new Set())
   }
 
+  const handleBulkRead = () => {
+    markAsRead(Array.from(selectedMessages))
+    setSelectedMessages(new Set())
+  }
+
+  const handleBulkStar = () => {
+    markAsStarred(Array.from(selectedMessages))
+    setSelectedMessages(new Set())
+  }
+
+  const handleBulkUnstar = () => {
+    markAsUnstarred(Array.from(selectedMessages))
+    setSelectedMessages(new Set())
+  }
+
   const handleRefresh = async () => {
     setRefreshing(true)
     await onRefresh()
@@ -202,11 +224,11 @@ export default function MessageList({
                 ref={selectAllCheckboxRef}
                 checked={selectAll}
                 onChange={(e) => handleSelectionChange(e.target.checked ? "all" : "none")}
-                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
               <Dropdown
                 trigger={
-                  <button className="px-1 text-sm text-gray-600 ">
+                  <button className="px-1 text-sm text-gray-600 pt-1.5">
                     <ChevronDown className="h-4 w-4" />
                   </button>
                 }
@@ -229,15 +251,39 @@ export default function MessageList({
                   <ArchiveBoxIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 <button title="Mark as spam" onClick={handleBulkSpam} className="p-2 hover:bg-gray-100 rounded-full">
-                  <ExclamationTriangleIcon className="h-5 w-5 text-gray-500" />
+                  <OctagonAlert className="h-5 w-5 text-gray-500" />
                 </button>
                 <button title="Delete" onClick={handleBulkDelete} className="p-2 hover:bg-gray-100 rounded-full">
                   <TrashIcon className="h-5 w-5 text-gray-500" />
                 </button>
                 <div className="bg-gray-200 w-0.5 h-5"></div>
-                <button title="Mark as unread" onClick={handleBulkUnread} className="p-2 hover:bg-gray-100 rounded-full">
-                  <EnvelopeIcon className="h-5 w-5 text-gray-500" />
+                <button title="Mark as read" onClick={handleBulkRead} className="p-2 hover:bg-gray-100 rounded-full">
+                  <MailOpen className="h-5 w-5 text-gray-500" />
                 </button>
+                <Dropdown
+                  trigger={
+                    <button title="More options" className="p-2 hover:bg-gray-100 rounded-full">
+                      <EllipsisVerticalIcon className="h-5 w-5 text-gray-400" />
+                    </button>
+                  }
+                  items={[
+                    {
+                      label: "Mark as unread",
+                      onClick: handleBulkUnread,
+                      icon: MailMinus,
+                    },
+                    {
+                      label: "Star",
+                      onClick: handleBulkStar,
+                      icon: StarIconSolid
+                    },
+                    {
+                      label: "Unstar",
+                      onClick: handleBulkUnstar,
+                      icon: StarIcon,
+                    },
+                  ]}
+                />
               </div>
             ) : (
               <button
@@ -246,7 +292,7 @@ export default function MessageList({
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full transition-colors disabled:opacity-50"
                 title="Refresh"
               >
-                <ArrowPathIcon className={`h-5 w-5 ${refreshing ? "animate-spin" : ""}`} />
+                <ArrowPathIcon className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
               </button>
             )}
           </div>
@@ -274,7 +320,7 @@ export default function MessageList({
             <Dropdown
               trigger={
                 <button className="p-2 text-gray-500 hover:text-gray-700 rounded-full" title="Sort options">
-                  <ArrowUpIcon
+                  <ArrowDownWideNarrow
                     className={`h-5 w-5 inline-block transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`}
                   />
                 </button>
