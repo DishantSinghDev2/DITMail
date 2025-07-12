@@ -377,7 +377,7 @@ export function EmailEditor({
       {/* Header Area */}
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b flex-shrink-0">
         <div className="flex items-center space-x-1">
-          {replyToMessage && !isEditingSubject && onMinimize && (
+          {replyToMessage && !isEditingSubject && (
             <Button variant="ghost" size="sm" onClick={handleEditSubject} className="h-6 px-2 text-xs">
               <Edit3 className="h-3 w-3 mr-1" />
               Edit Subject
@@ -483,7 +483,7 @@ export function EmailEditor({
             )}
 
             {/* Conditionally Rendered Subject */}
-            {isEditingSubject && (
+            {isEditingSubject || onMinimize && (
               <FormField
                 control={form.control}
                 name="subject"
