@@ -10,12 +10,10 @@ interface EmailFieldsProps {
   cc: string
   bcc: string
   subject: string
-  from: string
   onToChange: (value: string) => void
   onCcChange: (value: string) => void
   onBccChange: (value: string) => void
   onSubjectChange: (value: string) => void
-  onFromChange: (value: string) => void
   showCc?: boolean
   showBcc?: boolean
 }
@@ -25,12 +23,10 @@ export default function EmailFields({
   cc,
   bcc,
   subject,
-  from,
   onToChange,
   onCcChange,
   onBccChange,
   onSubjectChange,
-  onFromChange,
   showCc: initialShowCc = false,
   showBcc: initialShowBcc = false,
 }: EmailFieldsProps) {
@@ -39,16 +35,6 @@ export default function EmailFields({
 
   return (
     <div className="space-y-2">
-      {/* From Field */}
-      <div className="flex items-center">
-        <label className="w-12 text-sm text-gray-600 flex-shrink-0">From</label>
-        <Input
-          value={from}
-          onChange={(e) => onFromChange(e.target.value)}
-          placeholder="your.email@gmail.com"
-          className="border-0 border-b rounded-none focus-visible:ring-0 focus-visible:border-blue-500"
-        />
-      </div>
 
       {/* To Field */}
       <div className="flex items-center">
