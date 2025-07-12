@@ -9,7 +9,7 @@ import { EmailEditor } from "./editor/email-editor"
 interface MainComposerProps {
   isOpen: boolean
   onClose: () => void
-  onMaximize: () => void
+  onMinimize: () => void
   replyToMessage?: any
   forwardMessage?: any
   draftId?: string
@@ -18,12 +18,11 @@ interface MainComposerProps {
 export default function MainComposer({
   isOpen,
   onClose,
-  onMaximize,
+  onMinimize,
   replyToMessage,
   forwardMessage,
   draftId,
 }: MainComposerProps) {
-  const [isMinimized, setIsMinimized] = useState(false)
 
   const handleSent = () => {
     console.log("Email sent from mini composer")
@@ -33,13 +32,12 @@ export default function MainComposer({
   if (!isOpen) return null
 
   return (
-    <Card className="fixed bottom-0 left-1/2 transform -translate-x-1/2 w-[60%] overflow-hidden shadow-2xl border-t-4 border-t-blue-500 z-50 bg-white transition-all duration-200">
+    <Card className="fixed top-1/2 left-1/2 transform -translate-y-1/2 -translate-x-1/2 w-[60%] overflow-hidden shadow-2xl z-50 bg-white transition-all duration-200">
       <div className="flex flex-col h-[80vh] ">
         <EmailEditor
           onClose={onClose}
           onSent={handleSent}
-          onMinimize={() => setIsMinimized(true)}
-          onMaximize={onMaximize}
+          onMinimize={onMinimize}
           replyToMessage={replyToMessage}
           forwardMessage={forwardMessage}
           initialDraftId={draftId}
