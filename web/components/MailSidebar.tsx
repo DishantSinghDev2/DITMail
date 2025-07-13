@@ -348,12 +348,12 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                   <div className="flex items-center space-x-3">
                     <div className="relative">
                       <Icon className="h-5 w-5 flex-shrink-0" />
-                      {(!isExpanded && unreadCount) ? (
+                      {(!isExpanded && unreadCount > 0) && (
                           <span className="absolute top-[-2px] right-[-2px] flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
                           </span>
-                        ): null}
+                        )}
                     </div>
                     <div
                       className={`overflow-hidden transition-all duration-200 ${
