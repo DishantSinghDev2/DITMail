@@ -1,9 +1,6 @@
 "use client"
 
-import { useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Maximize2, X } from "lucide-react"
 import { EmailEditor } from "./editor/email-editor"
 
 interface MainComposerProps {

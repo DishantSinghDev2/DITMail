@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import connectDB from "@/lib/db"
 import Message from "@/models/Message"
 import { getAuthUser } from "@/lib/auth"
+import Draft from "@/models/Draft"
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,8 +36,8 @@ export async function GET(request: NextRequest) {
             },
           },
         ]),
-        Message.aggregate([
-          { $match: { user_id: user._id, folder: "drafts" } },
+        Draft.aggregate([
+          { $match: { user_id: user._id, type: "d" } },
           {
             $group: {
               _id: null,

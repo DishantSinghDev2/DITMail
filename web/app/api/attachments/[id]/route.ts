@@ -3,6 +3,17 @@ import connectDB from "@/lib/db"
 import Attachment from "@/models/Attachment"
 import { getAuthUser } from "@/lib/auth"
 import { downloadFile } from "@/lib/gridfs"
+import { Readable } from "stream";
+
+function streamToBuffer(stream: Readable): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: any[] = [];
+    stream.on("data", chunk => chunks.push(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+}
+
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -20,14 +31,18 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     const downloadStream = await downloadFile(attachment.gridfs_id.toString())
 
-    return new Response(downloadStream as any, {
+    const buffer = await streamToBuffer(downloadStream);
+
+    return new Response(buffer, {
       headers: {
         "Content-Type": attachment.mimeType,
         "Content-Disposition": `attachment; filename="${attachment.filename}"`,
       },
-    })
+    });
+
   } catch (error) {
     console.error("File download error:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
+

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import connectDB from "@/lib/db"
 import Message from "@/models/Message"
+import Draft from "@/models/Draft"
 import { getAuthUser } from "@/lib/auth"
 import { composeEmailSchema } from "@/lib/validations"
 import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
@@ -33,13 +34,48 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // Handle "drafts" folder separately by querying the Draft collection
+    if (folder === "drafts") {
+      const draftQuery: any = { user_id: user._id, type: "d" };
+
+      if (search) {
+        draftQuery.$or = [
+          { subject: { $regex: search, $options: "i" } },
+          { to: { $regex: search, $options: "i" } },
+          { text: { $regex: search, $options: "i" } },
+        ];
+      }
+
+      const drafts = await Draft.find(draftQuery)
+        .sort({ updated_at: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .populate("attachments");
+
+      const total = await Draft.countDocuments(draftQuery);
+
+      return NextResponse.json({
+        messages: drafts, // Use 'messages' key for consistency on the client
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      });
+    }
+
     const query: any = { user_id: user._id };
 
     if (threadId) {
       query.thread_id = threadId;
+    } else if (folder === "starred") {
+      // For "starred" folder, query for starred: true instead of folder name
+      query.starred = true;
     } else {
       query.folder = folder;
     }
+
     if (starred) query.starred = true;
     if (unread) query.read = false;
     if (hasAttachments) query.attachments = { $exists: true, $ne: [] };
@@ -55,21 +91,21 @@ export async function GET(request: NextRequest) {
           };
           break;
         case "yesterday":
-          const yesterday = new Date(now.setDate(now.getDate() - 1));
+          const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
           query.created_at = {
             $gte: new Date(yesterday.setHours(0, 0, 0, 0)),
             $lte: new Date(yesterday.setHours(23, 59, 59, 999)),
           };
           break;
         case "week":
-          const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
+          const weekStart = new Date(new Date().setDate(new Date().getDate() - new Date().getDay()));
           query.created_at = { $gte: new Date(weekStart.setHours(0, 0, 0, 0)) };
           break;
         case "month":
           query.created_at = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
           break;
         case "3months":
-          query.created_at = { $gte: new Date(now.setMonth(now.getMonth() - 3)) };
+          query.created_at = { $gte: new Date(new Date().setMonth(new Date().getMonth() - 3)) };
           break;
         case "year":
           query.created_at = { $gte: new Date(now.getFullYear(), 0, 1) };
@@ -154,10 +190,11 @@ export async function GET(request: NextRequest) {
       }));
     }
 
+    // Correctly calculate total based on the main query object
     const total = threadId
       ? await Message.countDocuments(query)
       : await Message.aggregate([
-          { $match: { user_id: user._id, folder, ...(search ? { $or: query.$or } : {}) } },
+          { $match: query }, // Use the full query object for an accurate count of threads
           { $group: { _id: "$thread_id" } },
           { $count: "total" },
         ]).then((result) => result[0]?.total || 0);
