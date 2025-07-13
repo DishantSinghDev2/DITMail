@@ -263,7 +263,7 @@ export default function MailInterface() {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action, messageIds: ids }),
       })
-      triggerRefresh() // Refresh the list after action
+      fetchMessages() // Refresh the list after action
     } catch (error) {
       console.error(`Error performing bulk ${action}:`, error)
     }

@@ -454,7 +454,7 @@ export default function MessageView({
                 <button
                   title="Delete forever"
                   onClick={() => handleDeleteForever(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
+                  className="py-1 px-2 text-sm hover:bg-gray-100 rounded-md text-gray-400"
                 >
                   Delete forever
                 </button>
@@ -462,7 +462,7 @@ export default function MessageView({
                 <button
                   title="Mark as not spam"
                   onClick={() => handleUnMarkSpam(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
+                  className="py-1 px-2 text-sm hover:bg-gray-100 rounded-md text-gray-400"
                 >
                   Not spam
                 </button>
@@ -472,7 +472,7 @@ export default function MessageView({
                 <button
                   title="Delete forever"
                   onClick={() => handleDeleteForever(latestMessage._id)}
-                  className="p-2 hover:bg-gray-100 rounded-md text-gray-400"
+                  className="py-1 px-2 text-sm hover:bg-gray-100 rounded-md text-gray-400"
                 >
                   Delete forever
                 </button>

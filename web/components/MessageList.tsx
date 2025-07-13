@@ -248,22 +248,22 @@ export default function MessageList({
             {selectedMessages.size > 0 ? (
               <div className="flex items-center space-x-1">
                 <button title="Archive" onClick={handleBulkArchive} className="p-2 hover:bg-gray-100 rounded-full">
-                  <ArchiveBoxIcon className="h-5 w-5 text-gray-500" />
+                  <ArchiveBoxIcon className="h-4 w-4 text-gray-500" />
                 </button>
                 <button title="Mark as spam" onClick={handleBulkSpam} className="p-2 hover:bg-gray-100 rounded-full">
-                  <OctagonAlert className="h-5 w-5 text-gray-500" />
+                  <OctagonAlert className="h-4 w-4 text-gray-500" />
                 </button>
                 <button title="Delete" onClick={handleBulkDelete} className="p-2 hover:bg-gray-100 rounded-full">
-                  <TrashIcon className="h-5 w-5 text-gray-500" />
+                  <TrashIcon className="h-4 w-4 text-gray-500" />
                 </button>
                 <div className="bg-gray-200 w-0.5 h-5"></div>
                 <button title="Mark as read" onClick={handleBulkRead} className="p-2 hover:bg-gray-100 rounded-full">
-                  <MailOpen className="h-5 w-5 text-gray-500" />
+                  <MailOpen className="h-4 w-4 text-gray-500" />
                 </button>
                 <Dropdown
                   trigger={
                     <button title="More options" className="p-2 hover:bg-gray-100 rounded-full">
-                      <EllipsisVerticalIcon className="h-5 w-5 text-gray-400" />
+                      <EllipsisVerticalIcon className="h-4 w-4 text-gray-400" />
                     </button>
                   }
                   items={[
@@ -307,21 +307,21 @@ export default function MessageList({
                 disabled={currentPage === 1}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full transition-colors disabled:opacity-50"
               >
-                <ChevronLeftIcon className="h-5 w-5" />
+                <ChevronLeftIcon className="h-3.5 w-3.5" />
               </button>
               <button
                 onClick={() => onPageChange(currentPage + 1)}
                 disabled={paginationEnd >= totalMessages}
                 className="p-2 text-gray-500 hover:text-gray-700 rounded-full transition-colors disabled:opacity-50"
               >
-                <ChevronRightIcon className="h-5 w-5" />
+                <ChevronRightIcon className="h-3.5 w-3.5" />
               </button>
             </div>
             <Dropdown
               trigger={
                 <button className="p-2 text-gray-500 hover:text-gray-700 rounded-full" title="Sort options">
                   <ArrowDownWideNarrow
-                    className={`h-5 w-5 inline-block transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`}
+                    className={`h-4 w-4 inline-block transition-transform ${sortOrder === "asc" ? "rotate-180" : ""}`}
                   />
                 </button>
               }
@@ -389,7 +389,7 @@ export default function MessageList({
                     checked={selectedMessages.has(message._id)}
                     onChange={(e) => handleSelectMessage(message._id, e.target.checked)}
                     onClick={(e) => e.stopPropagation()}
-                    className="rounded border-gray-400 text-blue-600 focus:ring-blue-500"
+                    className="w-3.5 h-3.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
                   />
                   <button
                     onClick={(e) => {
