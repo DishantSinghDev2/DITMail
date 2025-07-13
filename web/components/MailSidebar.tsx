@@ -348,9 +348,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                   <div className="flex items-center space-x-3">
                     <div className="relative">
                       <Icon className="h-5 w-5 flex-shrink-0" />
-                      {!isExpanded &&
-                        folder.id === "inbox" &&
-                        unreadCount && (
+                      {(!isExpanded && unreadCount) && (
                           <span className="absolute top-[-2px] right-[-2px] flex h-2.5 w-2.5">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
@@ -390,7 +388,8 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
             <div className="flex items-center justify-between px-2 py-2">
               {isExpanded && (
                 <button
-                  onClick={() => setShowCustomFolders(!showCustomFolders)}
+                  onClick={() => {
+                    setShowCustomFolders(!showCustomFolders)}}
                   className="flex items-center space-x-2 text-sm font-medium text-gray-700 hover:text-gray-900"
                 >
                   {showCustomFolders ? (
@@ -404,6 +403,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
               <button
                 onClick={() => {
                   if (isExpanded) {
+                    setShowCustomFolders(true)
                     setIsCreatingFolder(true)
                   } else {
                     setIsCollapsed(false)
@@ -485,6 +485,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
                <button
                  onClick={() => {
                   if (isExpanded) {
+                    setShowLabels(true)
                     setIsCreatingLabel(true)
                   } else {
                     setIsCollapsed(false)
