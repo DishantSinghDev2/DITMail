@@ -323,7 +323,7 @@ const MailSidebar = forwardRef<MailSidebarHandle, MailSidebarProps>(
         </div>
 
         {/* Navigation */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-2">
+        <div className="flex-1 overflow-y-auto sidebar-scroller overflow-x-hidden px-2">
           {/* Default Folders */}
           <nav className="space-y-1">
             {defaultFolders.map((folder) => {

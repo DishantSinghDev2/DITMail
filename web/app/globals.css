@@ -145,3 +145,33 @@ body {
 [contenteditable] div {
   margin: 0;
 }
+
+
+/* only show the sidebar-scroller when the sidebar is hovered */
+.sidebar-scroller {
+  overflow-y: auto;
+  max-height: calc(100vh - 4rem);
+}
+.sidebar-scroller:hover {
+  scrollbar-width: thin;
+  scrollbar-color: #dadce0 transparent;
+}
+.sidebar-scroller::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.sidebar-scroller::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scroller::-webkit-scrollbar-thumb {
+  background-color: #dadce0;
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.sidebar-scroller::-webkit-scrollbar-thumb:hover {
+  background-color: #bdc1c6;
+}
+.sidebar-scroller::-webkit-scrollbar-corner {
+  background: transparent;
+}
