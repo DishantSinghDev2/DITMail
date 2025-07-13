@@ -6,6 +6,7 @@ import { getAuthUser } from "@/lib/auth"
 import { composeEmailSchema } from "@/lib/validations"
 import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
 import { logAuditEvent } from "@/lib/audit"
+import "@/models/Attachment" // Ensure Attachment model is loaded
 
 export async function GET(request: NextRequest) {
   try {
