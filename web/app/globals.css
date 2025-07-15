@@ -151,13 +151,12 @@ body {
 .sidebar-scroller {
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: none; /* Hide scrollbar in Firefox */
-  margin-right: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 .sidebar-scroller:hover {
   scrollbar-width: thin;
   scrollbar-color: #dadce0 transparent;
-  margin-right: 1px;
 }
 .sidebar-scroller::-webkit-scrollbar {
   width: 8px;
