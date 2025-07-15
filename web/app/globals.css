@@ -149,14 +149,14 @@ body {
 
 /* only show the sidebar-scroller when the sidebar is hovered */
 .sidebar-scroller {
-  scrollbar-width: thin;
-  scrollbar-color: transparent;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; /* Hide scrollbar in Firefox */
 }
 .sidebar-scroller:hover {
   scrollbar-width: thin;
   scrollbar-color: #dadce0 transparent;
 }
-
 .sidebar-scroller::-webkit-scrollbar {
   width: 8px;
   height: 8px;
