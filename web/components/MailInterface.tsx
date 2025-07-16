@@ -204,6 +204,18 @@ export default function MailInterface() {
 
 
   const handleMessageSelect = (message: any) => {
+    if (message.type){
+      setSelectedMessage(null)
+      setSelectedThread(null)
+      setThreadMessages([])
+      setComposerData({
+        ...message,
+        content: message.html || "",
+      })
+      setComposerAttachments(message.attachments || [])
+      setIsComposeOpen(true)
+      return
+    }
     setSelectedMessage(message)
     if (message.messageCount > 1) {
       setSelectedThread(message.thread_id)
@@ -323,7 +335,7 @@ export default function MailInterface() {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
-        <header className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0">
+        <header className="bg-white dark:bg-gray-800/50 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700 px-4 py-2 flex-shrink-0 z-50">
           <div className="flex items-center justify-between">
             {/* Search Bar is now permanent */}
             <div className="flex-1 max-w-2xl">

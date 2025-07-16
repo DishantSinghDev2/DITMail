@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Draft.aggregate([
-          { $match: { user_id: user._id, type: "d" } },
+          { $match: { user_id: user._id} },
           {
             $group: {
               _id: null,
