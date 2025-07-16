@@ -448,7 +448,10 @@ export default function MailInterface() {
       {isComposeOpen && (
         <MiniComposer
           isOpen={isComposeOpen}
-          onClose={handleComposeClose}
+          onClose={() => {
+            setComposerData(null)
+            setComposerAttachments([])
+            handleComposeClose()}}
           onMaximize={() => {
             setIsComposeOpen(false)
             setIsMaximize(true)
@@ -466,7 +469,10 @@ export default function MailInterface() {
       {isMaximize && (
         <MainComposer
           isOpen={isMaximize}
-          onClose={() => setIsMaximize(false)}
+          onClose={() => {
+            setComposerData(null)
+            setComposerAttachments([])
+            setIsMaximize(false)}}
           onMinimize={() => {
             setIsComposeOpen(true)
             setIsMaximize(false)
