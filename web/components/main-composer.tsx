@@ -2,6 +2,10 @@
 
 import { Card } from "@/components/ui/card"
 import { EmailEditor } from "./editor/email-editor"
+import { init } from "@sentry/nextjs"
+import { initial } from "lodash"
+import { emailSchema } from "@/lib/schemas"
+import z from "zod"
 
 interface MainComposerProps {
   isOpen: boolean
@@ -10,6 +14,7 @@ interface MainComposerProps {
   replyToMessage?: any
   forwardMessage?: any
   draftId?: string
+  initialData?: z.infer<typeof emailSchema> | null
 }
 
 export default function MainComposer({
@@ -19,6 +24,7 @@ export default function MainComposer({
   replyToMessage,
   forwardMessage,
   draftId,
+  initialData = null,
 }: MainComposerProps) {
 
   const handleSent = () => {
@@ -39,6 +45,7 @@ export default function MainComposer({
           forwardMessage={forwardMessage}
           initialDraftId={draftId}
           isMinimized={false}
+          initialData={initialData}
         />
       </div>
     </Card>

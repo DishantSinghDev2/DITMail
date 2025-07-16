@@ -19,6 +19,8 @@ import { Settings } from "lucide-react"
 import MiniComposer from "./mini-composer"
 import MainComposer from "./main-composer"
 import { set } from "lodash"
+import { emailSchema } from "@/lib/schemas"
+import z from "zod"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -35,7 +37,7 @@ export default function MailInterface() {
 
   // New state variables for requested features
   const [showNotifications, setShowNotifications] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const [initData, setInitData] = useState<z.infer<typeof emailSchema> | null>(null)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
@@ -436,6 +438,7 @@ export default function MailInterface() {
           onMaximize={() => {
             setIsComposeOpen(false)
             setIsMaximize(true)}}
+          sendInitialData={(data) => setInitData(data)}
         />
       )}
       {isUpgradeModalOpen && (
@@ -450,6 +453,7 @@ export default function MailInterface() {
           onMinimize={() => {
             setIsComposeOpen(true)
             setIsMaximize(false)}}
+          initialData={initData}
         />
       )}
     </div>

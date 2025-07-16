@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Maximize2, X } from "lucide-react"
 import { EmailEditor } from "./editor/email-editor"
+import { emailSchema } from "@/lib/schemas"
+import z from "zod"
 
 interface MiniComposerProps {
   isOpen: boolean
@@ -13,6 +15,7 @@ interface MiniComposerProps {
   replyToMessage?: any
   forwardMessage?: any
   draftId?: string
+  sendInitialData: (data: z.infer<typeof emailSchema>) => void
 }
 
 export default function MiniComposer({
@@ -22,6 +25,7 @@ export default function MiniComposer({
   replyToMessage,
   forwardMessage,
   draftId,
+  sendInitialData,
 }: MiniComposerProps) {
   const [isMinimized, setIsMinimized] = useState(false)
 
@@ -61,6 +65,7 @@ export default function MiniComposer({
             forwardMessage={forwardMessage}
             initialDraftId={draftId}
             isMinimized={false}
+            sendInitialData={(data) => sendInitialData(data)}
           />
         </div>
       )}

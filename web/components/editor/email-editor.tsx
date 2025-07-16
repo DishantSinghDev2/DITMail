@@ -20,6 +20,7 @@ import SignatureSelector from "./signature-selector"
 import { Send, Paperclip, Trash2, Minimize2, Maximize2, X, MoreHorizontal, ArrowUpRightFromSquare, Edit3, ChevronUp, Minus, Baseline } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import ContactAutocomplete from "./contact-autocomplete"
+import { send } from "process"
 
 // (Interfaces remain the same)
 interface EmailEditorProps {
@@ -31,6 +32,8 @@ interface EmailEditorProps {
   forwardMessage?: any
   initialDraftId?: string
   isMinimized?: boolean
+  initialData?: z.infer<typeof emailSchema> | null
+  sendInitialData: (data: z.infer<typeof emailSchema>) => void
 }
 
 interface Attachment {
@@ -41,36 +44,7 @@ interface Attachment {
   url?: string
 }
 
-const getInitialFormValues = (replyToMessage?: any, forwardMessage?: any) => {
-  if (replyToMessage) {
-    return {
-      to: replyToMessage.from || "",
-      cc: "",
-      bcc: "",
-      subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
-      content: "",
-      attachments: [],
-    }
-  }
-  if (forwardMessage) {
-    return {
-      to: "",
-      cc: "",
-      bcc: "",
-      subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
-      content: "",
-      attachments: [],
-    }
-  }
-  return {
-    to: "",
-    cc: "",
-    bcc: "",
-    subject: "",
-    content: "",
-    attachments: [],
-  }
-}
+
 
 export function EmailEditor({
   onClose,
@@ -80,7 +54,9 @@ export function EmailEditor({
   replyToMessage,
   forwardMessage,
   initialDraftId,
-  isMinimized = false
+  isMinimized = false,
+  initialData = null,
+  sendInitialData,
 }: EmailEditorProps) {
   const { toast } = useToast()
   const [isSending, setIsSending] = useState(false)
@@ -99,6 +75,30 @@ export function EmailEditor({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const editorRef = useRef<RichTextEditorRef>(null)
   const formInitialized = useRef(false)
+
+  const getInitialFormValues = (replyToMessage?: any, forwardMessage?: any) => {
+    if (replyToMessage) {
+      return {
+        to: replyToMessage.from || "",
+        cc: "",
+        bcc: "",
+        subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
+        content: "",
+        attachments: [],
+      }
+    }
+    if (forwardMessage) {
+      return {
+        to: "",
+        cc: "",
+        bcc: "",
+        subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
+        content: "",
+        attachments: [],
+      }
+    }
+    return {...initialData}
+  }
 
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
@@ -198,6 +198,11 @@ export function EmailEditor({
         attachments: attachments.map((att) => att._id),
         in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
       }
+
+      sendInitialData({
+        ...payload,
+        content: formContent,
+      })
 
       try {
         const token = localStorage.getItem("accessToken")

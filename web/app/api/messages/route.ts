@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
     // Handle "drafts" folder separately by querying the Draft collection
     if (folder === "drafts") {
-      const draftQuery: any = { user_id: user._id, type: "d" };
+      const draftQuery: any = { user_id: user._id };
 
       if (search) {
         draftQuery.$or = [
