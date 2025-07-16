@@ -211,6 +211,9 @@ export default function MailInterface() {
       setComposerData({
         ...message,
         content: message.html || "",
+        to: message.to.join(","),
+        cc: message.cc.join(","),
+        bcc: message.bcc.join(","),
       })
       setComposerAttachments(message.attachments || [])
       setIsComposeOpen(true)
