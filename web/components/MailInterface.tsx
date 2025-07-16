@@ -21,6 +21,7 @@ import MainComposer from "./main-composer"
 import { set } from "lodash"
 import { emailSchema } from "@/lib/schemas"
 import z from "zod"
+import { Attachment } from "./editor/email-editor"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -47,6 +48,19 @@ export default function MailInterface() {
   const [itemsPerPage, setItemsPerPage] = useState(50) // Default items per page
   const [storageInfo, setStorageInfo] = useState({ used: 0, total: 15 }) // Temporary storage info for demo
 
+  const [composerData, setComposerData] = useState<z.infer<typeof emailSchema> | null>(null);
+  const [composerAttachments, setComposerAttachments] = useState<Attachment[]>([]);
+
+  const handleComposerDataChange = (
+    data: z.infer<typeof emailSchema>,
+    attachments: Attachment[]
+  ) => {
+    setComposerData(data);
+    setComposerAttachments(attachments);
+  };
+
+
+
   const [filters, setFilters] = useState({
     unread: false,
     starred: false,
@@ -69,7 +83,7 @@ export default function MailInterface() {
   const { newMessages, markMessagesRead } = useRealtime()
 
   // --- Core fetching logic remains the same ---
-  
+
   const fetchMessages = useCallback(async (page = 1) => {
     setLoading(true)
     try {
@@ -137,7 +151,7 @@ export default function MailInterface() {
   }, [])
 
 
-  
+
   useEffect(() => {
     const root = window.document.documentElement
     if (isDarkMode) {
@@ -183,8 +197,8 @@ export default function MailInterface() {
 
   const handlePageChange = (newPage: number) => {
     if (newPage > 0 && (newPage - 1) * itemsPerPage < totalMessages) {
-        setCurrentPage(newPage)
-        fetchMessages(newPage)
+      setCurrentPage(newPage)
+      fetchMessages(newPage)
     }
   }
 
@@ -255,7 +269,7 @@ export default function MailInterface() {
     fetchMessages()
   }
 
-  
+
   // --- BULK ACTION HANDLERS ---
   const handleBulkUpdate = async (action: string, ids: string[]) => {
     try {
@@ -402,29 +416,29 @@ export default function MailInterface() {
             onPrevious={handleOnPrevious}
             onNext={handleOnNext}
           /> : <MessageList
-          messages={messages}
-          loading={loading}
-          selectedMessage={selectedMessage}
-          onMessageSelect={handleMessageSelect}
-          onRefresh={triggerRefresh}
-          onStar={handleStarMessage}
-          folder={selectedFolder}
-          searchQuery={searchQuery}
-          // --- Pass new props here ---
-          totalMessages={totalMessages}
-          currentPage={currentPage}
-          itemsPerPage={itemsPerPage}
-          onPageChange={handlePageChange}
-          storageUsedGB={storageInfo.used}
-          storageTotalGB={storageInfo.total}
-          // --- Pass bulk action handlers ---
-          onDelete={handleBulkDelete}
-          onArchive={handleBulkArchive}
-          markAsSpam={handleBulkMarkAsSpam}
-          markAsUnread={handleBulkMarkAsUnread}
-          markAsRead={handleBulkRead}
-          markAsStarred={handleBulkStar}
-          markAsUnstarred={handleBulkUnstar}
+            messages={messages}
+            loading={loading}
+            selectedMessage={selectedMessage}
+            onMessageSelect={handleMessageSelect}
+            onRefresh={triggerRefresh}
+            onStar={handleStarMessage}
+            folder={selectedFolder}
+            searchQuery={searchQuery}
+            // --- Pass new props here ---
+            totalMessages={totalMessages}
+            currentPage={currentPage}
+            itemsPerPage={itemsPerPage}
+            onPageChange={handlePageChange}
+            storageUsedGB={storageInfo.used}
+            storageTotalGB={storageInfo.total}
+            // --- Pass bulk action handlers ---
+            onDelete={handleBulkDelete}
+            onArchive={handleBulkArchive}
+            markAsSpam={handleBulkMarkAsSpam}
+            markAsUnread={handleBulkMarkAsUnread}
+            markAsRead={handleBulkRead}
+            markAsStarred={handleBulkStar}
+            markAsUnstarred={handleBulkUnstar}
           />
           }
         </div>
@@ -437,8 +451,11 @@ export default function MailInterface() {
           onClose={handleComposeClose}
           onMaximize={() => {
             setIsComposeOpen(false)
-            setIsMaximize(true)}}
-          sendInitialData={(data) => setInitData(data)}
+            setIsMaximize(true)
+          }}
+          initialData={composerData}
+          initialAttachments={composerAttachments}
+          onDataChange={handleComposerDataChange}
         />
       )}
       {isUpgradeModalOpen && (
@@ -452,8 +469,11 @@ export default function MailInterface() {
           onClose={() => setIsMaximize(false)}
           onMinimize={() => {
             setIsComposeOpen(true)
-            setIsMaximize(false)}}
-          initialData={initData}
+            setIsMaximize(false)
+          }}
+          initialData={composerData}
+          initialAttachments={composerAttachments}
+          onDataChange={handleComposerDataChange}
         />
       )}
     </div>

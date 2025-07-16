@@ -1,7 +1,7 @@
 "use client"
 
 import { Card } from "@/components/ui/card"
-import { EmailEditor } from "./editor/email-editor"
+import { Attachment, EmailEditor } from "./editor/email-editor"
 import { init } from "@sentry/nextjs"
 import { initial } from "lodash"
 import { emailSchema } from "@/lib/schemas"
@@ -15,6 +15,8 @@ interface MainComposerProps {
   forwardMessage?: any
   draftId?: string
   initialData?: z.infer<typeof emailSchema> | null
+  initialAttachments?: Attachment[] // <-- ADD THIS
+  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void // <-- ADD THIS
 }
 
 export default function MainComposer({
@@ -25,6 +27,8 @@ export default function MainComposer({
   forwardMessage,
   draftId,
   initialData = null,
+  initialAttachments = [], // <-- ADD THIS
+  onDataChange, // <-- ADD THIS
 }: MainComposerProps) {
 
   const handleSent = () => {
@@ -46,6 +50,8 @@ export default function MainComposer({
           initialDraftId={draftId}
           isMinimized={false}
           initialData={initialData}
+          initialAttachments={initialAttachments} // <-- PASS DOWN
+          onDataChange={onDataChange} // <-- PASS DOWN
         />
       </div>
     </Card>

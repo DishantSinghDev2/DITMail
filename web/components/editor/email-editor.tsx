@@ -33,10 +33,11 @@ interface EmailEditorProps {
   initialDraftId?: string
   isMinimized?: boolean
   initialData?: z.infer<typeof emailSchema> | null
-  sendInitialData: (data: z.infer<typeof emailSchema>) => void
+  initialAttachments?: Attachment[] // <-- ADD THIS
+  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void // <-- RENAME/ADD THIS
 }
 
-interface Attachment {
+export interface Attachment {
   _id: string
   name: string
   size: number
@@ -56,7 +57,8 @@ export function EmailEditor({
   initialDraftId,
   isMinimized = false,
   initialData = null,
-  sendInitialData,
+  initialAttachments = [], // <-- ADD THIS
+  onDataChange, // <-- RENAME/ADD THIS
 }: EmailEditorProps) {
   const { toast } = useToast()
   const [isSending, setIsSending] = useState(false)
@@ -65,7 +67,7 @@ export function EmailEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
-  const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>([])
+  const [uploadedAttachments, setUploadedAttachments] = useState<Attachment[]>(initialAttachments)
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
   const [isToolbarVisible, setIsToolbarVisible] = useState(true)
@@ -199,10 +201,19 @@ export function EmailEditor({
         in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
       }
 
-      sendInitialData({
-        ...payload,
-        content: formContent,
-      })
+      // --- THIS IS THE KEY CHANGE ---
+      // Call the callback to lift the state up to the parent component.
+      if (onDataChange) {
+        const schemaCompliantData = {
+          to: data.to,
+          cc: data.cc || "",
+          bcc: data.bcc || "",
+          subject: data.subject,
+          content: formContent,
+          attachments: attachments.map(a => a._id),
+        }
+        onDataChange(schemaCompliantData, attachments) // Send full data up
+      }
 
       try {
         const token = localStorage.getItem("accessToken")
@@ -221,7 +232,7 @@ export function EmailEditor({
       } catch (error) { console.error("Auto-save error:", error) }
       finally { setIsSaving(false) }
     },
-    [draftId, replyToMessage, forwardMessage],
+    [draftId, replyToMessage, forwardMessage, onDataChange],
   )
 
   const debouncedSave = useCallback(debounce(saveDraft, 2000), [saveDraft])
@@ -380,7 +391,7 @@ export function EmailEditor({
     <div className="flex flex-col h-full bg-white">
       {/* Header Area */}
       <div className="flex items-center justify-between p-2 bg-gray-100 border-b flex-shrink-0">
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-1 max-w-[80%]">
           {replyToMessage && !isEditingSubject && onMinimize && (
             <Button variant="ghost" size="sm" onClick={handleEditSubject} className="h-6 px-2 text-xs">
               <Edit3 className="h-3 w-3 mr-1" />
