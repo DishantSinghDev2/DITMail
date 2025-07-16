@@ -175,7 +175,7 @@ export function EmailEditor({
     }
 
     loadData()
-  }, [initialDraftId, replyToMessage, forwardMessage, form])
+  }, [initialDraftId, replyToMessage, forwardMessage])
 
   useEffect(() => {
     setTimeout(() => {
@@ -312,7 +312,7 @@ export function EmailEditor({
       try {
         const token = localStorage.getItem("accessToken");
         await fetch(`/api/drafts/${draftId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-        
+
       } catch (error) { console.error("Failed to delete draft.", error) }
     }
   };
