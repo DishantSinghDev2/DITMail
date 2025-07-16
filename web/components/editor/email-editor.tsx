@@ -78,39 +78,33 @@ export function EmailEditor({
   const editorRef = useRef<RichTextEditorRef>(null)
   const formInitialized = useRef(false)
 
-  const getInitialFormValues = (replyToMessage?: any, forwardMessage?: any) => {
-    if (replyToMessage) {
-      return {
-        to: replyToMessage.from || "",
-        cc: "",
-        bcc: "",
-        subject: replyToMessage.subject.startsWith("Re:") ? replyToMessage.subject : `Re: ${replyToMessage.subject}`,
-        content: "",
-        attachments: [],
-      }
-    }
-    if (forwardMessage) {
-      return {
-        to: "",
-        cc: "",
-        bcc: "",
-        subject: forwardMessage.subject.startsWith("Fwd:") ? forwardMessage.subject : `Fwd: ${forwardMessage.subject}`,
-        content: "",
-        attachments: [],
-      }
-    }
-    return {...initialData}
-  }
-
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
     mode: "onChange",
-    defaultValues: getInitialFormValues(replyToMessage, forwardMessage),
-  })
+    // Let the useEffect handle the complex initialization.
+    // Start with values from initialData if present.
+    defaultValues: initialData || {
+      to: "",
+      cc: "",
+      bcc: "",
+      subject: "",
+      content: "",
+      attachments: [],
+    },
+  });
 
   // --- REFACTORED: ASYNCHRONOUS DATA LOADING ---
   useEffect(() => {
     const loadData = async () => {
+
+      if (initialData && initialData.content) {
+        console.log("Hydrating from initialData prop");
+        form.reset(initialData); // Use form.reset to update all fields and form state
+        if (initialData.cc) setShowCc(true);
+        if (initialData.bcc) setShowBcc(true);
+        // Let the second useEffect handle setting content in the editor
+        return; 
+      }
       const token = localStorage.getItem("accessToken")
       const conversationId = replyToMessage?.message_id || forwardMessage?.message_id
       let draftToLoadId = initialDraftId
@@ -183,6 +177,20 @@ export function EmailEditor({
     loadData()
   }, [initialDraftId, replyToMessage, forwardMessage, form])
 
+  useEffect(() => {
+    setTimeout(() => {
+      if (editorRef.current) {
+        const content = form.getValues("content");
+        // Only set content if it's not the default empty paragraph, to avoid overwriting user input
+        if (content && content !== "<p><br></p>") {
+          editorRef.current.setContent(content);
+        }
+        editorRef.current.focus();
+        formInitialized.current = true;
+      }
+    }, 100); // Increased timeout slightly for stability
+  }, [form.getValues("content")]); // Run when content value changes
+
   // (Auto-save, file upload, and other handlers remain largely the same)
   const saveDraft = useCallback(
     async (data: any, attachments: Attachment[]) => {
@@ -235,7 +243,7 @@ export function EmailEditor({
     [draftId, replyToMessage, forwardMessage, onDataChange],
   )
 
-  const debouncedSave = useCallback(debounce(saveDraft, 2000), [saveDraft])
+  const debouncedSave = useCallback(debounce(saveDraft, 500), [saveDraft])
 
   useEffect(() => {
     const subscription = form.watch((value) => {

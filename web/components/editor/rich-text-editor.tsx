@@ -48,6 +48,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
   ) => {
     const editorRef = useRef<HTMLDivElement>(null)
     const quotedRef = useRef<HTMLDivElement>(null)
+    const lastContentRef = useRef<string>(""); // Keep track of the last emitted content
     const [fontSize, setFontSize] = useState("12")
     const [fontFamily, setFontFamily] = useState("Arial")
     const [quotedHtml, setQuotedHtml] = useState("")
@@ -69,19 +70,25 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       return content
     }, [mode])
 
+    
+    // --- IMPERATIVE HANDLE ---
     useImperativeHandle(ref, () => ({
-      getContent: () => {
-        const userContent = editorRef.current?.innerHTML || ""
-        return userContent + (quotedHtml || "")
-      },
+      getContent: () => editorRef.current?.innerHTML || "",
       setContent: (content: string) => {
-        if (editorRef.current) {
-          const userContent = processInitialContent(content)
-          editorRef.current.innerHTML = userContent
+        if (editorRef.current && editorRef.current.innerHTML !== content) {
+          editorRef.current.innerHTML = content;
         }
       },
       focus: () => editorRef.current?.focus(),
-    }))
+    }));
+
+    // --- INITIALIZATION ---
+    useEffect(() => {
+      if (editorRef.current && initialContent) {
+        editorRef.current.innerHTML = initialContent;
+        lastContentRef.current = initialContent; // Initialize last content
+      }
+    }, [initialContent]); // Only run when initialContent changes
 
     // --- CORE EDITING LOGIC ---
     const executeCommand = useCallback((command: string, value?: string) => {
@@ -182,7 +189,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
           <div
             ref={editorRef}
             contentEditable
-            className="p-3 focus:outline-none"
+            className="p-3 focus:outline-none w-full h-full" // Ensure it takes full space  
             style={{
               fontFamily: fontFamily,
               fontSize: fontSize + "px",
@@ -191,43 +198,20 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             }}
             suppressContentEditableWarning={true}
             onInput={() => {
+              // This is the correct way to handle updates.
+              // It doesn't cause a re-render that moves the cursor.
               if (onChange) {
-                const userContent = editorRef.current?.innerHTML || ""
-                onChange(userContent + quotedHtml)
+                const currentContent = editorRef.current?.innerHTML || "";
+                // Only call onChange if the content has actually changed
+                if (currentContent !== lastContentRef.current) {
+                  lastContentRef.current = currentContent;
+                  onChange(currentContent);
+                }
               }
             }}
             data-placeholder={placeholder}
           />
 
-          {(mode === 'reply' || mode === 'forward') && quotedHtml && (
-            <div className="">
-              {!isQuotedContentExpanded && mode === 'reply' ? (
-                <button
-                  type="button"
-                  onClick={() => setIsQuotedContentExpanded(true)}
-                  className="flex items-center text-gray-500 hover:bg-gray-200 rounded-full p-2"
-                  aria-label="Show quoted text"
-                >
-                  <MoreHorizontal className="h-5 w-5" />
-                </button>
-              ) : (
-                <div
-                  ref={quotedRef}
-                  onChange={(e) => {
-                    if (onChange) {
-                      const userContent = editorRef.current?.innerHTML || ""
-                      const quotedContent = quotedRef.current?.innerHTML || ""
-                      setQuotedHtml(quotedContent)
-                      onChange(userContent + quotedContent)
-                    }
-                  }}
-                  className="border-l-2 border-gray-300 pl-3 text-sm text-gray-600"
-                  dangerouslySetInnerHTML={{ __html: quotedHtml }}
-                  contentEditable
-                />
-              )}
-            </div>
-          )}
         </div>
 
         {/* Floating Toolbar */}
