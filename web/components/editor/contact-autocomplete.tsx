@@ -54,6 +54,12 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    // fixing: Error: value.split is not a function
+
+    if (typeof value !== "string") {
+      console.error("Expected value to be a string, got:", typeof value)
+      return
+    }
     const emailsFromValue = value ? value.split(",").map(e => e.trim()).filter(Boolean) : []
     setPills(emailsFromValue)
   }, [value])

@@ -76,6 +76,7 @@ export async function getAuthUser(request: NextRequest) {
 
   const payload = verifyToken(token)
   if (!payload) {
+    console.log("Invalid token, trying refresh token")
     const user = await fetch(`/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
