@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import connectDB from "@/lib/db"
 import Message from "@/models/Message"
 import Draft from "@/models/Draft"
+import User from "@/models/User"
 import { getAuthUser } from "@/lib/auth"
 import { composeEmailSchema } from "@/lib/validations"
 import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
@@ -35,6 +36,46 @@ export async function GET(request: NextRequest) {
 
     await connectDB();
 
+    // --- ADDED: Fetch user's storage details ---
+    const userDetailsAggregation = await User.aggregate([
+      { $match: { _id: user._id } },
+      // Join with organizations
+      {
+        $lookup: {
+          from: "organizations",
+          localField: "org_id",
+          foreignField: "_id",
+          as: "org_data",
+        },
+      },
+      { $unwind: { path: "$org_data", preserveNullAndEmptyArrays: true } },
+      // Join with plans
+      {
+        $lookup: {
+          from: "plans",
+          localField: "org_data.plan_id",
+          foreignField: "_id",
+          as: "plan_data",
+        },
+      },
+      { $unwind: { path: "$plan_data", preserveNullAndEmptyArrays: true } },
+    ]);
+
+    const userDetails = userDetailsAggregation[0];
+    
+    // Usage is stored in KB, convert to GB
+    const usedStorageKB = userDetails?.plan_usage?.storage || 0;
+    const usedStorageGB = usedStorageKB / (1024 * 1024);
+
+    // Limit is stored in GB
+    const storageLimitGB = userDetails?.plan_data?.limits?.storage || 0;
+
+    const storageInfo = {
+      used: usedStorageGB,
+      limit: storageLimitGB,
+    };
+    // --- END of added section ---
+
     // Handle "drafts" folder separately by querying the Draft collection
     if (folder === "drafts") {
       const draftQuery: any = { user_id: user._id };
@@ -56,13 +97,14 @@ export async function GET(request: NextRequest) {
       const total = await Draft.countDocuments(draftQuery);
 
       return NextResponse.json({
-        messages: drafts, // Use 'messages' key for consistency on the client
+        messages: drafts,
         pagination: {
           page,
           limit,
           total,
           pages: Math.ceil(total / limit),
         },
+        storage: storageInfo, // Add storage info to response
       });
     }
 
@@ -71,7 +113,6 @@ export async function GET(request: NextRequest) {
     if (threadId) {
       query.thread_id = threadId;
     } else if (folder === "starred") {
-      // For "starred" folder, query for starred: true instead of folder name
       query.starred = true;
     } else {
       query.folder = folder;
@@ -83,60 +124,60 @@ export async function GET(request: NextRequest) {
     if (priority) query.priority = priority;
 
     if (timeRange) {
-      const now = new Date();
-      switch (timeRange) {
-        case "today":
-          query.created_at = {
-            $gte: new Date(now.setHours(0, 0, 0, 0)),
-            $lte: new Date(now.setHours(23, 59, 59, 999)),
-          };
-          break;
-        case "yesterday":
-          const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
-          query.created_at = {
-            $gte: new Date(yesterday.setHours(0, 0, 0, 0)),
-            $lte: new Date(yesterday.setHours(23, 59, 59, 999)),
-          };
-          break;
-        case "week":
-          const weekStart = new Date(new Date().setDate(new Date().getDate() - new Date().getDay()));
-          query.created_at = { $gte: new Date(weekStart.setHours(0, 0, 0, 0)) };
-          break;
-        case "month":
-          query.created_at = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
-          break;
-        case "3months":
-          query.created_at = { $gte: new Date(new Date().setMonth(new Date().getMonth() - 3)) };
-          break;
-        case "year":
-          query.created_at = { $gte: new Date(now.getFullYear(), 0, 1) };
-          break;
-        case "custom":
-          if (startDate || endDate) {
+        const now = new Date();
+        switch (timeRange) {
+          case "today":
             query.created_at = {
-              ...(startDate ? { $gte: new Date(startDate) } : {}),
-              ...(endDate ? { $lte: new Date(endDate) } : {}),
+              $gte: new Date(now.setHours(0, 0, 0, 0)),
+              $lte: new Date(now.setHours(23, 59, 59, 999)),
             };
-          }
-          break;
+            break;
+          case "yesterday":
+            const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
+            query.created_at = {
+              $gte: new Date(yesterday.setHours(0, 0, 0, 0)),
+              $lte: new Date(yesterday.setHours(23, 59, 59, 999)),
+            };
+            break;
+          case "week":
+            const weekStart = new Date(new Date().setDate(new Date().getDate() - new Date().getDay()));
+            query.created_at = { $gte: new Date(weekStart.setHours(0, 0, 0, 0)) };
+            break;
+          case "month":
+            query.created_at = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+            break;
+          case "3months":
+            query.created_at = { $gte: new Date(new Date().setMonth(new Date().getMonth() - 3)) };
+            break;
+          case "year":
+            query.created_at = { $gte: new Date(now.getFullYear(), 0, 1) };
+            break;
+          case "custom":
+            if (startDate || endDate) {
+              query.created_at = {
+                ...(startDate ? { $gte: new Date(startDate) } : {}),
+                ...(endDate ? { $lte: new Date(endDate) } : {}),
+              };
+            }
+            break;
+        }
       }
-    }
 
     if (sender) query.from = { $regex: sender, $options: "i" };
     if (recipient) query.to = { $regex: recipient, $options: "i" };
     if (size) {
       switch (size) {
         case "small":
-          query.size = { $lt: 1024 * 1024 }; // Less than 1MB
+          query.size = { $lt: 1024 * 1024 };
           break;
         case "medium":
-          query.size = { $gte: 1024 * 1024, $lt: 10 * 1024 * 1024 }; // 1MB to 10MB
+          query.size = { $gte: 1024 * 1024, $lt: 10 * 1024 * 1024 };
           break;
         case "large":
-          query.size = { $gte: 10 * 1024 * 1024, $lt: 25 * 1024 * 1024 }; // 10MB to 25MB
+          query.size = { $gte: 10 * 1024 * 1024, $lt: 25 * 1024 * 1024 };
           break;
         case "huge":
-          query.size = { $gte: 25 * 1024 * 1024 }; // Greater than 25MB
+          query.size = { $gte: 25 * 1024 * 1024 };
           break;
       }
     }
@@ -191,11 +232,10 @@ export async function GET(request: NextRequest) {
       }));
     }
 
-    // Correctly calculate total based on the main query object
     const total = threadId
       ? await Message.countDocuments(query)
       : await Message.aggregate([
-          { $match: query }, // Use the full query object for an accurate count of threads
+          { $match: query },
           { $group: { _id: "$thread_id" } },
           { $count: "total" },
         ]).then((result) => result[0]?.total || 0);
@@ -208,10 +248,14 @@ export async function GET(request: NextRequest) {
         total,
         pages: Math.ceil(total / limit),
       },
+      storage: storageInfo, // Add storage info to response
     });
   } catch (error) {
     console.error("Messages fetch error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 

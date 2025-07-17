@@ -46,7 +46,7 @@ export default function MailInterface() {
   const [totalMessages, setTotalMessages] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage, setItemsPerPage] = useState(50) // Default items per page
-  const [storageInfo, setStorageInfo] = useState({ used: 0, total: 15 }) // Temporary storage info for demo
+  const [storageInfo, setStorageInfo] = useState({ used: 0, limit: 1 }) // Temporary storage info for demo
 
   const [composerData, setComposerData] = useState<z.infer<typeof emailSchema> | null>(null);
   const [composerAttachments, setComposerAttachments] = useState<Attachment[]>([]);
@@ -116,6 +116,7 @@ export default function MailInterface() {
         setCurrentPage(data.pagination.page)
         setItemsPerPage(data.pagination.limit)
         sidebarRef.current?.refreshCount() // Refresh sidebar counts
+        setStorageInfo(data.storage || { used: 0, limit: 1 }) // Update storage info if available
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
@@ -445,7 +446,7 @@ export default function MailInterface() {
             itemsPerPage={itemsPerPage}
             onPageChange={handlePageChange}
             storageUsedGB={storageInfo.used}
-            storageTotalGB={storageInfo.total}
+            storageTotalGB={storageInfo.limit}
             // --- Pass bulk action handlers ---
             onDelete={handleBulkDelete}
             onArchive={handleBulkArchive}
