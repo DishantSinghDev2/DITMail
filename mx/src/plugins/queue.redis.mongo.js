@@ -2,22 +2,17 @@ const shortid = require('shortid');
 const { simpleParser } = require('mailparser');
 const { MongoClient, ObjectId, GridFSBucket } = require('mongodb');
 
-// Note: gridfs-stream is deprecated. The official MongoDB driver now includes GridFSBucket.
-// We will use the modern approach.
-
 let db, gfsBucket;
 MongoClient.connect('mongodb://localhost:27017/ditmail', {
   useNewUrlParser: true,
   useUnifiedTopology: true
 }).then(client => {
   db = client.db();
-  // Initialize GridFSBucket from the official driver
   gfsBucket = new GridFSBucket(db, { bucketName: 'attachments' });
   console.log('MongoDB and GridFS connected successfully.');
 }).catch(err => {
-    console.error("Failed to connect to MongoDB", err);
-    // You might want to exit the process if the DB connection fails
-    // process.exit(1);
+  console.error("Failed to connect to MongoDB", err);
+  process.exit(1);
 });
 
 exports.register = function () {
@@ -33,15 +28,8 @@ exports.load_ini = function () {
   });
 };
 
-/**
- * Classifies an email based on its subject to determine the destination folder.
- * @param {object} parsed The parsed email object from mailparser.
- * @returns {string} The folder name ('inbox' or 'spam').
- */
 function classify(parsed) {
   const subj = parsed.subject?.toLowerCase() || '';
-  // Your schema has a 'spam' folder, so we'll classify accordingly.
-  // Promotions and social emails will go to the inbox for this example.
   if (subj.includes("win") || subj.includes("free") || subj.includes("offer") || subj.includes("viagra")) {
     return 'spam';
   }
@@ -52,62 +40,90 @@ exports.save_to_mongo = function (next, connection) {
   const plugin = this;
   const transaction = connection.transaction;
 
-  // Ensure storage is ready
   if (!db || !gfsBucket) {
     plugin.logerror("Storage (MongoDB/GridFS) is not initialized.");
     return next(DENYSOFT, "Backend storage is not available. Please try again later.");
   }
-  
-  // Use an async IIFE (Immediately Invoked Function Expression) to leverage async/await
-  // inside Haraka's callback-based hook system.
+
   (async () => {
     const raw = await new Promise((resolve, reject) => {
-        const chunks = [];
-        transaction.message_stream.on('data', chunk => chunks.push(chunk));
-        transaction.message_stream.on('end', () => resolve(Buffer.concat(chunks)));
-        transaction.message_stream.on('error', reject);
+      const chunks = [];
+      transaction.message_stream.on('data', chunk => chunks.push(chunk));
+      transaction.message_stream.on('end', () => resolve(Buffer.concat(chunks)));
+      transaction.message_stream.on('error', reject);
     });
 
     const parsed = await simpleParser(raw);
 
+    const attachmentsSizeInBytes = parsed.attachments?.reduce((sum, att) => sum + (att.size || 0), 0) || 0;
+    const totalMessageSizeInBytes = raw.length + attachmentsSizeInBytes;
+    const totalMessageSizeInKB = totalMessageSizeInBytes / 1024;
+
     for (const recipient of transaction.rcpt_to) {
-        const destinationEmail = recipient.original.replace(/[<>]/g, '').toLowerCase();
+      const destinationEmail = recipient.original.replace(/[<>]/g, '').toLowerCase();
 
-        // 1. Get User and Organization details from the 'users' collection
-        const user = await db.collection('users').findOne({ email: destinationEmail });
-        if (!user) {
-            plugin.logwarn(`Recipient not found in database, skipping: ${destinationEmail}`);
-            continue; // Skip to the next recipient
-        }
-        const userId = user._id;
-        const orgId = user.org_id;
+      // 1. Get User, Organization, and Plan details using a multi-stage aggregation
+      const userDetailsAggregation = await db.collection('users').aggregate([
+        { $match: { email: destinationEmail } },
+        // Join with the organizations collection
+        {
+          $lookup: {
+            from: 'organizations',
+            localField: 'org_id',
+            foreignField: '_id',
+            as: 'org_data'
+          }
+        },
+        { $unwind: { path: "$org_data", preserveNullAndEmptyArrays: true } },
+        // Join with the plans collection using the organization's plan_id
+        {
+          $lookup: {
+            from: 'plans',
+            localField: 'org_data.plan_id',
+            foreignField: '_id',
+            as: 'plan_data'
+          }
+        },
+        { $unwind: { path: "$plan_data", preserveNullAndEmptyArrays: true } }
+      ]).toArray();
+      
+      const user = userDetailsAggregation[0];
 
-        // 2. Prepare a new ObjectId for the message document.
-        // This allows us to link attachments to it before it's inserted.
-        const messageMongoId = new ObjectId();
-        const attachmentIds = [];
-        
-        // 3. Process and upload attachments to GridFS, then prepare for the 'attachments' collection
-        if (parsed.attachments?.length) {
+      if (!user) {
+        plugin.logwarn(`Recipient not found, skipping: ${destinationEmail}`);
+        continue;
+      }
+
+      // 2. Safely get the storage limit in GB and convert to KB
+      // Path: user -> plan_data -> limits -> storage
+      const storageLimitGB = user?.plan_data?.limits?.storage || 0;
+      const storageLimitKB = storageLimitGB * 1024 * 1024; // Convert GB to KB
+
+      // Get current usage (stored in KB)
+      const currentStorageKB = user.plan_usage?.storage || 0;
+
+      // 3. Check if user has enough storage space
+      if (storageLimitKB > 0 && (currentStorageKB + totalMessageSizeInKB > storageLimitKB)) {
+          plugin.logwarn(`User ${destinationEmail} has exceeded their storage limit of ${storageLimitGB} GB. Rejecting message.`);
+          return next(DENY, `Recipient's mailbox is full. Your message could not be delivered.`);
+      }
+
+      const userId = user._id;
+      const orgId = user.org_id;
+      const messageMongoId = new ObjectId();
+      const attachmentIds = [];
+
+      if (parsed.attachments?.length) {
           const attachmentPromises = parsed.attachments.map(att =>
               new Promise((resolve, reject) => {
                   const uploadStream = gfsBucket.openUploadStream(att.filename, {
                       contentType: att.contentType,
-                      metadata: {
-                          user_id: userId,
-                          message_id: messageMongoId,
-                          original_filename: att.filename
-                      },
+                      metadata: { user_id: userId, message_id: messageMongoId, original_filename: att.filename },
                   });
-      
-                  // Get the ID right away. It's available synchronously on the stream object.
                   const gridfsId = uploadStream.id;
-      
-                  // Note: The 'file' parameter in the callback is removed as it's unreliable.
                   uploadStream.on('finish', () => {
-                      // Prepare the document for the 'attachments' collection
                       const attachmentDoc = {
-                          _id: new ObjectId(), // Generate its own ID for the attachments collection
+                          _id: new ObjectId(),
                           filename: att.filename,
                           mimeType: att.contentType,
                           user_id: userId,
@@ -118,96 +134,90 @@ exports.save_to_mongo = function (next, connection) {
                       };
                       resolve(attachmentDoc);
                   });
-      
                   uploadStream.on('error', reject);
                   uploadStream.end(att.content);
               })
           );
-      
           const attachmentDocs = await Promise.all(attachmentPromises);
-      
           if (attachmentDocs.length > 0) {
               const insertResult = await db.collection('attachments').insertMany(attachmentDocs);
-              // Collect the newly inserted ObjectId's for the message's 'attachments' array
               Object.values(insertResult.insertedIds).forEach(id => attachmentIds.push(id));
           }
       }
-        
-        // 4. Construct the document for the 'messages' collection
-        const folder = classify(parsed);
-        const messageDoc = {
-            _id: messageMongoId,
-            message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
-            in_reply_to: parsed.inReplyTo,
-            references: Array.isArray(parsed.references) ? parsed.references : [parsed.references].filter(Boolean),
-            from: parsed.from.value[0].address.toLowerCase(),
-            to: parsed.to.value.map(addr => addr.address.toLowerCase()),
-            cc: parsed.cc?.value.map(addr => addr.address.toLowerCase()) || [],
-            bcc: [], // BCC is stripped by MTAs, not available to the final recipient
-            subject: parsed.subject || '(no subject)',
-            html: parsed.html || '',
-            text: parsed.text || '',
-            attachments: attachmentIds,
-            status: 'received',
-            folder,
-            org_id: orgId,
-            user_id: userId,
-            read: false,
-            starred: false,
-            important: false,
-            thread_id: parsed.inReplyTo || parsed.messageId || messageMongoId.toString(), // Simplified threading
-            labels: [],
-            size: raw.length,
-            spam_score: folder === 'spam' ? 100 : 0,
-            encryption_status: 'none',
-            delivery_status: 'delivered',
-            created_at: new Date(),
-            received_at: new Date(parsed.date) || new Date(),
-            headers: Object.fromEntries(parsed.headers.entries()), // Convert Map to object for broader compatibility
-            search_text: `${parsed.subject || ''} ${parsed.text || ''}`.trim(),
+
+      const folder = classify(parsed);
+      const messageDoc = {
+          _id: messageMongoId,
+          message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
+          in_reply_to: parsed.inReplyTo,
+          references: Array.isArray(parsed.references) ? parsed.references : [parsed.references].filter(Boolean),
+          from: parsed.from.value[0].address.toLowerCase(),
+          to: parsed.to.value.map(addr => addr.address.toLowerCase()),
+          cc: parsed.cc?.value.map(addr => addr.address.toLowerCase()) || [],
+          bcc: [],
+          subject: parsed.subject || '(no subject)',
+          html: parsed.html || '',
+          text: parsed.text || '',
+          attachments: attachmentIds,
+          status: 'received',
+          folder,
+          org_id: orgId,
+          user_id: userId,
+          read: false,
+          starred: false,
+          important: false,
+          thread_id: parsed.inReplyTo || parsed.messageId || messageMongoId.toString(),
+          labels: [],
+          size: totalMessageSizeInBytes,
+          spam_score: folder === 'spam' ? 100 : 0,
+          encryption_status: 'none',
+          delivery_status: 'delivered',
+          created_at: new Date(),
+          received_at: new Date(parsed.date) || new Date(),
+          headers: Object.fromEntries(parsed.headers.entries()),
+          search_text: `${parsed.subject || ''} ${parsed.text || ''}`.trim(),
+      };
+
+      // 4. Insert message and update user storage atomically
+      await db.collection('messages').insertOne(messageDoc);
+      await db.collection('users').updateOne(
+          { _id: userId },
+          { $inc: { 'plan_usage.storage': totalMessageSizeInKB } }
+      );
+
+      plugin.loginfo(`Saved message ${messageMongoId} for ${destinationEmail} and updated storage by ${totalMessageSizeInKB.toFixed(2)} KB.`);
+
+      const redis = connection.server.notes.redis;
+      if (redis) {
+        const cfg = plugin.config.get('queue.redis.ini');
+        const mailbox_size = ((cfg.main || {}).mailbox_size || 10) - 1;
+        const mailbox_ttl = ((cfg.main || {}).mailbox_ttl || 3600);
+        const key = `mailbox:${destinationEmail}`;
+        const lite = {
+          id: messageMongoId.toString(),
+          from: messageDoc.from,
+          subject: messageDoc.subject,
+          date: messageDoc.received_at,
+          folder: messageDoc.folder,
+          read: false,
+          attachments: attachmentIds.length > 0,
         };
-
-        // 5. Insert the final message document into the database
-        await db.collection('messages').insertOne(messageDoc);
-
-        plugin.loginfo(`Saved message ${messageMongoId} for ${destinationEmail}`);
-        
-        // 6. (Optional) Perform Redis operations for real-time updates or caching
-        const redis = connection.server.notes.redis;
-        if(redis) {
-            const cfg = plugin.config.get('queue.redis.ini');
-            const mailbox_size = ((cfg.main || {}).mailbox_size || 10) - 1;
-            const mailbox_ttl = ((cfg.main || {}).mailbox_ttl || 3600);
-            const key = `mailbox:${destinationEmail}`;
-
-            const lite = {
-                id: messageMongoId.toString(), // Use the MongoDB _id
-                from: messageDoc.from,
-                subject: messageDoc.subject,
-                date: messageDoc.received_at,
-                folder: messageDoc.folder,
-                read: false,
-                attachments: attachmentIds.length > 0,
-            };
-
-            redis.lPush(key, JSON.stringify(lite));
-            redis.lTrim(key, 0, mailbox_size);
-            redis.expire(key, mailbox_ttl);
-
-            redis.publish(`mailbox:events:${destinationEmail}`, JSON.stringify({
-                type: 'new_mail',
-                message: lite,
-            }));
-        }
+        redis.lPush(key, JSON.stringify(lite));
+        redis.lTrim(key, 0, mailbox_size);
+        redis.expire(key, mailbox_ttl);
+        redis.publish(`mailbox:events:${destinationEmail}`, JSON.stringify({
+          type: 'new_mail',
+          message: lite,
+        }));
+      }
     }
 
     next(OK);
 
   })().catch(err => {
-      plugin.logerror("Error processing email: " + (err.stack || err));
-      next(DENYSOFT, "An internal error occurred while processing the message.");
+    plugin.logerror("Error processing email: " + (err.stack || err));
+    next(DENYSOFT, "An internal error occurred while processing the message.");
   });
 
-  // Resume the stream now, as all data has been buffered.
   transaction.message_stream.resume();
 };

@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         // Create default free plan
         const newFreePlan = new Plan({
           name: "Free",
-          limits: { users: 1, domains: 1 },
+          limits: { users: 1, domains: 1, storage: 1 },
           price: 0,
           customizable: false,
           features: ["Basic Email", "1 Domain", "1 User"],

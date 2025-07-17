@@ -13,6 +13,11 @@ export interface IUser extends Document {
     completed: boolean
     startedAt: Date
   }
+  plan_usage: {
+    users: number
+    domains: number
+    storage: number
+  }
   created_at: Date
   comparePassword(password: string): Promise<boolean>
 }
@@ -30,6 +35,11 @@ const UserSchema = new Schema<IUser>({
     startedAt: { type: Date, default: Date.now },
   },
   created_at: { type: Date, default: Date.now },
+  plan_usage: {
+    users: { type: Number, default: 0 },
+    domains: { type: Number, default: 0 },
+    storage: { type: Number, default: 0 },
+  },
 })
 
 UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
