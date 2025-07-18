@@ -23,18 +23,109 @@ exports.register = function () {
 
 exports.load_ini = function () {
   const plugin = this;
-  plugin.cfg = plugin.config.get('queue.redis.ini', () => {
+  // Load the spam scoring configuration from queue.redis.mongo.ini
+  plugin.cfg = plugin.config.get('queue.redis.mongo.ini', 'json', () => {
     plugin.load_ini();
   });
 };
 
-function classify(parsed) {
+/**
+ * Calculates a spam score based on the results of previously run plugins.
+ * @param {object} connection The Haraka connection object.
+ * @param {object} transaction The Haraka transaction object.
+ * @param {object} parsed The parsed email from mailparser.
+ * @param {object} cfg The plugin configuration (from the .ini file).
+ * @returns {{score: number, reasons: string[]}} An object containing the final score and an array of reasons.
+ */
+function calculate_spam_score(connection, transaction, parsed, cfg) {
+  let score = 0;
+  const reasons = [];
+  const spamCfg = cfg.spam || {};
+
+  // Helper to add points and a reason
+  const addScore = (points, reason) => {
+    if (points && typeof points === 'number') {
+      score += points;
+      reasons.push(`${reason} (${points})`);
+    }
+  };
+
+  // 1. SPF results (from 'spf' plugin)
+  const spfResult = connection.results.get('spf');
+  if (spfResult) {
+    switch (spfResult.result) {
+      case 'fail': addScore(spamCfg.spf_fail, 'SPF_FAIL'); break;
+      case 'softfail': addScore(spamCfg.spf_softfail, 'SPF_SOFTFAIL'); break;
+      case 'permerror': addScore(spamCfg.spf_permerror, 'SPF_PERMERROR'); break;
+      case 'pass': addScore(spamCfg.spf_pass, 'SPF_PASS'); break;
+    }
+  }
+
+  // 2. DKIM results (from 'dkim' plugin)
+  const dkimResult = transaction.results.get('dkim');
+  if (dkimResult) {
+    if (dkimResult.result === 'pass') addScore(spamCfg.dkim_pass, 'DKIM_PASS');
+    if (dkimResult.result === 'fail') addScore(spamCfg.dkim_fail, 'DKIM_FAIL');
+  }
+
+  // 3. Karma results (from 'karma' plugin)
+  const karma = connection.results.get('karma');
+  if (karma) {
+    if (karma.score > 5) addScore(spamCfg.karma_positive, 'KARMA_GOOD');
+    if (karma.score < -5) addScore(spamCfg.karma_negative, 'KARMA_BAD');
+  }
+
+  // 4. DNS Blacklist results (from 'dns-list' plugin)
+  const dnsList = connection.results.get('dns-list');
+  if (dnsList?.fail.length > 0) {
+    addScore(spamCfg.dns_list_positive, `DNSBL:${dnsList.fail[0]}`);
+  }
+
+  // 5. URL Blacklist results (from 'uribl' plugin)
+  const uriList = transaction.results.get('uribl');
+  if (uriList?.fail.length > 0) {
+    addScore(spamCfg.uribl_positive, `URIBL:${uriList.fail[0]}`);
+  }
+
+  // 6. ClamAV results (from 'clamd' plugin)
+  const clamd = transaction.results.get('clamd');
+  if (clamd?.found) {
+    addScore(spamCfg.virus_found, `VIRUS:${clamd.found}`);
+  }
+  
+  // 7. Attachment results (from 'attachment' plugin)
+  const attach = transaction.results.get('attachment');
+  if (attach?.fail.length > 0) {
+      addScore(spamCfg.dangerous_attachment, 'ATTACHMENT_BANNED');
+  }
+
+  // 8. FCrDNS results (from 'fcrdns' plugin)
+  const fcrdns = connection.results.get('fcrdns');
+  if (fcrdns?.result === 'fail') {
+    addScore(spamCfg.fcrdns_fail, 'FCRDNS_FAIL');
+  }
+
+  // 9. HELO checks (from 'helo.checks' plugin)
+  const helo = connection.results.get('helo.checks');
+  if (helo?.fail.length > 0) {
+      addScore(spamCfg.helo_fail, 'HELO_FAIL');
+  }
+
+  // 10. TLS check
+  if (!connection.tls.enabled) {
+    addScore(spamCfg.tls_disabled, 'TLS_DISABLED');
+  }
+
+  // 11. Custom keyword check (your original logic)
   const subj = parsed.subject?.toLowerCase() || '';
   if (subj.includes("win") || subj.includes("free") || subj.includes("offer") || subj.includes("viagra")) {
-    return 'spam';
+    addScore(spamCfg.keyword_spam, 'KEYWORD_SPAM');
   }
-  return 'inbox';
+
+  return { score: Math.round(score), reasons };
 }
+
+
 
 exports.save_to_mongo = function (next, connection) {
   const plugin = this;
@@ -54,6 +145,11 @@ exports.save_to_mongo = function (next, connection) {
     });
 
     const parsed = await simpleParser(raw);
+     const spamReport = calculate_spam_score(connection, transaction, parsed, plugin.cfg);
+    const spamThreshold = plugin.cfg.spam?.threshold || 15;
+    const folder = spamReport.score >= spamThreshold ? 'spam' : 'inbox';
+    
+    plugin.loginfo(`Message ${transaction.uuid} from ${parsed.from.value[0].address} scored ${spamReport.score} with reasons: [${spamReport.reasons.join(', ')}]. Destination: ${folder}`);
 
     const attachmentsSizeInBytes = parsed.attachments?.reduce((sum, att) => sum + (att.size || 0), 0) || 0;
     const totalMessageSizeInBytes = raw.length + attachmentsSizeInBytes;
@@ -145,7 +241,6 @@ exports.save_to_mongo = function (next, connection) {
           }
       }
 
-      const folder = classify(parsed);
       const messageDoc = {
           _id: messageMongoId,
           message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
@@ -160,7 +255,8 @@ exports.save_to_mongo = function (next, connection) {
           text: parsed.text || '',
           attachments: attachmentIds,
           status: 'received',
-          folder,
+          folder, // <-- This is now dynamically set
+          spam_score: spamReport.score, // <-- Store the 
           org_id: orgId,
           user_id: userId,
           read: false,
