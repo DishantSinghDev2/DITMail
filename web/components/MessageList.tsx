@@ -411,7 +411,7 @@ export default function MessageList({
                   <div className="flex justify-between items-start">
                     <div className="text-sm truncate pr-2">
                       <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
-                        {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from}
+                        {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from} {message.messageCount > 1 && <span className={`${!message.read ? "text-gray-600" : "text-gray-500"} ml-2`}>{message.messageCount} </span>}
                       </span>
                     </div>
                     <div className="flex items-center space-x-2 flex-shrink-0">
