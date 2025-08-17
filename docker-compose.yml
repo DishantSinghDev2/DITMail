@@ -39,17 +39,15 @@ services:
     environment:
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
-
     # ACME HTTP Challenge server (nginx)
   acme_challenge:
     image: nginx:alpine
     container_name: acme-challenge
     restart: unless-stopped
     ports:
-      - "80:80"   # Expose HTTP for certbot validation
+      - "80:80" # Expose HTTP for certbot validation
     volumes:
       - ./certbot-webroot:/usr/share/nginx/html
-
 
   # Certbot - For MX and SMTP
   certbot:
@@ -64,19 +62,7 @@ services:
       - ./smtp/src/config:/smtp-config
     entrypoint: /bin/sh -c
     command: >
-      "certbot certonly --webroot
-      --webroot-path=/var/www/certbot
-      --email admin@ditmail.online
-      --agree-tos --no-eff-email
-      --key-type ecdsa --elliptic-curve secp384r1
-      -d mx.ditmail.online
-      -d smtp.ditmail.online &&
-      echo 'Copying certs to MX...' &&
-      cp /etc/letsencrypt/live/mx.ditmail.online/privkey.pem /mx-config/tls_key.pem &&
-      cp /etc/letsencrypt/live/mx.ditmail.online/fullchain.pem /mx-config/tls_cert.pem &&
-      echo 'Copying certs to SMTP...' &&
-      cp /etc/letsencrypt/live/smtp.ditmail.online/privkey.pem /smtp-config/tls_key.pem &&
-      cp /etc/letsencrypt/live/smtp.ditmail.online/fullchain.pem /smtp-config/tls_cert.pem"
+      "certbot certonly --webroot --webroot-path=/var/www/certbot --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1 -d mx.ditmail.online -d smtp.ditmail.online && echo 'Copying certs to MX...' && cp /etc/letsencrypt/live/mx.ditmail.online/privkey.pem /mx-config/tls_key.pem && cp /etc/letsencrypt/live/mx.ditmail.online/fullchain.pem /mx-config/tls_cert.pem && echo 'Copying certs to SMTP...' && cp /etc/letsencrypt/live/mx.ditmail.online/privkey.pem /smtp-config/tls_key.pem && cp /etc/letsencrypt/live/mx.ditmail.online/fullchain.pem /smtp-config/tls_cert.pem"
 
   # MongoDB
   mongodb:
