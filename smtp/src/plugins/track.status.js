@@ -77,7 +77,7 @@ exports.update_status = async function (next, hmail, params) {
 exports.init_mongo = async function () {
   const plugin = this;
   const MongoClient = mongodb.MongoClient;
-  const uri = 'mongodb://127.0.0.1:27017';
+  const uri = process.env.MONGO_URI;
 
   try {
     plugin.dbClient = await MongoClient.connect(uri, {

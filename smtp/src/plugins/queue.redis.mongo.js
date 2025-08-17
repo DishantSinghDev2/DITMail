@@ -17,8 +17,8 @@ exports.load_ini = function () {
     plugin.load_ini();
   });
 
-  const mongoURL = plugin.cfg.main.mongo_url || 'mongodb://localhost:27017';
-  const dbName = plugin.cfg.main.mongo_db || 'ditmail';
+  const mongoURL = process.env.MONGO_URI || 'mongodb://localhost:27017';
+  const dbName = 'ditmail';
 
   mongoClient = new MongoClient(mongoURL, { useUnifiedTopology: true });
   mongoClient.connect().catch(console.error);
