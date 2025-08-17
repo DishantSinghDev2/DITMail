@@ -40,10 +40,23 @@ services:
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 
+    # ACME HTTP Challenge server (nginx)
+  acme_challenge:
+    image: nginx:alpine
+    container_name: acme-challenge
+    restart: unless-stopped
+    ports:
+      - "80:80"   # Expose HTTP for certbot validation
+    volumes:
+      - ./certbot-webroot:/usr/share/nginx/html
+
+
   # Certbot - For MX and SMTP
   certbot:
     image: certbot/certbot:latest
     container_name: certbot
+    depends_on:
+      - acme_challenge
     volumes:
       - certs:/etc/letsencrypt
       - ./certbot-webroot:/var/www/certbot
