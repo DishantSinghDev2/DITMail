@@ -28,7 +28,7 @@ COPY stop-supervisor.sh /DITMail/
 RUN chmod a+rx /DITMail/entrypoint.sh /DITMail/stop-supervisor.sh
 
 # Expose necessary ports
-EXPOSE 25/tcp 8081/tcp
+EXPOSE 25/tcp 8081/tcp 465/tcp 587/tcp 
 
 # Set working directory
 WORKDIR /DITMail

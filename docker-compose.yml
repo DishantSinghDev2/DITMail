@@ -1,0 +1,107 @@
+version: "3.8"
+
+services:
+  # Inbound MX Server (ditmail-mx)
+  inbound_mx:
+    build:
+      context: ./mx
+    container_name: inbound-mx
+    restart: unless-stopped
+    ports:
+      - "25:25" # Public MX mail
+    networks:
+      - mail_network
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+
+  # Outbound Submission Server (ditmail-smtp)
+  outbound_smtp:
+    build:
+      context: ./smtp
+    container_name: outbound-smtp
+    restart: unless-stopped
+    ports:
+      - "587:587" # Submission
+      - "465:465" # SMTPS
+    networks:
+      - mail_network
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+
+  # WebSocket Server
+  ws:
+    build:
+      context: ./ws
+    container_name: ws
+    restart: unless-stopped
+    ports:
+      - "4000:8080" # External 4000 -> internal 8080
+    networks:
+      - mail_network
+    depends_on:
+      - redis
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+
+  # Background Worker
+  worker:
+    build:
+      context: ./worker
+    container_name: worker
+    restart: unless-stopped
+    networks:
+      - mail_network
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+      - JWT_SECRET=${JWT_SECRET}
+
+  # MongoDB (Public with Auth)
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017" # Public Mongo access
+    networks:
+      - mail_network
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - mongo_data:/data/db
+
+  # Redis (Public with Password)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379" # Public Redis access
+    command: redis-server --requirepass ${REDIS_PASSWORD}
+    networks:
+      - mail_network
+    volumes:
+      - redis_data:/data
+
+networks:
+  mail_network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local

@@ -1,7 +1,6 @@
 # CORE + CONNECTION PHASE
 xclient
 redis
-stats.redis
 karma
 access
 geoip
@@ -29,4 +28,5 @@ attachment
 uribl
 clamd
 dkim
+stats.redis
 queue.redis.mongo
