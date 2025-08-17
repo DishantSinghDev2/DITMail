@@ -8,15 +8,19 @@ services:
     container_name: inbound-mx
     restart: unless-stopped
     ports:
-      - "25:25" # Public MX mail
+      - "25:25"
     networks:
       - mail_network
     depends_on:
       - mongodb
       - redis
+      - certbot
     environment:
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+    volumes:
+      - ./mx/src/config:/app/config
+      - letsencrypt:/etc/letsencrypt
 
   # Outbound Submission Server (ditmail-smtp)
   outbound_smtp:
@@ -25,16 +29,20 @@ services:
     container_name: outbound-smtp
     restart: unless-stopped
     ports:
-      - "587:587" # Submission
-      - "465:465" # SMTPS
+      - "587:587"
+      - "465:465"
     networks:
       - mail_network
     depends_on:
       - mongodb
       - redis
+      - certbot
     environment:
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
+    volumes:
+      - ./smtp/src/config:/app/config
+      - letsencrypt:/etc/letsencrypt
 
   # WebSocket Server
   ws:
@@ -43,7 +51,7 @@ services:
     container_name: ws
     restart: unless-stopped
     ports:
-      - "4000:8080" # External 4000 -> internal 8080
+      - "4000:8080"
     networks:
       - mail_network
     depends_on:
@@ -74,7 +82,7 @@ services:
     container_name: mongodb
     restart: unless-stopped
     ports:
-      - "27017:27017" # Public Mongo access
+      - "27017:27017"
     networks:
       - mail_network
     environment:
@@ -89,12 +97,31 @@ services:
     container_name: redis
     restart: unless-stopped
     ports:
-      - "6379:6379" # Public Redis access
+      - "6379:6379"
     command: redis-server --requirepass ${REDIS_PASSWORD}
     networks:
       - mail_network
     volumes:
       - redis_data:/data
+
+  # Certbot for TLS (auto-renew)
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot-logs:/var/log/letsencrypt
+    entrypoint: >
+      sh -c 'trap exit TERM;
+      while :; do
+        certbot certonly --standalone --agree-tos --no-eff-email
+        -m admin@ditmail.online
+        -d mx.ditmail.online
+        -d smtp.ditmail.online;
+        certbot renew --quiet;
+        sleep 12h & wait $${!};
+      done'
 
 networks:
   mail_network:
@@ -104,4 +131,8 @@ volumes:
   mongo_data:
     driver: local
   redis_data:
+    driver: local
+  letsencrypt:
+    driver: local
+  certbot-logs:
     driver: local
