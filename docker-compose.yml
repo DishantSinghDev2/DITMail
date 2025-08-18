@@ -80,12 +80,7 @@ services:
       - certs:/etc/letsencrypt
       - ./cloudflare:/root/.secrets/certbot:ro
     command: >
-      certonly --dns-cloudflare
-      --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini
-      --email admin@ditmail.online --agree-tos --no-eff-email
-      --key-type ecdsa --elliptic-curve secp384r1
-      -d mx.ditmail.online -d smtp.ditmail.online
-      ${CERTBOT_ENV}
+      certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1 -d mx.ditmail.online -d smtp.ditmail.online ${CERTBOT_ENV}
 
   # Certbot automatic renewal
   certbot-renew:
@@ -119,15 +114,20 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongo_data:/data/db
+    ports:
+      - "27017:27017" # expose MongoDB to host
+    command: [ "mongod", "--bind_ip_all" ] # allow connections from outside
 
   # Redis
   redis:
     image: redis:7-alpine
     container_name: redis
     restart: unless-stopped
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --requirepass ${REDIS_PASSWORD} --bind 0.0.0.0
     networks:
       - mail_network
+    ports:
+      - "6379:6379" # expose to host / remote
     volumes:
       - redis_data:/data
 
