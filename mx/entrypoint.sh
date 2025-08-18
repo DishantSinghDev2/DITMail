@@ -3,52 +3,67 @@ set -e
 
 echo "[DITMail] Starting entrypoint..."
 
-REDIS_URL="${REDIS_HOST:-127.0.0.1:6379}"
-LOG="${LOG_LEVEL:-info}"
-ALTINBOX_MOD="${ALTINBOX_MOD:-1}"
-CONFIG_DIR="${CONFIG_DIR:-/DITMail/src/config}"
+# --- Configuration from Environment Variables ---
+# Use the full REDIS_URL provided by Docker Compose. Default to a standard Docker network name if not set.
+REDIS_URL="${REDIS_URL:-redis://redis:6379}"
+LOG_LEVEL="${HARAKA_LOGLEVEL:-info}"
+CONFIG_DIR="/DITMail/src/config"
+
+# This new variable is required to find the correct certificate path
+TLS_DOMAIN="${TLS_DOMAIN}" 
 
 echo "[DITMail] Configuring Haraka with:"
-echo "  Redis URL: $REDIS_URL
-echo "  Log Level:  $LOG"
-echo "  AltInbox:   $ALTINBOX_MOD"
+echo "  Redis URL: $REDIS_URL"
+echo "  Log Level: $LOG_LEVEL"
+echo "  TLS Domain: $TLS_DOMAIN"
 
-# Helper function: update or append config values
+# --- Helper function: update or append config values ---
+# This function is already great, no changes needed.
 set_config_value() {
   local file=$1
   local key=$2
   local value=$3
 
   if [[ -f "$file" ]]; then
+    # Use a different delimiter for sed to handle URLs safely
     if grep -qE "^$key=" "$file"; then
       sed -i "s|^$key=.*|$key=$value|" "$file"
     else
       echo "$key=$value" >> "$file"
     fi
   else
-    echo "[WARN] File $file not found for setting $key"
+    echo "[WARN] Config file $file not found for setting $key"
   fi
 }
 
-# Redis-based plugin configs
-set_config_value "$CONFIG_DIR/dnsbl.ini"    "stats_redis_host" "$REDIS_URL"
+# --- Apply Configurations ---
+# Note: Most Redis plugins can read the REDIS_URL environment variable directly.
+# This line is good as a fallback if a plugin doesn't support that.
+set_config_value "$CONFIG_DIR/redis.ini" "url" "$REDIS_URL"
+set_config_value "$CONFIG_DIR/log.ini" "level" "$LOG_LEVEL"
 
-# Logging level
-set_config_value "$CONFIG_DIR/log.ini"      "level"            "$LOG"
+# --- Wait for TLS Certificates ---
+if [[ -z "$TLS_DOMAIN" ]]; then
+  echo "[WARN] TLS_DOMAIN is not set. Skipping certificate wait. Haraka may fail if TLS is enabled."
+else
+  TLS_CERT_PATH="/etc/letsencrypt/live/$TLS_DOMAIN/fullchain.pem"
+  TLS_KEY_PATH="/etc/letsencrypt/live/$TLS_DOMAIN/privkey.pem"
+  
+  echo "[DITMail] Waiting for TLS certs for domain '$TLS_DOMAIN'..."
+  for i in {1..30}; do
+    if [[ -f "$TLS_CERT_PATH" && -f "$TLS_KEY_PATH" ]]; then
+      echo "[DITMail] TLS certificates found."
+      break
+    fi
+    echo "[DITMail] TLS certs not found, retrying ($i/30)..."
+    sleep 2
+  done
 
-# AltInbox mode
-set_config_value "$CONFIG_DIR/altinbox.ini" "altinbox"         "$ALTINBOX_MOD"
-
-# Wait for TLS certs if needed
-echo "[DITMail] Waiting for TLS certs..."
-for i in {1..30}; do
-  if [[ -f "/config/tls_cert.pem" && -f "/config/tls_key.pem" ]]; then
-    echo "[DITMail] TLS certs found."
-    break
+  if [[ ! -f "$TLS_CERT_PATH" || ! -f "$TLS_KEY_PATH" ]]; then
+    echo "[ERROR] Timed out waiting for TLS certificates. Exiting."
+    exit 1
   fi
-  echo "[DITMail] TLS certs not found, retrying ($i/30)..."
-  sleep 2
-done
+fi
 
 echo "[DITMail] Launching Supervisor..."
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
