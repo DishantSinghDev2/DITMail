@@ -9,7 +9,7 @@ exports.register = function () {
     plugin.loginfo("Initializing rcpt_to.mongodb plugin...");
 
     // Connect to MongoDB. Note the architectural flaw below.
-    MongoClient.connect(env.MONGO_URI, { useUnifiedTopology: true })
+    MongoClient.connect(process.env.MONGO_URI, { useUnifiedTopology: true })
         .then(client => {
             db = client.db();
             plugin.loginfo("Connected to MongoDB for domain validation.");
