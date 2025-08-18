@@ -8,6 +8,8 @@ exports.register = function () {
 
     plugin.loginfo("Initializing rcpt_to.mongodb plugin...");
 
+    plugin.loginfo(process.env.MONGO_URI, env.MONGO_URI)
+
     // Connect to MongoDB. Note the architectural flaw below.
     MongoClient.connect(process.env.MONGO_URI, { useUnifiedTopology: true })
         .then(client => {
