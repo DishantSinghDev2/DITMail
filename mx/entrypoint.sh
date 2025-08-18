@@ -5,6 +5,8 @@ echo "[DITMail] Starting entrypoint..."
 
 # --- Configuration from Environment Variables ---
 REDIS_URL="${REDIS_URL:-redis://redis:6379}"
+REDIS_HOST="${REDIS_HOST:-redis}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-strong_password}"
 LOG_LEVEL="${HARAKA_LOGLEVEL:-info}"
 CONFIG_DIR="/DITMail/src/config"
 TLS_DOMAIN="${TLS_DOMAIN}"
@@ -30,11 +32,6 @@ set_config_value() {
     echo "[WARN] Config file $file not found for setting $key"
   fi
 }
-
-# --- Extract Redis Host and Port from REDIS_URL ---
-REDIS_HOST=$(echo "$REDIS_URL" | sed -E 's|redis://([^:/]+)(:([0-9]+))?.*|\1|')
-REDIS_PORT=$(echo "$REDIS_URL" | sed -E 's|redis://[^:/]+:([0-9]+).*|\1|')
-
 # Default port if not found
 if [[ -z "$REDIS_PORT" || "$REDIS_PORT" == "$REDIS_URL" ]]; then
   REDIS_PORT=6379
@@ -47,6 +44,7 @@ echo "  Redis Port: $REDIS_PORT"
 set_config_value "$CONFIG_DIR/redis.ini" "url" "$REDIS_URL"
 set_config_value "$CONFIG_DIR/redis.ini" "host" "$REDIS_HOST"
 set_config_value "$CONFIG_DIR/redis.ini" "port" "$REDIS_PORT"
+set_config_value "$CONFIG_DIR/redis.ini" "password" "$REDIS_PASSWORD"
 set_config_value "$CONFIG_DIR/log.ini" "level" "$LOG_LEVEL"
 
 # (Optional: if you want these also available in other config files, repeat for each target .ini)
