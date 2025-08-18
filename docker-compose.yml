@@ -85,6 +85,7 @@ services:
       --email admin@ditmail.online --agree-tos --no-eff-email
       --key-type ecdsa --elliptic-curve secp384r1
       -d mx.ditmail.online -d smtp.ditmail.online
+      ${CERTBOT_ENV}
 
   # Certbot automatic renewal
   certbot-renew:
