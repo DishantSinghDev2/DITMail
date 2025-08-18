@@ -2,6 +2,7 @@
 
 const { MongoClient } = require('mongodb');
 let db;
+let mongoClient;
 
 exports.register = function () {
     const plugin = this;
@@ -10,16 +11,23 @@ exports.register = function () {
 
     plugin.loginfo('with' + process.env.MONGO_URI + env.MONGO_URI)
 
+    const mongoUrl = process.env.MONGO_URI || 'mongodb://localhost:27017';
+    const dbName = 'ditmail';
+
+
     // Connect to MongoDB. Note the architectural flaw below.
-    MongoClient.connect(process.env.MONGO_URI, { useUnifiedTopology: true })
-        .then(client => {
-            db = client.db();
-            plugin.loginfo("Connected to MongoDB for domain validation.");
-        })
-        .catch(err => {
-            plugin.logcrit("CRITICAL: MongoDB connection failed for rcpt_to.mongodb: " + err.message);
-            // db will remain undefined, and the hook will DENYSOFT.
-        });
+    if (!mongoClient) {
+        mongoClient = new MongoClient(mongoUrl);
+        mongoClient.connect()
+            .then(() => {
+                db = mongoClient.db(dbName);
+                plugin.loginfo('Successfully connected to MongoDB for custom domains.');
+            })
+            .catch(err => {
+                plugin.logcrit(`FATAL: Could not connect to MongoDB. Plugin will not work. Error: ${err}`);
+            });
+    }
+
 
     plugin.register_hook('rcpt', 'check_rcpt_to');
 };
