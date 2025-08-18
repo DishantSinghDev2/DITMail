@@ -9,11 +9,8 @@ exports.register = function () {
 
     plugin.loginfo("Initializing rcpt_to.mongodb plugin...");
 
-    plugin.loginfo('with' + process.env.MONGO_URI + env.MONGO_URI)
-
     const mongoUrl = process.env.MONGO_URI || 'mongodb://localhost:27017';
     const dbName = 'ditmail';
-
 
     // Connect to MongoDB. Note the architectural flaw below.
     if (!mongoClient) {
