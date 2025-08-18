@@ -69,23 +69,19 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
 
   # Service to get the initial certificates
-  certbot-mx:
+  certbot-initial:
     image: certbot/certbot:latest
-    container_name: certbot-mx
+    container_name: certbot-initial
     volumes:
       - certs:/etc/letsencrypt
       - certbot_webroot:/var/www/certbot
     command: >
-      certonly --webroot --webroot-path=/var/www/certbot --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1 -d mx.ditmail.online
+      certonly --webroot --webroot-path=/var/www/certbot
+      --email admin@ditmail.online --agree-tos --no-eff-email
+      --key-type ecdsa --elliptic-curve secp384r1
+      -d mx.ditmail.online -d smtp.ditmail.online
+      ${CERTBOT_ENV}
 
-  certbot-smtp:
-    image: certbot/certbot:latest
-    container_name: certbot-smtp
-    volumes:
-      - certs:/etc/letsencrypt
-      - certbot_webroot:/var/www/certbot
-    command: >
-      certonly --webroot --webroot-path=/var/www/certbot --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1 -d smtp.ditmail.online
 
   # Service for automatic certificate renewal
   certbot-renew:
