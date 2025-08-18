@@ -1,4 +1,3 @@
-# Docker Compose file using modern syntax and robust patterns
 services:
   # Inbound MX Server
   inbound_mx:
@@ -16,7 +15,6 @@ services:
     volumes:
       - certs:/etc/letsencrypt:ro
     environment:
-      # --- Modern Mapping Syntax ---
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       TLS_DOMAIN: mx.ditmail.online
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
@@ -38,45 +36,77 @@ services:
     volumes:
       - certs:/etc/letsencrypt:ro
     environment:
-      # --- Modern Mapping Syntax ---
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       TLS_DOMAIN: smtp.ditmail.online
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
 
-  # Service to get the initial certificates
+  # WebSocket API
+  ws:
+    build:
+      context: ./ws
+    container_name: ws
+    restart: unless-stopped
+    ports:
+      - "4000:8080" # External 4000 -> internal 8080
+    networks:
+      - mail_network
+    depends_on:
+      - redis
+    environment:
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+
+  # Background Worker
+  worker:
+    build:
+      context: ./worker
+    container_name: worker
+    restart: unless-stopped
+    networks:
+      - mail_network
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+
+  # Certbot initial issuance via Cloudflare DNS
   certbot-initial:
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
     container_name: certbot-initial
     volumes:
       - certs:/etc/letsencrypt
+      - ./cloudflare:/root/.secrets/certbot:ro
     command: >
-      certonly --standalone
+      certonly --dns-cloudflare
+      --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini
       --email admin@ditmail.online --agree-tos --no-eff-email
       --key-type ecdsa --elliptic-curve secp384r1
       -d mx.ditmail.online -d smtp.ditmail.online
-      ${CERTBOT_ENV}
 
-
-  # Service for automatic certificate renewal
+  # Certbot automatic renewal
   certbot-renew:
-    image: certbot/certbot:latest
+    image: certbot/dns-cloudflare:latest
     container_name: certbot-renew
     restart: unless-stopped
     volumes:
       - certs:/etc/letsencrypt
+      - ./cloudflare:/root/.secrets/certbot:ro
     entrypoint: >
       sh -c "
         while :; do
           echo 'Checking for certificate renewals...';
-          certbot renew --quiet;
-          docker kill --signal=HUP ditmail-nginx;
+          certbot renew --quiet --dns-cloudflare \
+            --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini;
           docker kill --signal=HUP inbound-mx;
           docker kill --signal=HUP outbound-smtp;
           sleep 12h;
         done
       "
 
-  # MongoDB Database
+  # MongoDB
   mongodb:
     image: mongo:6.0
     container_name: mongodb
@@ -84,13 +114,12 @@ services:
     networks:
       - mail_network
     environment:
-      # --- Modern Mapping Syntax (more explicit than env_file) ---
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
     volumes:
       - mongo_data:/data/db
 
-  # Redis Database
+  # Redis
   redis:
     image: redis:7-alpine
     container_name: redis
@@ -107,10 +136,5 @@ networks:
 
 volumes:
   certs:
-    driver: local
   mongo_data:
-    driver: local
   redis_data:
-    driver: local
-  certbot_webroot:
-    driver: local
