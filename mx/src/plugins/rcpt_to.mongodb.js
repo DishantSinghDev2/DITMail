@@ -10,17 +10,18 @@ exports.register = function () {
     const plugin = this;
     plugin.loginfo("Initializing custom rcpt_to.mongodb plugin...");
 
-    // This line is CRITICAL. It loads the .ini file.
-    plugin.load_rcpt_to_mongodb_ini();
+    // THE FIX IS HERE: Use the standard config loader.
+    // This is more robust and avoids issues with filenames containing dots.
+    const config = plugin.config.get('rcpt_to.mongodb.ini');
 
     // Check if the URI was loaded from the config.
-    if (!plugin.cfg.main.uri) {
+    if (!config || !config.main || !config.main.uri) {
         plugin.logcrit("MongoDB URI is not configured in rcpt_to.mongodb.ini. The plugin will not work.");
         return;
     }
 
-    // Initialize the client.
-    client = new MongoClient(plugin.cfg.main.uri, {
+    // Initialize the client using the loaded URI.
+    client = new MongoClient(config.main.uri, {
         useUnifiedTopology: true,
         serverSelectionTimeoutMS: 5000
     });
@@ -29,7 +30,6 @@ exports.register = function () {
 };
 
 exports.check_rcpt_to = async function (next, connection, params) {
-    // ... (the rest of the function remains the same as our previous version)
     const plugin = this;
     const rcpt = params[0];
     const domain = rcpt.host.toLowerCase();
@@ -55,7 +55,6 @@ exports.check_rcpt_to = async function (next, connection, params) {
             return next(DENY, "The email account that you tried to reach does not exist.");
         }
     } catch (err) {
-        // This is where your "Authentication failed" error would be caught now.
         plugin.logerror("Database error during recipient validation: " + err.message);
         return next(DENYSOFT, "A temporary error occurred during recipient validation.");
     }
