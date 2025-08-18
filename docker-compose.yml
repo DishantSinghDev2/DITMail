@@ -16,6 +16,7 @@ services:
       - certs:/etc/letsencrypt
       - ./mx/src/config:/config
     environment:
+      - TLS_DOMAIN=mx.ditmail.online
       - MONGO_URI=mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379
 
