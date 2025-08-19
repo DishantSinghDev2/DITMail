@@ -39,7 +39,7 @@ services:
       - certs:/etc/letsencrypt:ro
     environment:
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
-      TLS_DOMAIN: smtp.ditmail.online
+      TLS_DOMAIN: mx.ditmail.online
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
