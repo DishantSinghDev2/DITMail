@@ -23,6 +23,7 @@
     "haraka-plugin-greylist": "^1.0.1",
     "haraka-plugin-helo.checks": "^1.0.3",
     "haraka-plugin-mail_from.is_resolvable": "^1.1.0",
+    "haraka-plugin-redis": "^2.0.10",
     "haraka-plugin-relay": "^1.0.1",
     "mailparser": "^3.7.3",
     "maxmind": "^4.3.27",
