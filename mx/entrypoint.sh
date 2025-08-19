@@ -4,36 +4,29 @@ set -e
 echo "[DITMail] Starting entrypoint..."
 
 # --- Configuration from Environment Variables ---
-# Use the full REDIS_URL from Docker Compose. Default to a reasonable value if not set.
-REDIS_URL="${REDIS_URL:-redis://:strong_password@redis:6379}"
+REDIS_HOST="${REDIS_HOST:-redis}"
+REDIS_PORT="${REDIS_PORT:-6379}"
+REDIS_PASSWORD="${REDIS_PASSWORD}" # No default for password
 LOG_LEVEL="${HARAKA_LOGLEVEL:-info}"
 CONFIG_DIR="/DITMail/src/config"
 TLS_DOMAIN="${TLS_DOMAIN}"
 
 echo "[DITMail] Configuring Haraka with:"
-echo "  Redis URL: $REDIS_URL"
+echo "  Redis Host: $REDIS_HOST"
+echo "  Redis Port: $REDIS_PORT"
 echo "  Log Level: $LOG_LEVEL"
 echo "  TLS Domain: $TLS_DOMAIN"
 
-# --- Helper function ---
-set_config_value() {
-  local file=$1
-  local key=$2
-  local value=$3
-  if [[ -f "$file" ]]; then
-    if grep -qE "^$key=" "$file"; then
-      sed -i "s|^$key=.*|$key=$value|" "$file"
-    else
-      echo "$key=$value" >> "$file"
-    fi
-  fi
-}
+# --- Apply Configurations using sed (robustly) ---
+# Update the host in the [server] section
+sed -i "/^\[server\]/,/^\[/ s/^host\s*=.*/host = $REDIS_HOST/" "$CONFIG_DIR/redis.ini"
+# Update the port in the [server] section
+sed -i "/^\[server\]/,/^\[/ s/^port\s*=.*/port = $REDIS_PORT/" "$CONFIG_DIR/redis.ini"
+# Update the password in the [opts] section
+sed -i "/^\[opts\]/,/^\[/ s/^;*password\s*=.*/password = $REDIS_PASSWORD/" "$CONFIG_DIR/redis.ini"
 
-# --- Apply Configurations ---
-# THIS IS THE KEY FIX: We ONLY set the URL.
-# This forces all plugins to use the complete connection string, including the password.
-set_config_value "$CONFIG_DIR/redis.ini" "url" "$REDIS_URL"
-set_config_value "$CONFIG_DIR/log.ini" "level" "$LOG_LEVEL"
+# Update log level
+sed -i "s/^level\s*=.*/level = $LOG_LEVEL/" "$CONFIG_DIR/log.ini"
 
 
 # --- Wait for TLS Certificates ---
