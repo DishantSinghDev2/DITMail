@@ -40,7 +40,9 @@ services:
     environment:
       MONGO_URI: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongodb:27017/ditmail?authSource=admin
       TLS_DOMAIN: smtp.ditmail.online
-      REDIS_URL: redis://default:${REDIS_PASSWORD}@redis:6379
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: "${REDIS_PASSWORD}"
 
   # WebSocket API
   ws:
