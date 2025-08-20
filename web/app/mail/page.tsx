@@ -1,16 +1,17 @@
+// /home/dit/DITMail/web/app/mail/page.tsx
 "use client"
 
-import { useAuth } from "@/contexts/AuthContext"
-import AuthForm from "@/components/AuthForm"
 import ResponsiveMailInterface from "@/components/ResponsiveMailInterface"
 import LoadingSpinner from "@/components/ui/LoadingSpinner"
 import { redirect } from "next/navigation"
 import { useEffect } from "react"
+import { signIn, useSession } from "next-auth/react"
 
 export default function MailPage() {
-  const { user, loading } = useAuth()
+  const { data: session, status } = useSession()
+  const user = session?.user
 
-  if (loading) {
+  if (status == "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <LoadingSpinner size="lg" />
@@ -32,7 +33,9 @@ export default function MailPage() {
   }, [user])
 
   if (!user) {
-    return <AuthForm />
+    signIn('wyi', {
+      callbackUrl: '/mail'
+    })
   }
 
   return <ResponsiveMailInterface />

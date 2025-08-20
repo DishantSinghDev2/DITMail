@@ -2,34 +2,44 @@ import type React from "react"
 import "./globals.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
-import { AuthProvider } from "@/contexts/AuthContext"
-import { RealtimeProvider } from "@/contexts/RealtimeContext"
 import { initSentry } from "@/lib/sentry"
-import { ToastProvider } from "@/components/ui/toast"
+import { Providers } from "./providers" // Import the new provider component
+import { getServerSession } from "next-auth/next"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Adjust this path to your auth options
 
 // Initialize Sentry
 initSentry()
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "DITMail - Enterprise Webmail",
-  description: "Professional email management for your organization"
+export async function generateMetadata({ params }: { params: any }): Promise<Metadata> {
+  const baseUrl = "https://mail.dishis.tech" // <-- replace with your real domain
+
+  // Construct canonical from path params (works in app router)
+  const canonical = `${baseUrl}${params?.slug ? `/${params.slug}` : ""}`
+  return {
+    title: "DITMail - Enterprise Webmail",
+    description: "Professional email management for your organization",
+    alternates: {
+      canonical,
+    },
+  }
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  console.log(process.env.NEXTAUTH_SECRET)
+  const session = await getServerSession(authOptions)
+
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <ToastProvider>
-            <RealtimeProvider>{children}</RealtimeProvider>
-          </ToastProvider>
-        </AuthProvider>
+        <Providers session={session}>
+          {children}
+        </Providers>
       </body>
     </html>
   )

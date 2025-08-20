@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Mail, Menu, X, ChevronDown, Sparkles, Zap, Shield } from "lucide-react"
 import Link from "next/link"
+import { signIn } from "next-auth/react"
 
 export default function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -219,7 +220,8 @@ export default function Navbar() {
             <div className="hidden md:flex items-center space-x-3">
               <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                 <Link
-                  href="/mail"
+                  href="#"
+                  onClick={() => signIn('wyi')}
                   className="px-4 py-2 text-gray-700 hover:text-blue-600 transition-colors duration-200 font-medium rounded-lg hover:bg-gray-50"
                 >
                   Sign In

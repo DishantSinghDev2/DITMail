@@ -1,3 +1,4 @@
+// /home/dit/DITMail/web/app/api/messages/route.ts
 import { type NextRequest, NextResponse } from "next/server"
 import connectDB from "@/lib/db"
 import Message from "@/models/Message"

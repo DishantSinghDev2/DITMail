@@ -6,13 +6,14 @@ import MobileSidebar from "./mobile/MobileSidebar"
 import MobileMessageList from "./mobile/MobileMessageList"
 import MobileMessageView from "./mobile/MobileMessageView"
 import MobileCompose from "./mobile/MobileCompose"
-import SearchBar from "./SearchBar"
-import NotificationPanel from "./NotificationPanel"
-import { useAuth } from "@/contexts/AuthContext"
+import SearchBar from "./mail/SearchBar"
+import NotificationPanel from "./mail/NotificationPanel"
 import { useRealtime } from "@/contexts/RealtimeContext"
+import { signOut, useSession } from "next-auth/react"
 
 export default function MobileMailInterface() {
-  const { user, logout } = useAuth()
+  const {data: session} = useSession()
+  const user = session?.user
   const { newMessages } = useRealtime()
 
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -280,7 +281,7 @@ export default function MobileMailInterface() {
         onCompose={handleCompose}
         newMessages={newMessages}
         user={user}
-        onLogout={logout}
+        onLogout={signOut}
       />
     </div>
   )

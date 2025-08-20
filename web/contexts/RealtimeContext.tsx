@@ -1,7 +1,7 @@
 "use client"
 
+import { useSession } from "next-auth/react"
 import React, { createContext, useContext, useEffect, useState, useRef } from "react"
-import { useAuth } from "./AuthContext"
 // CRITICAL: This is the ONLY import from 'socket.io-client' at the top of the file.
 // It MUST be a `type` import.
 import type { Socket } from "socket.io-client"
@@ -15,7 +15,8 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [newMessages, setNewMessages] = useState(0)
-  const { user } = useAuth()
+  const {data: session} = useSession()
+  const user = session?.user
   const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {

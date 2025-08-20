@@ -12,6 +12,7 @@
     "ws": "ts-node ws/ws-server.ts"
   },
   "dependencies": {
+    "@auth/mongodb-adapter": "^3.10.0",
     "@aws-sdk/client-s3": "latest",
     "@aws-sdk/credential-providers": "latest",
     "@headlessui/react": "latest",
@@ -69,14 +70,14 @@
     "kerberos": "latest",
     "lodash": "latest",
     "lucide-react": "^0.454.0",
-    "mongodb": "latest",
+    "mongodb": "^6.18.0",
     "mongodb-client-encryption": "latest",
     "mongoose": "latest",
     "next": "15.2.4",
+    "next-auth": "^4.24.11",
     "next-themes": "^0.4.4",
     "node-cron": "latest",
     "node-dkim": "^0.0.3",
-    "nodemailer": "^7.0.3",
     "react": "^19",
     "react-chartjs-2": "latest",
     "react-dom": "^19",
@@ -94,7 +95,8 @@
     "tailwindcss-animate": "^1.0.7",
     "util": "latest",
     "winston": "latest",
-    "zod": "latest"
+    "zod": "latest",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/cookie": "^0.6.0",

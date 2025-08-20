@@ -13,7 +13,7 @@ import {
   TrashIcon,
   EllipsisVerticalIcon,
 } from "@heroicons/react/24/outline"
-import Dropdown from "./ui/Dropdown"
+import Dropdown from "../ui/Dropdown"
 
 interface Notification {
   _id: string

@@ -1,3 +1,4 @@
+// /home/dit/DITMail/web/app/onboarding/page.tsx
 "use client"
 
 import { useState, useEffect } from "react"

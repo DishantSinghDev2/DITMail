@@ -1,13 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Message from "@/models/Message"
 import User from "@/models/User"
 import Domain from "@/models/Domain"
-import { getAuthUser } from "@/lib/auth"
 import { asyncHandler } from "@/lib/error-handler"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../auth/[...nextauth]/route"
 
 export const GET = asyncHandler(async (request: NextRequest) => {
-  const user = await getAuthUser(request)
+  const session = await getServerSession(authOptions)
+  const user = session?.user
   if (!user || !["owner", "admin"].includes(user.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }

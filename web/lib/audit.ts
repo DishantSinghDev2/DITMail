@@ -1,7 +1,8 @@
-import connectDB from "./db"
+import {connectDB} from "./db"
 import AuditLog from "@/models/AuditLog"
 import { captureMessage } from "./sentry"
-import { getAuthUser } from "./auth" // Import getAuthUser
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export interface AuditEvent {
   user_id: string
@@ -118,7 +119,7 @@ export function withAuditLog(action: string, resourceType?: string) {
 
     descriptor.value = async function (...args: any[]) {
       const request = args[0]
-      const user = await getAuthUser(request)
+      const user = await getServerSession(authOptions)
 
       if (user) {
         const requestInfo = getRequestInfo(request)

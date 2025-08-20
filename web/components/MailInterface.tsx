@@ -2,14 +2,13 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { useAuth } from "@/contexts/AuthContext"
 import { useRealtime } from "@/contexts/RealtimeContext"
-import MailSidebar, { MailSidebarHandle } from "./MailSidebar"
+import MailSidebar, { MailSidebarHandle } from "./mail/MailSidebar"
 import MessageList from "./MessageList"
 import MessageView from "./MessageView"
 import ComposeModal from "./ComposeModal"
-import SearchBar from "./SearchBar"
-import NotificationPanel from "./NotificationPanel"
+import SearchBar from "./mail/SearchBar"
+import NotificationPanel from "./mail/NotificationPanel"
 import SettingsDropdown from "./mail/SettingsDropdown" // <-- Import new component
 import UpgradeModal from "./mail/UpgradeModal" // <-- Import new component
 import FilterPopover from "./mail/FilterPopover" // <-- Import new component
@@ -22,6 +21,7 @@ import { set } from "lodash"
 import { emailSchema } from "@/lib/schemas"
 import z from "zod"
 import { Attachment } from "./editor/email-editor"
+import { signOut, useSession } from "next-auth/react"
 
 export default function MailInterface() {
   const [selectedFolder, setSelectedFolder] = useState("inbox")
@@ -79,7 +79,8 @@ export default function MailInterface() {
     sidebarRef.current?.refreshCount()
   }
 
-  const { user, logout } = useAuth()
+  const {data: session} = useSession()
+  const user = session?.user
   const { newMessages, markMessagesRead } = useRealtime()
 
   // --- Core fetching logic remains the same ---
@@ -334,7 +335,7 @@ export default function MailInterface() {
         onCompose={handleCompose}
         newMessages={newMessages}
         user={user}
-        onLogout={logout}
+        onLogout={signOut}
       />
 
       <div className="flex-1 flex flex-col min-w-0">
