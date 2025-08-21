@@ -26,6 +26,7 @@ export interface Attachment {
 // The core Message shape from MongoDB
 export interface Message {
   _id: string;
+  draftId?: string;
   user_id: Types.ObjectId;
   thread_id: string;
   subject: string;

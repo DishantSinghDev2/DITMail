@@ -17,6 +17,7 @@ interface MainComposerProps {
   initialData?: z.infer<typeof emailSchema> | null
   initialAttachments?: Attachment[] // <-- ADD THIS
   onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void // <-- ADD THIS
+  onDraftCreated?: (newDraftId: string) => void; // Add the new callback prop
 }
 
 export default function MainComposer({
@@ -29,6 +30,7 @@ export default function MainComposer({
   initialData = null,
   initialAttachments = [], // <-- ADD THIS
   onDataChange, // <-- ADD THIS
+  onDraftCreated
 }: MainComposerProps) {
 
   const handleSent = () => {
@@ -52,6 +54,7 @@ export default function MainComposer({
           initialData={initialData}
           initialAttachments={initialAttachments} // <-- PASS DOWN
           onDataChange={onDataChange} // <-- PASS DOWN
+          onDraftCreated={onDraftCreated}
         />
       </div>
     </Card>

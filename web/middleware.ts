@@ -1,72 +1,100 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
-import { createRateLimiter } from "./lib/rate-limit"
+// middleware.ts
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { createRateLimiter } from "./lib/rate-limit"; // Correct path
 
-// Rate limiters for different endpoints
+// --- Rate Limiter Configurations ---
+// Stricter limit for authentication attempts
 const authRateLimit = createRateLimiter({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 5, // 5 attempts per 15 minutes
-  keyGenerator: (req) => req.headers.get("x-forwarded-for") || "unknown",
-})
+  maxRequests: 10,
+});
 
+// General API limit
 const apiRateLimit = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: 100, // 100 requests per minute
-  keyGenerator: (req) => req.headers.get("x-forwarded-for") || "unknown",
-})
+  windowMs: 1 * 60 * 1000, // 1 minute
+  maxRequests: 100,
+});
 
+// High-throughput limit for trusted local services
 const smtpBridgeRateLimit = createRateLimiter({
-  windowMs: 60 * 1000, // 1 minute
-  maxRequests: 1000, // 1000 requests per minute for SMTP
-  keyGenerator: (req) => req.headers.get("x-forwarded-for") || "unknown",
-})
+  windowMs: 1 * 60 * 1000, // 1 minute
+  maxRequests: 1000,
+});
 
+// --- Main Middleware Logic ---
 export async function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl
+  const { pathname } = request.nextUrl;
+  let response: NextResponse | null = null;
 
-  // Security headers
-  const response = NextResponse.next()
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("X-XSS-Protection", "1; mode=block")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-
-  // SMTP Bridge - localhost only with high rate limit
-  if (pathname.startsWith("/api/auth/bridge") || pathname.startsWith("/api/smtp/")) {
-    const forwarded = request.headers.get("x-forwarded-for")
-    const ip = forwarded ? forwarded.split(",")[0] : request.headers.get("x-real-ip") || "127.0.0.1"
-
-    if (ip !== "127.0.0.1" && ip !== "::1") {
-      console.warn("Unauthorized access attempt to SMTP endpoint", { ip, pathname })
-      return new NextResponse("Forbidden", { status: 403 })
-    }
-
-    const rateLimitResult = await smtpBridgeRateLimit(request)
-    if (rateLimitResult) return rateLimitResult
-  }
-
-  // Auth endpoints - strict rate limiting
+  // --- Step 1: Apply Rate Limiting ---
+  // The first limiter that returns a response (a 429) will be used.
   if (pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/register")) {
-    const rateLimitResult = await authRateLimit(request)
-    if (rateLimitResult) return rateLimitResult
+    response = await authRateLimit(request);
+  } else if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
+    response = await smtpBridgeRateLimit(request);
+  } else if (pathname.startsWith("/api/")) {
+    response = await apiRateLimit(request);
   }
 
-  // General API rate limiting
-  if (pathname.startsWith("/api/")) {
-    const rateLimitResult = await apiRateLimit(request)
-    if (rateLimitResult) return rateLimitResult
+  // If a rate limit was triggered, we stop here and return the 429 response.
+  // We will add security headers to it before returning.
+  if (response) {
+     // Apply security headers to the rate limit response before returning
+     applySecurityHeaders(response);
+     return response;
   }
 
-  // Admin routes - additional security
+  // --- Step 2: Path-Specific Logic (if not rate-limited) ---
+  // Check for SMTP bridge access from localhost ONLY
+  if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
+    // In a production environment behind a proxy, `request.ip` might be the proxy's IP.
+    // Ensure your hosting provider correctly sets the IP header (Vercel does).
+    const ip = request.ip ?? "127.0.0.1";
+    const allowedIps = ["127.0.0.1", "::1"]; // Allow IPv4 and IPv6 localhost
+    if (!allowedIps.includes(ip)) {
+      console.warn(`[403] Forbidden access attempt to SMTP endpoint from IP: ${ip}`);
+      // Create a new response for the forbidden error
+      const forbiddenResponse = new NextResponse("Forbidden", { status: 403 });
+      applySecurityHeaders(forbiddenResponse); // Secure this response too
+      return forbiddenResponse;
+    }
+  }
+  
+  // --- Step 3: Prepare the Normal Response ---
+  // If we've gotten this far, the request is allowed.
+  const normalResponse = NextResponse.next();
+
+  // --- Step 4: Apply All Headers to the Final Response ---
+  applySecurityHeaders(normalResponse);
+  
   if (pathname.startsWith("/admin")) {
-    // Add additional security headers for admin
-    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate")
-    response.headers.set("Pragma", "no-cache")
+    applyAdminHeaders(normalResponse);
   }
 
-  return response
+  return normalResponse;
 }
 
-export const config = {
-  matcher: ["/api/:path*", "/admin/:path*", "/((?!_next/static|_next/image|favicon.ico).*)"],
+// --- Helper Functions for Headers ---
+function applySecurityHeaders(response: NextResponse) {
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Add Content-Security-Policy here for even stronger security
+  // response.headers.set("Content-Security-Policy", "default-src 'self'; ...");
 }
+
+function applyAdminHeaders(response: NextResponse) {
+  // Prevent caching of sensitive admin pages
+  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, private");
+  response.headers.set("Pragma", "no-cache");
+}
+
+
+// --- Matcher Configuration ---
+export const config = {
+  // Apply the middleware to API routes, admin routes, and the root.
+  // We exclude static files and images to avoid unnecessary processing.
+  matcher: ["/api/:path*", "/admin/:path*"],
+};

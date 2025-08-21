@@ -6,6 +6,7 @@ import { JWT } from "next-auth/jwt"
 import User from "@/models/User" // Your User model
 import Organization from "@/models/Organization" // Import Organization model
 import Plan from "@/models/Plan" // Import Plan model
+import { handleNewUserOnboarding } from "@/lib/auth/onboarding"
 
 // STEP 1: Update the type declarations to include all your custom data.
 // This provides type safety for your session and token objects.
@@ -143,54 +144,61 @@ export const authOptions: NextAuthOptions = {
         },
     ],
 
+    // --- NEW `events` CALLBACK ---
+    events: {
+      /**
+       * This event is triggered only when a new user is created in the database.
+       * It's the perfect place to run first-time setup logic.
+       */
+      async createUser({ user }) {
+        // We call our dedicated helper function to handle the logic.
+        // We don't need to `await` it here if we don't want to block the
+        // login response, but it's generally safer to do so.
+        await handleNewUserOnboarding(user);
+      }
+    },
+
     callbacks: {
         // STEP 2: The JWT callback is where the token is created and enriched.
         // This runs on the server ONLY.
-        async jwt({ token, user, account }) {
-            // This block runs only on initial sign-in when the `user` object is available.
+        async jwt({ token, user, account }) { // <-- `isNewUser` is available here
+            // On initial sign-in, the 'user' object is available.
             if (user && account) {
-                // Fetch the user from YOUR database to get all the custom fields.
-                // We use populate to efficiently get related Organization and Plan data in one go.
+                // IMPORTANT: The `populate` query might fail on the very first sign-in
+                // because the `createUser` event runs concurrently. It's safer to fetch
+                // the user again here to ensure the `org_id` has been set.
                 const dbUser = await User.findById(user.id).populate({
-                    path: 'org_id', // Populate the organization referenced by org_id
-                    populate: {
-                        path: 'plan_id' // Then, populate the plan referenced in the organization
-                    }
+                    path: 'org_id',
+                    populate: { path: 'plan_id' }
                 });
                 
                 if (!dbUser) {
-                    // This should not happen if the adapter is working correctly, but it's a safe check.
-                    return token;
+                    return token; // Should not happen
                 }
+                
 
-                // Now, attach all the required data from your models to the token.
+                // Now, attach all the required data to the token.
                 token.id = dbUser._id.toString();
                 token.name = dbUser.name;
                 token.email = dbUser.email;
-                token.role = dbUser.role;
+                token.role = dbUser.role; // This will now correctly be "owner" for new users
                 token.mailboxAccess = dbUser.mailboxAccess;
-                token.org_id = dbUser.org_id._id.toString();
+                token.org_id = dbUser.org_id?._id.toString(); // Safely access org_id
                 token.onboarding = {
-                    completed: dbUser.onboarding.completed
+                    completed: dbUser.onboarding?.completed || false,
                 };
 
                 // Safely access the populated plan name
                 if (dbUser.org_id && dbUser.org_id.plan_id) {
                     token.plan = dbUser.org_id.plan_id.name;
                 } else {
-                    token.plan = 'none'; // Default value if plan is not found
+                    token.plan = 'none';
                 }
-
-                // Placeholder for 'nextDueDate'. You need to implement logic to get this.
-                // For example, it might come from a subscription field on the Organization model.
-                // token.nextDueDate = dbUser.org_id.subscriptionEndDate?.toISOString();
-
                 return token;
             }
-
-            // For subsequent requests, the data is already in the token, so we just return it.
             return token;
         },
+
 
         // STEP 3: The session callback makes the token data available to the client.
         // It receives the enriched token from the `jwt` callback.

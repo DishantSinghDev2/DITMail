@@ -1,15 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Message from "@/models/Message"
 import Contact from "@/models/Contact"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { SessionUser } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
 
     const { searchParams } = new URL(request.url)
     const query = searchParams.get("q")
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
     if (query) {
       // Search contacts by name or email
       contacts = await Contact.find({
-        user_id: user._id,
+        user_id: user.id,
         $or: [{ name: { $regex: query, $options: "i" } }, { email: { $regex: query, $options: "i" } }],
       })
         .sort({ last_contacted: -1 })
@@ -32,7 +36,7 @@ export async function GET(request: NextRequest) {
       const recentContacts = await Message.aggregate([
         {
           $match: {
-            user_id: user._id,
+            user_id: user.id,
             $or: [{ status: "sent" }, { status: "received" }],
           },
         },
@@ -90,7 +94,7 @@ export async function GET(request: NextRequest) {
 
       // Merge with saved contacts
       const savedContacts = await Contact.find({
-        user_id: user._id,
+        user_id: user.id,
       })
         .sort({ last_contacted: -1 })
         .limit(limit)
@@ -137,10 +141,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
 
     const { name, email, phone, organization, notes } = await request.json()
 
@@ -158,7 +164,7 @@ export async function POST(request: NextRequest) {
 
     // Check if contact already exists
     const existingContact = await Contact.findOne({
-      user_id: user._id,
+      user_id: user.id,
       email: email.trim().toLowerCase(),
     })
 
@@ -172,7 +178,7 @@ export async function POST(request: NextRequest) {
       phone: phone?.trim() || "",
       organization: organization?.trim() || "",
       notes: notes?.trim() || "",
-      user_id: user._id,
+      user_id: user.id,
       org_id: user.org_id,
       last_contacted: new Date(),
     })

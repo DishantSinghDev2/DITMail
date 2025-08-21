@@ -1,15 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Message from "@/models/Message"
-import { getAuthUser } from "@/lib/auth"
 import Draft from "@/models/Draft"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
     await connectDB()
 
@@ -17,7 +20,7 @@ export async function GET(request: NextRequest) {
     const [inboxCounts, sentCounts, draftsCounts, starredCounts, archiveCounts, spamCounts, trashCounts] =
       await Promise.all([
         Message.aggregate([
-          { $match: { user_id: user._id, folder: "inbox" } },
+          { $match: { user_id: user.id, folder: "inbox" } },
           {
             $group: {
               _id: null,
@@ -27,7 +30,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Message.aggregate([
-          { $match: { user_id: user._id, folder: "sent" } },
+          { $match: { user_id: user.id, folder: "sent" } },
           {
             $group: {
               _id: null,
@@ -37,7 +40,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Draft.aggregate([
-          { $match: { user_id: user._id} },
+          { $match: { user_id: user.id} },
           {
             $group: {
               _id: null,
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Message.aggregate([
-          { $match: { user_id: user._id, starred: true } },
+          { $match: { user_id: user.id, starred: true } },
           {
             $group: {
               _id: null,
@@ -57,7 +60,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Message.aggregate([
-          { $match: { user_id: user._id, folder: "archive" } },
+          { $match: { user_id: user.id, folder: "archive" } },
           {
             $group: {
               _id: null,
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Message.aggregate([
-          { $match: { user_id: user._id, folder: "spam" } },
+          { $match: { user_id: user.id, folder: "spam" } },
           {
             $group: {
               _id: null,
@@ -77,7 +80,7 @@ export async function GET(request: NextRequest) {
           },
         ]),
         Message.aggregate([
-          { $match: { user_id: user._id, folder: "trash" } },
+          { $match: { user_id: user.id, folder: "trash" } },
           {
             $group: {
               _id: null,

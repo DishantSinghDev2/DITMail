@@ -1,91 +1,77 @@
-import type { NextRequest } from "next/server"
+// lib/rate-limit.ts
+import { NextRequest, NextResponse } from "next/server";
 
 interface RateLimitOptions {
-  windowMs: number
-  maxRequests: number
-  keyGenerator?: (request: NextRequest) => string
+  windowMs: number;
+  maxRequests: number;
+  keyGenerator?: (request: NextRequest) => string;
 }
 
-// Simple in-memory rate limiting for Edge Runtime
-const rateLimitStore = new Map<string, { count: number; resetTime: number }>()
+/**
+ * IMPORTANT: This is an in-memory rate limiter.
+ * In a serverless environment like Vercel's Edge Runtime, the memory (the 'store')
+ * is NOT persistent across different function invocations. Each request is handled
+ * by a new, separate instance.
+ *
+ * This means this rate limiter will only be effective for:
+ * 1. Local development (`next dev`).
+ * 2. Deployments to a single, long-running Node.js server instance.
+ *
+ * For production deployments on serverless platforms, a persistent external
+ * store like Upstash Redis is STRONGLY recommended for true rate limiting.
+ */
+const store = new Map<string, { count: number; expiresAt: number }>();
 
-// Clean up expired entries periodically
+// Periodically clean up expired entries to prevent memory leaks in long-running servers.
+// Note: This has no effect in a serverless environment but is good practice.
 setInterval(() => {
-  const now = Date.now()
-  for (const [key, value] of rateLimitStore.entries()) {
-    if (now > value.resetTime) {
-      rateLimitStore.delete(key)
+  const now = Date.now();
+  for (const [key, value] of store.entries()) {
+    if (now > value.expiresAt) {
+      store.delete(key);
     }
   }
-}, 60000) // Clean up every minute
+}, 60 * 1000); // Clean up every minute
 
-export async function rateLimit(
-  request: NextRequest,
-  options: RateLimitOptions,
-): Promise<{ success: boolean; remaining: number; resetTime: number }> {
-  const key = options.keyGenerator ? options.keyGenerator(request) : request.headers.get("x-forwarded-for") || "unknown"
-  const now = Date.now()
-  const windowStart = Math.floor(now / options.windowMs) * options.windowMs
-  const resetTime = windowStart + options.windowMs
-  const rateLimitKey = `${key}:${windowStart}`
-
-  try {
-    const current = rateLimitStore.get(rateLimitKey)
-
-    if (!current || now > current.resetTime) {
-      // Reset or initialize counter
-      rateLimitStore.set(rateLimitKey, { count: 1, resetTime })
-      return {
-        success: true,
-        remaining: options.maxRequests - 1,
-        resetTime,
-      }
-    }
-
-    if (current.count >= options.maxRequests) {
-      return {
-        success: false,
-        remaining: 0,
-        resetTime: current.resetTime,
-      }
-    }
-
-    // Increment counter
-    current.count++
-    rateLimitStore.set(rateLimitKey, current)
-
-    return {
-      success: true,
-      remaining: options.maxRequests - current.count,
-      resetTime: current.resetTime,
-    }
-  } catch (error) {
-    console.error("Rate limiting error:", error)
-    // Allow request if there's an error
-    return {
-      success: true,
-      remaining: options.maxRequests - 1,
-      resetTime,
-    }
-  }
-}
-
+/**
+ * Creates a rate limiter middleware function.
+ * @param options Configuration for the rate limiter.
+ * @returns An async function that checks the request and returns a 429 response if limited, or null otherwise.
+ */
 export function createRateLimiter(options: RateLimitOptions) {
-  return async (request: NextRequest) => {
-    const result = await rateLimit(request, options)
+  return async (request: NextRequest): Promise<NextResponse | null> => {
+    // Use the request IP or a custom key generator.
+    const key = options.keyGenerator?.(request) ?? request.ip ?? "127.0.0.1";
+    const now = Date.now();
 
-    if (!result.success) {
-      return new Response("Too Many Requests", {
+    const current = store.get(key);
+    
+    // If the window has expired, reset the entry.
+    if (!current || now > current.expiresAt) {
+      store.set(key, {
+        count: 1,
+        expiresAt: now + options.windowMs,
+      });
+      return null; // Not limited
+    }
+
+    // If the request limit has been reached, block the request.
+    if (current.count >= options.maxRequests) {
+      const retryAfter = Math.ceil((current.expiresAt - now) / 1000);
+      return new NextResponse("Too Many Requests", {
         status: 429,
         headers: {
-          "X-RateLimit-Limit": options.maxRequests.toString(),
+          "X-RateLimit-Limit": String(options.maxRequests),
           "X-RateLimit-Remaining": "0",
-          "X-RateLimit-Reset": result.resetTime.toString(),
-          "Retry-After": Math.ceil((result.resetTime - Date.now()) / 1000).toString(),
+          "X-RateLimit-Reset": String(current.expiresAt),
+          "Retry-After": String(retryAfter),
         },
-      })
+      });
     }
 
-    return null // Continue with request
-  }
+    // Increment the count and allow the request.
+    current.count++;
+    store.set(key, current);
+    return null; // Not limited
+  };
 }

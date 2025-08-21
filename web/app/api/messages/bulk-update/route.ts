@@ -1,17 +1,20 @@
 // app/api/messages/bulk-update/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
-import { getAuthUser } from "@/lib/auth"; // Assuming you have this helper
-import connectDB from "@/lib/db"; // Assuming you have this helper
+import {connectDB} from "@/lib/db"; // Assuming you have this helper
 import Message from "@/models/Message"; // Your Mongoose Message model
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
     // 1. Authenticate the user
-    const user = await getAuthUser(request);
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
     // 2. Parse the request body
     const { action, messageIds } = await request.json();
@@ -57,7 +60,7 @@ export async function POST(request: NextRequest) {
 
     // 5. Create the query to update only the user's messages
     const filter = {
-      user_id: user._id,
+      user_id: user.id,
       _id: { $in: messageIds },
     };
 

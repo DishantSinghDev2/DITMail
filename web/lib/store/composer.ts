@@ -1,13 +1,13 @@
 // lib/store/composer.ts
 import { create } from 'zustand';
-import { emailSchema } from '@/lib/schemas'; // Your Zod schema
+import { emailSchema } from '@/lib/schemas';
 import { z } from 'zod';
-import { Attachment } from '@/components/editor/email-editor'; // Your Attachment type
+import { Attachment } from '@/components/editor/email-editor';
 
-// Define the shape of the data that can open the composer
 export interface ComposerOpenData {
-  replyToMessage?: any; // Replace 'any' with a proper Message type if available
-  forwardMessage?: any; // Replace 'any' with a proper Message type
+  draftId?: string;
+  replyToMessage?: any;
+  forwardMessage?: any;
   initialData?: z.infer<typeof emailSchema> | null;
   initialAttachments?: Attachment[];
 }
@@ -16,8 +16,9 @@ type ComposerState = {
   // State properties
   isOpen: boolean;
   isMaximized: boolean;
-  
+
   // Data properties
+  draftId?: string;
   mode: 'reply' | 'forward' | 'new';
   replyToMessage?: any;
   forwardMessage?: any;
@@ -26,16 +27,19 @@ type ComposerState = {
 
   // Actions
   openComposer: (data?: ComposerOpenData) => void;
+    reopenComposer: (data: ComposerOpenData) => void; // <--- NEW ACTION
   closeComposer: () => void;
   toggleMaximize: () => void;
   toggleMinimize: () => void;
   updateComposerData: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void;
+  setDraftId: (draftId: string) => void;
 };
 
-export const useComposerStore = create<ComposerState>((set) => ({
-  // Initial state
+export const useComposerStore = create<ComposerState>((set, get) => ({ // <-- Add `get` to access current state
+  // Initial state is simpler now
   isOpen: false,
   isMaximized: false,
+  draftId: undefined,
   mode: 'new',
   replyToMessage: undefined,
   forwardMessage: undefined,
@@ -43,43 +47,58 @@ export const useComposerStore = create<ComposerState>((set) => ({
   composerAttachments: [],
 
   // --- ACTIONS ---
-  openComposer: (data) => {
+  openComposer: (data = {}) => {
+    // If it's already open, do nothing. Let reopenComposer handle changes.
+    if (get().isOpen || get().isMaximized) return;
+
     let mode: 'reply' | 'forward' | 'new' = 'new';
-    if (data?.replyToMessage) mode = 'reply';
-    if (data?.forwardMessage) mode = 'forward';
+    if (data.replyToMessage) mode = 'reply';
+    if (data.forwardMessage) mode = 'forward';
 
     set({
       isOpen: true,
-      isMaximized: false, // Always open in mini mode first
+      isMaximized: false,
+      draftId: data.draftId,
       mode,
-      replyToMessage: data?.replyToMessage,
-      forwardMessage: data?.forwardMessage,
-      composerData: data?.initialData || null,
-      composerAttachments: data?.initialAttachments || [],
+      replyToMessage: data.replyToMessage,
+      forwardMessage: data.forwardMessage,
+      composerData: data.initialData || null,
+      composerAttachments: data.initialAttachments || [],
+    });
+  },
+
+  // --- NEW ACTION FOR RE-OPENING ---
+  reopenComposer: (data) => {
+    let mode: 'reply' | 'forward' | 'new' = 'new';
+    if (data.replyToMessage) mode = 'reply';
+    if (data.forwardMessage) mode = 'forward';
+
+    set({
+      // Ensure it's in the "mini" state when reopening
+      isOpen: true,
+      isMaximized: false, 
+      // Reset all data properties with the new draft's data
+      draftId: data.draftId,
+      mode,
+      replyToMessage: data.replyToMessage,
+      forwardMessage: data.forwardMessage,
+      composerData: data.initialData || null,
+      composerAttachments: data.initialAttachments || [],
     });
   },
   
   closeComposer: () => set({
     isOpen: false,
     isMaximized: false,
+    draftId: undefined,
     composerData: null,
     composerAttachments: [],
     replyToMessage: undefined,
     forwardMessage: undefined,
   }),
   
-  toggleMaximize: () => set((state) => ({ 
-    isMaximized: true, 
-    isOpen: false // Close the mini-composer when maximizing
-  })),
-
-  toggleMinimize: () => set({ 
-    isMaximized: false, 
-    isOpen: true // Open the mini-composer when minimizing
-  }),
-
-  updateComposerData: (data, attachments) => set({
-    composerData: data,
-    composerAttachments: attachments,
-  }),
+  toggleMaximize: () => set({ isMaximized: true, isOpen: false }),
+  toggleMinimize: () => set({ isMaximized: false, isOpen: true }),
+  updateComposerData: (data, attachments) => set({ composerData: data, composerAttachments: attachments }),
+  setDraftId: (draftId) => set({ draftId }),
 }));

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { MessageThread } from "@/types";
 import { formatDistanceToNow } from "date-fns";
@@ -18,6 +18,7 @@ import {
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 import Dropdown from "../ui/Dropdown"; // Assuming path is correct
 import { ArrowDownWideNarrow, ChevronDown, MailMinus, MailOpen, OctagonAlert } from "lucide-react";
+import { useComposerStore } from "@/lib/store/composer"; // <--- IMPORT ZUSTAND STORE
 
 // --- PROPS INTERFACE ---
 interface MessageListClientProps {
@@ -51,7 +52,9 @@ export function MessageListClient({
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
+  const searchParams = useSearchParams(); // <--- Get access to URL query params
 
+  const pathname = usePathname();
   // --- EFFECTS ---
   // Reset selection when messages change (e.g., navigating pages/folders)
   useEffect(() => {
@@ -84,9 +87,9 @@ export function MessageListClient({
       });
 
       if (!response.ok) throw new Error("API request failed");
-      
+
       toast({ title: "Success", description: "Messages have been updated." });
-      
+
       // router.refresh() tells Next.js to re-run the Server Component's data fetch
       router.refresh();
     } catch (error) {
@@ -94,26 +97,26 @@ export function MessageListClient({
       toast({ title: "Error", description: "Could not update messages.", variant: "destructive" });
     }
   };
-  
-  const handleSingleStar = async (messageId: string, starred: boolean) => {
-      // Refresh immediately for snappy UI, then perform the action.
-      // In a real-world scenario, you might do an optimistic update here.
-      router.refresh(); 
 
-      try {
-        await fetch('/api/messages/bulk-update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: starred ? 'star' : 'unstar',
-                messageIds: [messageId],
-                currentFolder: folder
-            })
-        });
-      } catch (error) {
-        toast({ title: "Error", description: "Could not update star status.", variant: "destructive" });
-        // You could add logic to revert the optimistic update here.
-      }
+  const handleSingleStar = async (messageId: string, starred: boolean) => {
+    // Refresh immediately for snappy UI, then perform the action.
+    // In a real-world scenario, you might do an optimistic update here.
+    router.refresh();
+
+    try {
+      await fetch('/api/messages/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: starred ? 'star' : 'unstar',
+          messageIds: [messageId],
+          currentFolder: folder
+        })
+      });
+    } catch (error) {
+      toast({ title: "Error", description: "Could not update star status.", variant: "destructive" });
+      // You could add logic to revert the optimistic update here.
+    }
   };
 
   const handleRefresh = () => {
@@ -129,9 +132,24 @@ export function MessageListClient({
   };
 
   const onMessageSelect = (message: MessageThread) => {
-    router.push(`/mail/${folder}/${message._id}`);
+    const params = new URLSearchParams(window.location.search);
+
+    if (message.isDraft) {
+      // For a draft, set the 'compose' param to the draft's ID
+      params.set('compose', message._id);
+      router.push(`${pathname}?${params.toString()}`);
+    } else {
+      // For a regular message, navigate to its detail page
+      // We also clear the 'compose' param to ensure the composer closes
+      params.delete('compose');
+      const queryString = params.toString();
+      router.push(`/mail/${folder}/${message._id}${queryString ? `?${queryString}` : ''}`);
+    }
   };
-  
+
+
+
+
   // --- SELECTION & SORTING ---
   const handleSelectMessage = (messageId: string, checked: boolean) => {
     const newSelected = new Set(selectedMessages);
@@ -142,23 +160,23 @@ export function MessageListClient({
     }
     setSelectedMessages(newSelected);
   };
-  
+
   const handleSelectionChange = (type: "all" | "none" | "read" | "unread" | "starred" | "unstarred") => {
     let newSelectedIds = new Set<string>();
     if (type === "all") {
-        newSelectedIds = new Set(initialMessages.map((msg) => msg._id));
+      newSelectedIds = new Set(initialMessages.map((msg) => msg._id));
     } else if (type !== "none") {
-        initialMessages.forEach((msg) => {
-            const condition =
-              (type === "read" && msg.read) ||
-              (type === "unread" && !msg.read) ||
-              (type === "starred" && msg.starred) ||
-              (type === "unstarred" && !msg.starred);
+      initialMessages.forEach((msg) => {
+        const condition =
+          (type === "read" && msg.read) ||
+          (type === "unread" && !msg.read) ||
+          (type === "starred" && msg.starred) ||
+          (type === "unstarred" && !msg.starred);
 
-            if (condition) {
-                newSelectedIds.add(msg._id);
-            }
-        });
+        if (condition) {
+          newSelectedIds.add(msg._id);
+        }
+      });
     }
     setSelectedMessages(newSelectedIds);
   };
@@ -182,7 +200,7 @@ export function MessageListClient({
   }, [initialMessages, sortBy, sortOrder, folder]);
 
   const currentMessages = sortedMessages();
-  
+
   // --- RENDER LOGIC ---
   const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
   const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
@@ -214,7 +232,7 @@ export function MessageListClient({
                 align="left"
               />
             </div>
-            
+
             {selectedMessages.size > 0 ? (
               <div className="flex items-center space-x-1">
                 <button title="Archive" onClick={() => handleBulkAction('archive')} className="p-2 hover:bg-gray-100 rounded-full"><ArchiveBoxIcon className="h-4 w-4 text-gray-500" /></button>
@@ -279,7 +297,7 @@ export function MessageListClient({
                     {message.starred ? (<StarIconSolid className="h-5 w-5 text-yellow-500" />) : (<StarIcon className="h-5 w-5 text-gray-300 hover:text-gray-500" />)}
                   </button>
                 </div>
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start">
                     <div className="text-sm truncate pr-2">

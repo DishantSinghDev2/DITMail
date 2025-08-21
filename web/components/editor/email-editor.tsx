@@ -24,18 +24,20 @@ import { send } from "process"
 
 // (Interfaces remain the same)
 interface EmailEditorProps {
-  onClose: () => void
-  onSent: () => void
-  onMinimize?: () => void
-  onMaximize?: () => void
-  replyToMessage?: any
-  forwardMessage?: any
-  initialDraftId?: string
-  isMinimized?: boolean
-  initialData?: z.infer<typeof emailSchema> | null
-  initialAttachments?: Attachment[] // <-- ADD THIS
-  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void // <-- RENAME/ADD THIS
+  onClose: () => void;
+  onSent: () => void;
+  onMinimize?: () => void;
+  onMaximize?: () => void;
+  replyToMessage?: any;
+  forwardMessage?: any;
+  draftId?: string; // <-- This prop is now the source of truth
+  isMinimized?: boolean;
+  initialData?: z.infer<typeof emailSchema> | null;
+  initialAttachments?: Attachment[];
+  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void;
+  onDraftCreated?: (newDraftId: string) => void; // This now acts as `setDraftId`
 }
+
 
 export interface Attachment {
   _id: string
@@ -52,18 +54,18 @@ export function EmailEditor({
   onSent,
   onMinimize,
   onMaximize,
+  draftId, // <-- Use the prop directly
   replyToMessage,
   forwardMessage,
-  initialDraftId,
   isMinimized = false,
   initialData = null,
   initialAttachments = [], // <-- ADD THIS
   onDataChange, // <-- RENAME/ADD THIS
+  onDraftCreated
 }: EmailEditorProps) {
   const { toast } = useToast()
   const [isSending, setIsSending] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [draftId, setDraftId] = useState(initialDraftId)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
   const [showCc, setShowCc] = useState(false)
   const [showBcc, setShowBcc] = useState(false)
@@ -93,35 +95,27 @@ export function EmailEditor({
     },
   });
 
-  // --- REFACTORED: ASYNCHRONOUS DATA LOADING ---
+  // --- COMPLETE DATA LOADING useEffect ---
   useEffect(() => {
     const loadData = async () => {
-
-      if (initialData && initialData.content) {
-        console.log("Hydrating from initialData prop");
-        form.reset(initialData); // Use form.reset to update all fields and form state
+      // --- Priority 1: Hydrate from initialData prop ---
+      // This is the primary method used when the store already has the draft's data,
+      // for example, when switching between open drafts or maximizing the composer.
+      if (initialData) {
+        console.log("Hydrating composer from initialData prop...");
+        form.reset(initialData);
         if (initialData.cc) setShowCc(true);
         if (initialData.bcc) setShowBcc(true);
-        // Let the second useEffect handle setting content in the editor
-        return; 
+        setUploadedAttachments(initialAttachments);
       }
-      const token = localStorage.getItem("accessToken")
-      const conversationId = replyToMessage?.message_id || forwardMessage?.message_id
-      let draftToLoadId = initialDraftId
-      let loadedFromApi = false
-
-      if (!draftToLoadId && conversationId) {
+      // --- Priority 2: Fetch draft by ID from URL ---
+      // This runs when the page is loaded with a `?compose=[draftId]` URL.
+      else if (draftId) {
+        console.log(`Fetching draft ${draftId} from API...`);
         try {
-          const localDrafts = JSON.parse(localStorage.getItem(`draft-${conversationId}`) || "[]")
-          if (localDrafts.length > 0) draftToLoadId = localDrafts[0]._id
-        } catch (e) { console.warn("Could not search for existing draft.", e) }
-      }
-
-      if (draftToLoadId) {
-        try {
-          const res = await fetch(`/api/drafts/${draftToLoadId}`, { headers: { Authorization: `Bearer ${token}` } })
-          if (!res.ok) throw new Error("Draft not found in API")
-          const { draft } = await res.json()
+          const res = await fetch(`/api/drafts/${draftId}`);
+          if (!res.ok) throw new Error("Draft not found in API");
+          const { draft } = await res.json();
 
           form.reset({
             to: draft.to?.join(", ") || "",
@@ -129,53 +123,70 @@ export function EmailEditor({
             bcc: draft.bcc?.join(", ") || "",
             subject: draft.subject || "",
             content: draft.html || "<p></p>",
-          })
-
-          setDraftId(draft._id)
-          setUploadedAttachments(draft.attachments || [])
-          if (draft.cc?.length) setShowCc(true)
-          if (draft.bcc?.length) setShowBcc(true)
-          loadedFromApi = true
-        } catch (error) { console.error("Failed to load draft from API, proceeding with standard reply/forward.", error) }
+          });
+          setUploadedAttachments(draft.attachments || []);
+          if (draft.cc?.length) setShowCc(true);
+          if (draft.bcc?.length) setShowBcc(true);
+        } catch (error) {
+          console.error("Failed to load draft from API:", error);
+          toast({ title: "Error", description: "Could not load the requested draft.", variant: "destructive" });
+          onClose(); // Close composer to prevent a broken state
+        }
       }
+      // --- Priority 3: Set up a new composition (blank, reply, or forward) ---
+      else {
+        console.log("Setting up a new composition...");
+        let content = "<p><br></p>"; // Start with a blank line
+        let subject = "";
+        let to = "";
+        let attachments: Attachment[] = [];
 
-      if (!loadedFromApi) {
-        let content = "<p><br></p>"
-        let attachments: Attachment[] = []
+        const createQuotedBlock = (message: any) => {
+          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a");
+          const header = `<p>On ${formattedDate}, ${message.from} wrote:</p>`;
+          return `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`;
+        };
 
-        const createQuotedBlock = (message: any, type: 'reply' | 'forward') => {
-          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a")
-          let header = ''
-          if (type === 'reply') {
-            header = `<p>On ${formattedDate}, ${message.from} wrote:</p>`
-          } else {
-            header = `<p>---------- Forwarded message ---------<br>From: ${message.from}<br>Date: ${formattedDate}<br>Subject: ${message.subject}<br>To: ${message.to?.join(", ")}</p>`
-          }
-          return `<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`
+        const createForwardedBlock = (message: any) => {
+          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a");
+          const header = `<p>---------- Forwarded message ---------<br>From: ${message.from}<br>Date: ${formattedDate}<br>Subject: ${message.subject}<br>To: ${message.to?.join(", ")}</p><br>`;
+          return `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`;
         }
 
         if (replyToMessage) {
-          content += createQuotedBlock(replyToMessage, 'reply')
+          to = replyToMessage.from; // Reply to the sender
+          subject = `Re: ${replyToMessage.subject}`;
+          content += createQuotedBlock(replyToMessage);
+          setIsEditingSubject(false); // By default, don't show the subject editor for replies
         } else if (forwardMessage) {
-          content += createQuotedBlock(forwardMessage, 'forward')
-          attachments = forwardMessage.attachments || []
-          setUploadedAttachments(attachments)
+          subject = `Fwd: ${forwardMessage.subject}`;
+          content += createForwardedBlock(forwardMessage);
+          attachments = forwardMessage.attachments || []; // Carry over attachments
+          setUploadedAttachments(attachments);
+          setIsEditingSubject(true); // Always show subject for forwards
+        } else {
+          // It's a brand new message
+          setIsEditingSubject(true);
         }
 
-        form.setValue("content", content, { shouldDirty: false })
+        form.reset({ content, subject, to, cc: "", bcc: "" });
       }
 
+      // --- Final step: Set editor content and focus ---
+      // This runs after any of the above branches complete.
       setTimeout(() => {
         if (editorRef.current) {
-          editorRef.current.setContent(form.getValues("content"))
-          editorRef.current.focus()
-          formInitialized.current = true;
+          const editorContent = form.getValues("content");
+          editorRef.current.setContent(editorContent);
+          editorRef.current.focus(); // Focus at the start of the editor
         }
-      }, 50)
-    }
+      }, 100); // A small delay ensures the editor is fully rendered
+    };
 
-    loadData()
-  }, [initialDraftId, replyToMessage, forwardMessage])
+    loadData();
+    // This effect should re-run ONLY when the composer is fundamentally changed,
+    // i.e., when a new draft is opened or a new reply/forward is initiated.
+  }, [draftId, initialData, initialAttachments, replyToMessage, forwardMessage]);
 
   useEffect(() => {
     setTimeout(() => {
@@ -224,23 +235,25 @@ export function EmailEditor({
       }
 
       try {
-        const token = localStorage.getItem("accessToken")
-        const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts"
-        const method = draftId ? "PATCH" : "POST"
-        const response = await fetch(url, {
-          method,
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(payload),
-        })
+        // --- THIS IS THE CRITICAL FIX ---
+        // The URL and method now depend directly on the `draftId` PROP.
+        const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
+        const method = draftId ? "PATCH" : "POST";
+
+        const response = await fetch(url, { /* ... fetch options ... */ });
         if (response.ok) {
-          const result = await response.json()
-          if (!draftId) setDraftId(result.draft._id)
-          setLastSaved(new Date())
+          const result = await response.json();
+          // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
+          // which is the `setDraftId` function from the parent.
+          if (!draftId && onDraftCreated) {
+            onDraftCreated(result.draft._id);
+          }
+          setLastSaved(new Date());
         }
-      } catch (error) { console.error("Auto-save error:", error) }
-      finally { setIsSaving(false) }
+      } catch (error) { console.error("Auto-save error:", error); }
+      finally { setIsSaving(false); }
     },
-    [draftId, replyToMessage, forwardMessage, onDataChange],
+    [draftId, replyToMessage, forwardMessage, onDataChange, onDraftCreated] // <-- Add dependencies
   )
 
   const debouncedSave = useCallback(debounce(saveDraft, 500), [saveDraft])
