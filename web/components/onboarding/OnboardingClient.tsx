@@ -90,33 +90,30 @@ export function OnboardingClient() {
   const handleComplete = async (finalData?: any) => {
     try {
       if (finalData?.userEmail) {
-        await fetch('/api/mail/send-welcome', {
+        const res = await fetch('/api/mail/send-welcome', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
         });
+        if (res.ok) {
+          await update({ email: finalData?.userEmail });
+          await update({ mailboxAccess: true })
+        } else {
+          return;
+        }
       }
 
-      await update({ email: finalData?.userEmail });
-      
+
       const response = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: true }),
       });
       if (!response.ok) throw new Error("Server failed to finalize onboarding.");
-      const sessionRes = await update({ onboarding: { completed: true } });
-      
+      await update({ onboarding: { completed: true } });
       // Find the index of the "complete" step in the potentially modified array
-      const completeStepIndex = steps.findIndex(s => s.id === 'complete');
-      if (completeStepIndex !== -1) {
-        setCurrentStep(completeStepIndex);
-      }
-      if(sessionRes?.user.onboarding.completed){
-        router.push("/mail/inbox");
-      } else {
-        router.refresh()
-      }
+
+      router.push("/mail/inbox");
 
     } catch (error) {
       console.error("Onboarding completion error:", error);

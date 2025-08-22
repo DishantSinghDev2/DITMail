@@ -3,9 +3,17 @@ import Message from '@/models/Message';
 import User from '@/models/User';
 import { connectDB } from '@/lib/db';
 import { ObjectId } from 'mongodb';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 
 export async function POST(request: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    const userSession = session?.user as SessionUser | undefined;
+    if (!userSession) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
     const { email, name } = await request.json();
 
     if (!email || !name) {
@@ -14,8 +22,7 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    // Find the user
-    const user = await User.findOne({ email }) || await User.findOne({ name }); // fallback: maybe search by name
+    const user = await User.findOne({ _id: userSession.id })
 
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -23,37 +30,21 @@ export async function POST(request: Request) {
 
     // Check if email is ditmail.online
     if (email.endsWith('@ditmail.online')) {
+      // Prepare the update object. Always grant mailbox access.
+      const updatePayload: { mailboxAccess: boolean; email?: string } = {
+        mailboxAccess: true,
+      };
+
+      // Conditionally add the email to the payload ONLY if it has changed.
       if (user.email !== email) {
-        const oldEmail = user.email;
-
-        // Update the user's email in DB
-        await User.updateOne({_id: user._id}, {
-          $set: {
-            email,
-            mailboxAccess: true
-          }
-        })
-
-        // If old email existed and was different, notify external API
-        // if (oldEmail && oldEmail !== email) {
-        //   try {
-        //     await fetch('https://external.api/notify-email-change', {
-        //       method: 'POST',
-        //       headers: { 'Content-Type': 'application/json' },
-        //       body: JSON.stringify({
-        //         oldEmail,
-        //         newEmail: email,
-        //         userId: user._id.toString(),
-        //       }),
-        //     });
-        //   } catch (apiErr) {
-        //     console.error('External API call failed:', apiErr);
-        //   }
-        // }
+        updatePayload.email = email;
       }
+
+      // Perform the update. This will now run even if the emails are the same.
+      await User.updateOne({ _id: user._id }, { $set: updatePayload });
     }
 
-    // Create welcome email message
+    // Create welcome email message (no changes needed here)
     const welcomeEmail = new Message({
       message_id: new ObjectId(),
       user_id: user._id,
@@ -71,7 +62,7 @@ export async function POST(request: Request) {
 
     await welcomeEmail.save();
 
-    return NextResponse.json({ success: true, message: 'Welcome email created.' });
+    return NextResponse.json({ success: true, message: 'Welcome email created and access granted.' });
   } catch (error) {
     console.error("Failed to create welcome email:", error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

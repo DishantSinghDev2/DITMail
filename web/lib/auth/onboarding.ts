@@ -16,7 +16,7 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
     await connectDB();
 
     // Find the user in the database to check their status.
-    const dbUser = await User.findById(user.id);
+    const dbUser = await User.findOne({email: user.email});
 
     // Check if the user exists and does not already have an organization.
     // If they do, they are not a new user for onboarding purposes.
