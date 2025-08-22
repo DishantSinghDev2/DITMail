@@ -7,111 +7,177 @@ import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "@/hooks/use-toast";
 import LoadingSpinner from "@/components/ui/LoadingSpinner";
+import { SessionUser } from "@/types";
 
-// --- Placeholder Step Components ---
-// In your real app, these would be your detailed components like OrganizationSetup, etc.
-const OnboardingStep = ({ title, onNext }: { title: string, onNext: () => void }) => (
-  <div className="text-center">
-    <h2 className="text-3xl font-bold text-gray-800 mb-4">{title}</h2>
-    <p className="text-gray-500 mb-8">This is a placeholder for the {title.toLowerCase()} step.</p>
-    <button onClick={onNext} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-      Continue
-    </button>
-  </div>
-);
+// --- IMPORT YOUR ACTUAL ONBOARDING STEP COMPONENTS ---
+import OnboardingWelcome from "@/components/onboarding/OnboardingWelcome";
+import OrganizationSetup from "@/components/onboarding/OrganizationSetup";
+import DomainSetup from "@/components/onboarding/DomainSetup";
+import DomainVerification from "@/components/onboarding/DomainVerification";
+import UserSetup from "@/components/onboarding/UserSetup";
+import ProfileSetup from "@/components/onboarding/ProfileSetup";
+import OnboardingComplete from "@/components/onboarding/OnboardingComplete";
 
-const steps = [
-  { id: "welcome", title: "Welcome to DITMail!" },
-  { id: "organization", title: "Set Up Your Organization" },
-  { id: "domain", title: "Connect Your Domain" },
-  { id: "users", title: "Invite Your Team" },
-  { id: "complete", title: "You're All Set!" },
+// Define the base structure of your onboarding steps
+const baseSteps = [
+  { id: "welcome", title: "Welcome", component: OnboardingWelcome },
+  { id: "organization", title: "Organization", component: OrganizationSetup },
+  { id: "domain", title: "Choose Your Email", component: DomainSetup },
+  // NOTE: Verification and Users steps are now added/removed dynamically
+  { id: "profile", title: "Your Profile", component: ProfileSetup },
+  { id: "complete", title: "Setup Complete", component: OnboardingComplete },
 ];
 
 export function OnboardingClient() {
   const router = useRouter();
-  const { data: session, status } = useSession(); // Use next-auth's hook
+  const { data: session, status } = useSession({ required: true });
+  
+  const [steps, setSteps] = useState(baseSteps);
   const [currentStep, setCurrentStep] = useState(0);
+  const [onboardingData, setOnboardingData] = useState<any>({});
 
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
+  const handleNext = (data?: any) => {
+    let newOnboardingData = onboardingData;
+    if (data) {
+      newOnboardingData = { ...onboardingData, ...data };
+      setOnboardingData(newOnboardingData);
+    }
+    
+    // --- DYNAMIC STEP LOGIC ---
+    const currentStepId = steps[currentStep].id;
+    let nextSteps = [...steps]; // Create a mutable copy
+
+    if (currentStepId === 'domain') {
+      if (data?.domain?.domain) {
+        // --- PATH 1: Custom Domain ---
+        // User added a custom domain, so we need to add the verification and user setup steps.
+        const verificationStep = { id: "domainVerification", title: "Verification", component: DomainVerification };
+        const usersStep = { id: "users", title: "Invite Team", component: UserSetup };
+        
+        // Insert verification if not present
+        if (!nextSteps.find(s => s.id === 'domainVerification')) {
+          nextSteps.splice(currentStep + 1, 0, verificationStep);
+        }
+        // Insert user setup if not present
+        if (!nextSteps.find(s => s.id === 'users')) {
+          // Find the new index of domain verification to insert after it
+          const verificationIndex = nextSteps.findIndex(s => s.id === 'domainVerification');
+          nextSteps.splice(verificationIndex + 1, 0, usersStep);
+        }
+
+      } else {
+        // --- PATH 2: DITMail.online (or Skip) ---
+        // User chose the free email, so we REMOVE the verification and user setup steps.
+        nextSteps = nextSteps.filter(step => step.id !== 'domainVerification' && step.id !== 'users');
+      }
+      setSteps(nextSteps);
+    }
+    
+    if (currentStep < nextSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      handleComplete();
+      // If we are at the last step after filtering, complete the process
+      handleComplete(newOnboardingData);
     }
   };
-
-  const handleComplete = async () => {
+  
+  const handlePrevious = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+  
+  const handleComplete = async (finalData?: any) => {
     try {
+      if (finalData?.userEmail) {
+        await fetch('/api/mail/send-welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
+        });
+      }
+
       const response = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: true }), // Send a clear payload
+        body: JSON.stringify({ completed: true }),
       });
-      if (!response.ok) {
-        throw new Error("Server failed to complete onboarding.");
+      if (!response.ok) throw new Error("Server failed to finalize onboarding.");
+
+      // Find the index of the "complete" step in the potentially modified array
+      const completeStepIndex = steps.findIndex(s => s.id === 'complete');
+      if(completeStepIndex !== -1) {
+          setCurrentStep(completeStepIndex);
+      } else {
+          // Fallback if complete step is somehow missing
+          router.push("/mail/inbox");
       }
-      toast({ title: "Setup Complete!", description: "Redirecting you to your shiny new inbox..." });
-      // Use router.push which is the standard in App Router client components
-      router.push("/mail/inbox");
+      
     } catch (error) {
       console.error("Onboarding completion error:", error);
       toast({
         title: "Oh no! Something went wrong.",
-        description: "We couldn't save your progress. Please try again.",
+        description: "We couldn't save your final step. Please try again.",
         variant: "destructive",
       });
     }
   };
 
-  if (status === "loading") {
+  if (status === "loading" || !session?.user) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
   }
 
+  const CurrentStepComponent = steps[currentStep].component;
+  
   const variants = {
-    enter: { opacity: 0, y: 20 },
-    center: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 },
+    enter: { opacity: 0, x: 50 },
+    center: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -50 },
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex flex-col items-center justify-center p-4">
-        {/* Cute Mascot/Logo */}
-        <div className="mb-8 text-5xl animate-bounce">💌</div>
-        
-        <div className="w-full max-w-2xl bg-white/70 backdrop-blur-xl rounded-2xl shadow-lg p-8 border">
-            {/* Progress Bar */}
-            <div className="mb-8">
-                <div className="flex justify-between mb-1 text-xs font-medium text-gray-500">
-                    <span>{steps[currentStep].title}</span>
-                    <span>Step {currentStep + 1} of {steps.length}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                    <motion.div
-                        className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full"
-                        initial={{ width: 0 }}
-                        animate={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-                        transition={{ duration: 0.5, ease: "easeInOut" }}
-                    />
-                </div>
-            </div>
-
-            {/* Animated Step Content */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentStep}
-                    variants={variants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    transition={{ duration: 0.3 }}
-                >
-                   {/* Replace this with your actual step components */}
-                   <OnboardingStep title={steps[currentStep].title} onNext={handleNext} />
-                </motion.div>
-            </AnimatePresence>
+    <div className="min-h-screen bg-gray-50">
+      <header className="fixed top-0 left-0 right-0 z-10 bg-white/80 backdrop-blur-sm border-b">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <h1 className="text-lg font-semibold text-gray-800">DITMail Setup</h1>
+            <span className="text-sm font-medium text-gray-500">
+              {steps[currentStep].id !== 'complete' ? `Step ${currentStep + 1} / ${steps.length}` : 'Done!'}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+            <motion.div
+              className="bg-blue-600 h-1.5 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${((currentStep) / (steps.length - 1)) * 100}%` }}
+              transition={{ duration: 0.5, ease: "easeInOut" }}
+            />
+          </div>
         </div>
-        <p className="mt-8 text-xs text-gray-400">DITMail Onboarding Experience</p>
+      </header>
+
+      <main className="pt-28 pb-12">
+        <div className="max-w-2xl mx-auto px-6">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentStep}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.3, ease: "easeInOut" }}
+            >
+              <CurrentStepComponent
+                onNext={handleNext}
+                onPrevious={handlePrevious}
+                onComplete={handleComplete}
+                data={onboardingData}
+                user={session.user as SessionUser}
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </main>
     </div>
   );
 }

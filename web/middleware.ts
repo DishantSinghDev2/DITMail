@@ -2,6 +2,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { createRateLimiter } from "./lib/rate-limit"; // Correct path
+import { getToken } from "next-auth/jwt";
 
 // --- Rate Limiter Configurations ---
 // Stricter limit for authentication attempts
@@ -23,58 +24,67 @@ const smtpBridgeRateLimit = createRateLimiter({
 });
 
 // --- Main Middleware Logic ---
+// --- Main Middleware Logic ---
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  let response: NextResponse | null = null;
 
-  // --- Step 1: Apply Rate Limiting ---
-  // The first limiter that returns a response (a 429) will be used.
-  if (pathname.startsWith("/api/auth/login") || pathname.startsWith("/api/auth/register")) {
-    response = await authRateLimit(request);
+  // --- Step 1: Session Check for Protected Routes ---
+  // We check for a session on all routes protected by the matcher
+  // except for the auth API routes themselves.
+  if (!pathname.startsWith('/api/auth')) {
+    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
+
+    // If there is no token (user is not logged in)
+    if (!token) {
+      const signInUrl = new URL("/api/auth/signin/wyi", request.url);
+      // Append a callbackUrl so the user is redirected back to the
+      // page they originally tried to visit after logging in.
+      signInUrl.searchParams.set("callbackUrl", request.url);
+      
+      // Redirect to the NextAuth.js sign-in page. Because we have only one
+      // OAuth provider and no custom login page, NextAuth will automatically
+      // redirect from here to the WYI OAuth screen.
+      return NextResponse.redirect(signInUrl);
+    }
+  }
+
+  // --- Step 2: Apply Rate Limiting (if the user has a session or is accessing /api/auth) ---
+  let rateLimitResponse: NextResponse | null = null;
+  if (pathname.startsWith("/api/auth")) { // Apply auth rate limit specifically
+    rateLimitResponse = await authRateLimit(request);
   } else if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
-    response = await smtpBridgeRateLimit(request);
+    rateLimitResponse = await smtpBridgeRateLimit(request);
   } else if (pathname.startsWith("/api/")) {
-    response = await apiRateLimit(request);
+    rateLimitResponse = await apiRateLimit(request);
   }
 
-  // If a rate limit was triggered, we stop here and return the 429 response.
-  // We will add security headers to it before returning.
-  if (response) {
-     // Apply security headers to the rate limit response before returning
-     applySecurityHeaders(response);
-     return response;
+  if (rateLimitResponse) {
+     applySecurityHeaders(rateLimitResponse);
+     return rateLimitResponse;
   }
 
-  // --- Step 2: Path-Specific Logic (if not rate-limited) ---
-  // Check for SMTP bridge access from localhost ONLY
+  // --- Step 3: Path-Specific Logic (if allowed) ---
   if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
-    // In a production environment behind a proxy, `request.ip` might be the proxy's IP.
-    // Ensure your hosting provider correctly sets the IP header (Vercel does).
     const ip = request.ip ?? "127.0.0.1";
-    const allowedIps = ["127.0.0.1", "::1"]; // Allow IPv4 and IPv6 localhost
+    const allowedIps = ["127.0.0.1", "::1"];
     if (!allowedIps.includes(ip)) {
       console.warn(`[403] Forbidden access attempt to SMTP endpoint from IP: ${ip}`);
-      // Create a new response for the forbidden error
       const forbiddenResponse = new NextResponse("Forbidden", { status: 403 });
-      applySecurityHeaders(forbiddenResponse); // Secure this response too
+      applySecurityHeaders(forbiddenResponse);
       return forbiddenResponse;
     }
   }
   
-  // --- Step 3: Prepare the Normal Response ---
-  // If we've gotten this far, the request is allowed.
-  const normalResponse = NextResponse.next();
-
-  // --- Step 4: Apply All Headers to the Final Response ---
-  applySecurityHeaders(normalResponse);
+  // --- Step 4: Prepare and Secure the Normal Response ---
+  const response = NextResponse.next();
+  applySecurityHeaders(response);
   
   if (pathname.startsWith("/admin")) {
-    applyAdminHeaders(normalResponse);
+    applyAdminHeaders(response);
   }
 
-  return normalResponse;
+  return response;
 }
-
 // --- Helper Functions for Headers ---
 function applySecurityHeaders(response: NextResponse) {
   response.headers.set("X-Content-Type-Options", "nosniff");

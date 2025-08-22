@@ -1,16 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Domain from "@/models/Domain"
-import { getAuthUser } from "@/lib/auth"
 import { verifyDNSRecords } from "@/lib/dns"
 import { logAuditEvent } from "@/lib/audit"
+import { getServerSession } from "next-auth";
+import { SessionUser } from "@/types";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
-    if (!user || !["owner", "admin"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+    const session = await getServerSession(authOptions);
+      const user = session?.user as SessionUser | undefined;
+    
+      // Use the standard, secure way to get the session.
+      if (!user) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
 
     await connectDB()
 
@@ -33,7 +38,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     const updatedDomain = await Domain.findByIdAndUpdate(params.id, updates, { new: true })
 
     await logAuditEvent({
-      user_id: user._id,
+      user_id: user.id,
       action: "domain_verification_check",
       details: { domain: domain.domain, verification },
       ip: request.headers.get("x-forwarded-for") || "unknown",

@@ -1,15 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Domain from "@/models/Domain"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { SessionUser } from "@/types";
 import { generateDKIMKeys } from "@/lib/dns"
 import Organization from "@/models/Organization"
+import { authOptions } from "../auth/[...nextauth]/route";
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+
+    // Use the standard, secure way to get the session.
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     await connectDB()
@@ -19,8 +24,8 @@ export async function GET(request: NextRequest) {
       domain: domain || null,
       dnsRecords: domain ? {
         txt: `${domain.domain} IN TXT "ditmail-verification=${domain.verification_code}"`,
-        mx: `${domain.domain} IN MX 10 mx.freecustom.email.`,
-        spf: `${domain.domain} IN TXT "v=spf1 mx include:smtp.freecustom.email -all"`,
+        mx: `${domain.domain} IN MX 10 mx.ditmail.online.`,
+        spf: `${domain.domain} IN TXT "v=spf1 mx include:smtp.ditmail.online -all"`,
         dkim: `default._domainkey.${domain.domain} IN TXT "v=DKIM1; k=rsa; p=${domain.dkim_public_key}"`,
         dmarc: `_dmarc.${domain.domain} IN TXT "v=DMARC1; p=reject; rua=mailto:dmarc@${domain.domain}"`,
       } : null,
@@ -32,16 +37,19 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+
+    // Use the standard, secure way to get the session.
     if (!user || !["owner", "admin"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { domain } = await request.json()
 
     const validity = isValidDomain(domain)
-    
-    if (!validity.allowed){
+
+    if (!validity.allowed) {
       return NextResponse.json({ error: `Domain extention ${validity.tld} isn't allowed to be used with DITMail` }, { status: 422 })
     }
 
@@ -82,8 +90,8 @@ export async function POST(request: NextRequest) {
       domain: newDomain,
       dnsRecords: {
         txt: `${domain} IN TXT "ditmail-verification=${verificationCode}"`,
-        mx: `${domain} IN MX 10 mx.freecustom.email.`,
-        spf: `${domain} IN TXT "v=spf1 mx include:smtp.freecustom.email -all"`,
+        mx: `${domain} IN MX 10 mx.ditmail.online.`,
+        spf: `${domain} IN TXT "v=spf1 mx include:smtp.ditmail.online -all"`,
         dkim: `default._domainkey.${domain} IN TXT "v=DKIM1; k=rsa; p=${publicKey}"`,
         dmarc: `_dmarc.${domain} IN TXT "v=DMARC1; p=reject; rua=mailto:dmarc@${domain}"`,
       },

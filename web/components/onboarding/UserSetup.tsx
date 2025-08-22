@@ -42,6 +42,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   const { toast } = useToast()
   const [existingUsers, setExistingUsers] = useState<any[]>([])
 
+
+  // Safely get the custom domain name. If it doesn't exist, we know it's a ditmail.online setup.
+  const customDomainName = data?.domain?.domain?.domain;
+  const emailSuffix = customDomainName ? `@${customDomainName}` : `@ditmail.online`;
+
   useEffect(() => {
     // Fetch existing users from API if available
     const fetchUsers = async () => {

@@ -1,421 +1,261 @@
+// components/onboarding/DomainVerification.tsx
 "use client";
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Copy } from 'lucide-react';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from '@/components/ui/table';
-import copy from 'copy-to-clipboard';
+
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { motion } from "framer-motion";
 import { useToast } from '@/hooks/use-toast';
+import { useSession } from 'next-auth/react'; // <-- Use next-auth's hook for tokenless auth
+import copy from 'copy-to-clipboard';
+import { ArrowRightIcon, CheckCircleIcon, ClipboardCopyIcon, HelpCircleIcon, LoaderCircleIcon, SparklesIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
-interface Domain {
-    _id: string;
-    domain: string;
-    org_id: { _id: string; name: string; plan_id: string; created_at: string; __v: number };
-    dkim_verified: boolean;
-    mx_verified: boolean;
-    spf_verified: boolean;
-    dmarc_verified: boolean;
-    status: string;
-    dkim_public_key: string;
-    dkim_private_key: string;
-    created_at: string;
-    __v: number;
-}
+// --- REACT ICONS IMPORTS ---
+import { IconType } from 'react-icons';
+import { SiCloudflare, SiGodaddy, SiGooglecloud, SiNamecheap, SiDigitalocean, SiVercel, SiNetlify } from 'react-icons/si';
+import { FaAws, FaQuestionCircle } from 'react-icons/fa';
+import { SessionUser } from '@/types'; // Your custom session user type
 
-interface DNSRecords {
-    txt: string;
-    mx: string;
-    spf: string;
-    dkim: string;
-    dmarc: string;
-}
+// --- Type Definitions ---
+interface Domain { _id: string; domain: string; }
+interface VerificationResult { verification: { [key in RecordType]: boolean }; }
+interface ParsedRecord { type: string; name: string; value: string; priority?: number; }
+const recordTypes = ['mx', 'spf', 'dkim', 'dmarc'] as const;
+type RecordType = typeof recordTypes[number];
 
 interface DomainVerificationProps {
-    onNext: (data: any) => void;
-    onPrevious: () => void;
-    data: any
-    user: any
-    currentStep?: number;
+  onNext: (data: any) => void;
+  onPrevious: () => void;
+  data: { domain: { domain: Domain; dnsRecords: { [key: string]: string } } };
+  user: SessionUser; // Pass the user from the parent
 }
 
-interface VerificationResult {
-    domain: Domain;
-    verification: {
-        txt: boolean;
-        mx: boolean;
-        spf: boolean;
-        dkim: boolean;
-        dmarc: boolean;
-        details: {
-            txt: string[];
-            mx: string[];
-            spf: string[];
-            dkim: string[];
-            dmarc: string[];
-        };
-    }
+// --- Provider Detection Logic ---
+interface ProviderInfo {
+  name: string;
+  Icon: IconType;
+  color: string;
 }
 
-interface ParsedRecord {
-    type: string;
-    name: string;
-    value: string;
-    priority?: number; // Only for MX
-}
+const DNS_PROVIDERS: { [key: string]: ProviderInfo } = {
+  'cloudflare': { name: 'Cloudflare', Icon: SiCloudflare, color: '#F38020' },
+  'godaddy': { name: 'GoDaddy', Icon: SiGodaddy, color: '#1BDBDB' },
+  'domains.google': { name: 'Google Domains', Icon: SiGooglecloud, color: '#4285F4' },
+  'namecheap': { name: 'Namecheap', Icon: SiNamecheap, color: '#D42D2A' },
+  'aws': { name: 'AWS Route 53', Icon: FaAws, color: '#FF9900' },
+  'digitalocean': { name: 'DigitalOcean', Icon: SiDigitalocean, color: '#0080FF' },
+  'vercel': { name: 'Vercel', Icon: SiVercel, color: '#000000' },
+  'netlify': { name: 'Netlify', Icon: SiNetlify, color: '#00C7B7' },
+  'unknown': { name: 'your domain provider', Icon: FaQuestionCircle, color: '#6B7280' }
+};
 
-// Helper function to parse DNS record strings
-const parseDnsRecordString = (recordString: string): ParsedRecord | null => {
+// --- Helper Functions ---
+const parseDnsRecord = (recordString: string): ParsedRecord | null => {
     if (!recordString) return null;
-
     const parts = recordString.split(/\s+/);
-    if (parts.length < 4) return null; // Minimum parts: name IN TYPE value
-
+    if (parts.length < 4) return null;
     const name = parts[0];
-    const type = parts[2]; // e.g., MX, TXT
-
+    const type = parts[2];
     if (type === 'MX') {
-        // e.g., khareeedlo.live IN MX 10 mx.freecustom.email.
         const priority = parseInt(parts[3], 10);
-        const value = parts.slice(4).join(' ').replace(/\.$/, ''); // Remove trailing dot from MX value
+        const value = parts.slice(4).join(' ').replace(/\.$/, '');
         return { type, name, value, priority };
     } else if (type === 'TXT') {
-        // e.g., khareeedlo.live IN TXT "v=spf1 mx include:smtp.freecustom.email -all"
-        // The value is everything from the 4th part onwards, potentially quoted.
         let value = parts.slice(3).join(' ');
-        // Remove leading/trailing quotes from TXT record values
-        if (value.startsWith('"') && value.endsWith('"')) {
-            value = value.slice(1, -1);
-        }
+        if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1);
         return { type, name, value };
     }
-    // Add other record types if needed, though for this context, MX and TXT are sufficient.
     return null;
 };
 
-
-const recordTypes = ['txt', 'mx', 'spf', 'dkim', 'dmarc'] as const;
-type RecordType = typeof recordTypes[number];
-
-export default function DomainVerification({ data, onNext, onPrevious, user, currentStep }: DomainVerificationProps) {
-    const [verification, setVerification] = useState<VerificationResult | null>(null);
-    const [dnsProvider, setDnsProvider] = useState<string | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isGuidanceOpen, setIsGuidanceOpen] = useState(false);
-
+// --- Main Component ---
+export default function DomainVerification({ data, onNext, onPrevious }: DomainVerificationProps) {
+    const { data: session } = useSession(); // Use session for API calls
+    const [verification, setVerification] = useState<VerificationResult['verification'] | null>(null);
+    const [provider, setProvider] = useState<ProviderInfo>(DNS_PROVIDERS['unknown']);
+    const [isVerifying, setIsVerifying] = useState(true);
     const { toast } = useToast();
 
-    const { domain, dnsRecords: expDnsRecords } = data.domain;
+        // --- THE FIX for Bug #2 ---
+    // Safely destructure, providing a fallback empty object if dnsRecords is missing.
+    const { domain, dnsRecords: requiredDnsRecords } = data?.domain || { domain: null, dnsRecords: {} };
+
+    const recordsToConfigure = useMemo(() => {
+        // Add a guard clause: if there are no required records, return an empty array.
+        if (!requiredDnsRecords || Object.keys(requiredDnsRecords).length === 0) {
+            return [];
+        }
+        return recordTypes.map(type => ({
+            type,
+            ...parseDnsRecord(requiredDnsRecords[type])
+        })).filter(r => r.name);
+    }, [requiredDnsRecords]);
+
+    const isAllVerified = useMemo(() => {
+        return verification && Object.values(verification).every(status => status === true);
+    }, [verification]);
+    
+    // --- API & Side Effects ---
+    const verifyDomain = useCallback(async () => {
+        if (!session || !domain?._id) return; // Guard against missing data
+        setIsVerifying(true);
+        try {
+            const res = await fetch(`/api/domains/${domain._id}/verify`);
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Failed to fetch verification status.');
+            }
+            const data: VerificationResult = await res.json();
+            setVerification(data.verification);
+
+            const allGood = Object.values(data.verification).every(v => v);
+            if (allGood) {
+                toast({
+                    title: "All records verified! 🎉",
+                    description: "Your domain is ready to send and receive email.",
+                    variant: "default",
+                });
+            }
+        } catch (err: any) {
+            toast({
+                title: "Verification Failed",
+                description: err.message || "Could not check DNS records. Please try again.",
+                variant: 'destructive',
+            });
+        } finally {
+            setIsVerifying(false);
+        }
+    }, [domain._id, session, toast]);
 
     useEffect(() => {
+        const detectDnsProvider = async (domainName: string) => {
+            try {
+                const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${domainName}&type=NS`, { headers: { Accept: 'application/dns-json' } });
+                const data = await res.json();
+                const nsRecords = data.Answer?.map((a: any) => a.data.toLowerCase()).join(', ') || '';
+                const foundProviderKey = Object.keys(DNS_PROVIDERS).find(key => nsRecords.includes(key));
+                setProvider(DNS_PROVIDERS[foundProviderKey || 'unknown']);
+            } catch {
+                setProvider(DNS_PROVIDERS['unknown']);
+            }
+        };
+
         detectDnsProvider(domain.domain);
-        verifyDomain(domain._id);
-    }, [domain]);
+        verifyDomain(); // Initial verification
+        
+        const interval = setInterval(verifyDomain, 30000); // Poll every 30 seconds
+        return () => clearInterval(interval);
+    }, [domain.domain, verifyDomain]);
 
-    const detectDnsProvider = async (domainName: string) => {
-        try {
-            const res = await fetch(`https://cloudflare-dns.com/dns-query?name=${domainName}&type=NS`, {
-                headers: { Accept: 'application/dns-json' },
-            });
-            const data = await res.json();
-            const ns = data.Answer?.map((a: any) => a.data.toLowerCase()).join(', ');
-            if (ns?.includes('cloudflare')) {
-                setDnsProvider('Cloudflare');
-            } else if (ns?.includes('google')) {
-                setDnsProvider('Google Domains');
-            } else if (ns?.includes('aws')) {
-                setDnsProvider('AWS Route 53');
-            } else if (ns?.includes('godaddy')) {
-                setDnsProvider('GoDaddy');
-            }
-            else {
-                setDnsProvider('Unknown');
-            }
-        } catch {
-            setDnsProvider('Unknown');
-        }
-    };
-
-    const verifyDomain = async (domainId: string) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const token = localStorage.getItem('accessToken');
-            const res = await axios.get<VerificationResult>(`/api/domains/${domainId}/verify`, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            setVerification(res.data);
-        } catch (err) {
-            setError('Failed to verify domain. Please try again.');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const copyToClipboard = (text: string) => {
+    // --- Handlers ---
+    const copyToClipboard = (text: string, field: string) => {
         if (copy(text)) {
-            toast({
-                title: 'Copied to clipboard',
-                description: 'The DNS record has been copied successfully.',
-                variant: 'default',
-            });
+            toast({ title: `Copied ${field}!` });
         }
+    };
+
+    const handleAutoConfigure = () => {
+        const domainConnectUrl = `https://domainconnect.org/getting-started/`;
+        window.open(domainConnectUrl, '_blank');
+        toast({ title: "Redirecting to your provider...", description: "Follow their steps to apply settings automatically." });
     };
 
     return (
-        <div className="p-6 max-w-5xl mx-auto">
-            <h1 className="text-2xl font-semibold mb-4">Verify DNS Records for {domain.domain}</h1>
-            {error && <p className="text-red-500 mb-2">{error}</p>}
-            <p className="mb-4">Detected DNS Provider: <span className="font-medium">{dnsProvider}</span></p>
+        <Dialog>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                <div className="text-center mb-10">
+                    <div className="w-16 h-16 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <CheckCircleIcon className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Verify your domain</h2>
+                    <div className="flex items-center justify-center text-gray-500">
+                        Add these records at
+                        <provider.Icon style={{ color: provider.color }} className="w-4 h-4 mx-1.5" />
+                        <span className="font-semibold" style={{ color: provider.color }}>{provider.name}</span>
+                        to activate
+                        <span className="font-semibold text-gray-700 ml-1">{domain.domain}</span>.
+                    </div>
+                </div>
 
-            <Tabs defaultValue="txt">
-                <TabsList className="grid w-full grid-cols-5">
-                    {recordTypes.map((record) => (
-                        <TabsTrigger key={record} value={record} className="capitalize">
-                            {record.toUpperCase()}
-                            {verification && (
-                                <span className={`ml-2 text-lg ${verification.verification[record] ? 'text-green-500' : 'text-red-500'}`}>
-                                    {verification.verification[record] ? '✅' : '❌'}
-                                </span>
-                            )}
-                        </TabsTrigger>
-                    ))}
-                </TabsList>
-
-                {recordTypes.map((record) => (
-                    <TabsContent key={record} value={record}>
-                        <Card className="mt-4">
-                            <CardContent className="p-4 space-y-6">
-                                {/* Section: Required Record Configuration */}
-                                <div>
-                                    <h2 className="text-lg font-semibold mb-3">Required {record.toUpperCase()} Record Configuration</h2>
-                                    {(() => {
-                                        const requiredRecord = parseDnsRecordString(expDnsRecords?.[record] || '');
-                                        if (!requiredRecord) return <p className="text-gray-500">No required record information available.</p>;
-
-                                        return (
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead className="w-[100px]">Type</TableHead>
-                                                        <TableHead>Name/Host</TableHead>
-                                                        <TableHead>Value/Content</TableHead>
-                                                        {requiredRecord.type === 'MX' && <TableHead className="w-[80px]">Priority</TableHead>}
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    <TableRow>
-                                                        <TableCell className="font-medium">{requiredRecord.type}</TableCell>
-                                                        <TableCell className="font-mono text-sm break-all">
-                                                            <div className="flex items-center gap-2">
-                                                                <span>{requiredRecord.name}</span>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() => copyToClipboard(requiredRecord.name)}
-                                                                    aria-label="Copy Name"
-                                                                >
-                                                                    <Copy size={16} />
-                                                                </Button>
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="font-mono text-sm break-all">
-                                                            <div className="flex items-center gap-2">
-                                                                <span>{requiredRecord.value}</span>
-                                                                <Button
-                                                                    variant="ghost"
-                                                                    size="icon"
-                                                                    onClick={() => copyToClipboard(requiredRecord.value)}
-                                                                    aria-label="Copy Value"
-                                                                >
-                                                                    <Copy size={16} />
-                                                                </Button>
-                                                            </div>
-                                                        </TableCell>
-                                                        {requiredRecord.type === 'MX' && (
-                                                            <TableCell className="font-mono text-sm">
-                                                                <div className="flex items-center gap-2">
-                                                                    <span>{requiredRecord.priority}</span>
-                                                                    <Button
-                                                                        variant="ghost"
-                                                                        size="icon"
-                                                                        onClick={() => copyToClipboard(String(requiredRecord.priority))}
-                                                                        aria-label="Copy Priority"
-                                                                    >
-                                                                        <Copy size={16} />
-                                                                    </Button>
-                                                                </div>
-                                                            </TableCell>
-                                                        )}
-                                                    </TableRow>
-                                                </TableBody>
-                                            </Table>
-                                        );
-                                    })()}
-                                </div>
-
-                                {/* Section: Current Verification Status */}
-                                <div>
-                                    <h2 className="text-lg font-semibold mb-3">Current Verification Status</h2>
-                                    <p className="font-medium mb-2">
-                                        Status: {verification?.verification[record] ? '✅ Verified' : '❌ Not Verified'}
-                                    </p>
-
-                                    <div>
-                                        <p className="font-medium mb-1">Live DNS Value(s) Detected:</p>
-                                        <ul className="text-sm list-disc ml-5">
-                                            {verification?.verification.details && (verification?.verification.details[record]?.length ?? 0) > 0 ? (
-                                                verification?.verification.details[record]?.map((liveRecordStr, idx) => {
-                                                    const parsedLiveRecord = parseDnsRecordString(liveRecordStr);
-                                                    return parsedLiveRecord ? (
-                                                        <li key={idx} className="flex items-center gap-2 mb-1">
-                                                            <span className="font-mono break-all">
-                                                                {parsedLiveRecord.name} {parsedLiveRecord.type} {parsedLiveRecord.priority ? `${parsedLiveRecord.priority} ` : ''}{parsedLiveRecord.value}
-                                                            </span>
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                onClick={() => copyToClipboard(liveRecordStr)}
-                                                                aria-label="Copy Live Record"
-                                                            >
-                                                                <Copy size={14} />
-                                                            </Button>
-                                                        </li>
-                                                    ) : (
-                                                        <li key={idx} className="text-gray-500">Could not parse or unrecognized format: {liveRecordStr}</li>
-                                                    );
-                                                })
-                                            ) : (
-                                                <li className="text-gray-500">No live DNS records found.</li>
-                                            )}
-                                        </ul>
+                <Card className="p-6 md:p-8 mb-8">
+                    <div className="flex flex-col md:flex-row items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-gray-800">Required DNS Records</h3>
+                        <Button onClick={handleAutoConfigure} className="mt-4 md:mt-0 bg-blue-600 hover:bg-blue-700">
+                            <SparklesIcon className="w-4 h-4 mr-2" />
+                            Configure Automatically
+                        </Button>
+                    </div>
+                    <div className="space-y-6">
+                        {recordsToConfigure.map(record => (
+                            <div key={record.type} className="border-b border-gray-200 pb-6 last:border-b-0 last:pb-0">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex items-center">
+                                        {isVerifying ? (
+                                            <LoaderCircleIcon className="w-5 h-5 text-gray-400 animate-spin" />
+                                        ) : verification?.[record.type] ? (
+                                            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }}><CheckCircleIcon className="w-5 h-5 text-green-500" /></motion.div>
+                                        ) : (
+                                            <div className="w-5 h-5 flex items-center justify-center">
+                                                <div className="w-2.5 h-2.5 bg-yellow-400 rounded-full animate-pulse"></div>
+                                            </div>
+                                        )}
+                                        <span className="ml-3 font-medium text-gray-700 uppercase">{record.type} Record</span>
                                     </div>
+                                    <DialogTrigger asChild>
+                                        <Button variant="link" size="sm" className="text-xs h-auto py-0 px-1">How to add?</Button>
+                                    </DialogTrigger>
                                 </div>
-                            </CardContent>
-                        </Card>
-                    </TabsContent>
-                ))}
-            </Tabs>
-
-            <div className="mt-8 flex flex-wrap gap-4">
-                <Button variant="outline" onClick={() => setIsGuidanceOpen(true)}>
-                    How to add DNS records?
-                </Button>
-                <Button variant="outline" onClick={() => verifyDomain(domain._id)} disabled={loading}>
-                    {loading ? 'Re-checking...' : 'Re-check Records'}
-                </Button>
-            </div>
-
-            <div className="mt-6 flex justify-between">
-                <Button variant="outline" onClick={onPrevious}>Previous</Button>
-                <Button onClick={() => onNext({ domain: data.domain })}>Next</Button>
-            </div>
-
-            {/* DNS Guidance Dialog */}
-            <Dialog open={isGuidanceOpen} onOpenChange={setIsGuidanceOpen}>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                    <DialogHeader>
-                        <DialogTitle>How to Add DNS Records</DialogTitle>
-                        <DialogDescription>
-                            Follow these steps to add the necessary DNS records to your domain provider (e.g., Cloudflare, GoDaddy, Namecheap).
-                            <br /><br />
-                            <strong>General Steps:</strong>
-                            <div>
-                                <ol className="list-decimal pl-5 mt-2 space-y-1">
-                                    <li>Log in to your domain provider's control panel.</li>
-                                    <li>Navigate to the DNS management section (often labeled "DNS", "Zone Editor", or "DNS Records").</li>
-                                    <li>Add each of the following records:</li>
-                                </ol>
+                                <div className="bg-gray-50 p-4 rounded-lg space-y-3">
+                                    {['name', 'value', 'priority'].map(field => {
+                                        if (!record[field]) return null;
+                                        const label = field === 'name' ? 'Hostname' : field.charAt(0).toUpperCase() + field.slice(1);
+                                        return (
+                                            <div key={field}>
+                                                <label className="text-xs font-semibold text-gray-500 uppercase">{label}</label>
+                                                <div className="flex items-center bg-white border rounded-md mt-1">
+                                                    <p className="flex-grow p-2 font-mono text-sm text-gray-800 break-all">{record[field]}</p>
+                                                    <Button variant="ghost" size="icon" onClick={() => copyToClipboard(String(record[field]), label)} className="h-full text-gray-400 hover:text-blue-600">
+                                                        <ClipboardCopyIcon className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        ))}
+                    </div>
+                </Card>
+
+                <div className="pt-4 flex justify-between items-center">
+                    <Button variant="ghost" onClick={onPrevious}>Back</Button>
+                    <div className="flex items-center space-x-4">
+                        <Button variant="outline" onClick={verifyDomain} disabled={isVerifying}>
+                            {isVerifying && <LoaderCircleIcon className="w-4 h-4 mr-2 animate-spin" />}
+                            Re-check Status
+                        </Button>
+                        <Button
+                            onClick={() => onNext({ domain: data.domain })}
+                            disabled={!isAllVerified}
+                            className="group inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                            {isAllVerified ? 'Continue' : 'Waiting for Verification'}
+                            <ArrowRightIcon className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+                        </Button>
+                    </div>
+                </div>
+                
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>How to Add a DNS Record</DialogTitle>
+                        <DialogDescription>
+                            Log in to your domain provider ({provider.name}) and find the DNS management page. Add a new record with the exact Hostname and Value provided for each record type. DNS changes can take a few minutes to a few hours to propagate.
                         </DialogDescription>
                     </DialogHeader>
-
-                    <div className="space-y-6 mt-4">
-                        {recordTypes.map((recordType) => {
-                            const requiredRecord = parseDnsRecordString(expDnsRecords?.[recordType] || '');
-                            if (!requiredRecord) return null;
-
-                            return (
-                                <div key={recordType} className="border p-4 rounded-md">
-                                    <h3 className="text-md font-semibold mb-2">{recordType.toUpperCase()} Record</h3>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="w-[100px]">Type</TableHead>
-                                                <TableHead>Name/Host</TableHead>
-                                                <TableHead>Value/Content</TableHead>
-                                                {requiredRecord.type === 'MX' && <TableHead className="w-[80px]">Priority</TableHead>}
-                                                <TableHead className="w-[50px] text-right">Copy</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            <TableRow>
-                                                <TableCell className="font-medium">{requiredRecord.type}</TableCell>
-                                                <TableCell className="font-mono text-sm break-all">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{requiredRecord.name}</span>
-                                                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(requiredRecord.name)} aria-label="Copy Name">
-                                                            <Copy size={16} />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="font-mono text-sm break-all">
-                                                    <div className="flex items-center gap-2">
-                                                        <span>{requiredRecord.value}</span>
-                                                        <Button variant="ghost" size="icon" onClick={() => copyToClipboard(requiredRecord.value)} aria-label="Copy Value">
-                                                            <Copy size={16} />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                                {requiredRecord.type === 'MX' && (
-                                                    <TableCell className="font-mono text-sm">
-                                                        <div className="flex items-center gap-2">
-                                                            <span>{requiredRecord.priority}</span>
-                                                            <Button variant="ghost" size="icon" onClick={() => copyToClipboard(String(requiredRecord.priority))} aria-label="Copy Priority">
-                                                                <Copy size={16} />
-                                                            </Button>
-                                                        </div>
-                                                    </TableCell>
-                                                )}
-                                                <TableCell className="text-right">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => copyToClipboard(expDnsRecords?.[recordType] || '')}
-                                                        aria-label="Copy full record"
-                                                    >
-                                                        <Copy size={16} />
-                                                    </Button>
-                                                </TableCell>
-                                            </TableRow>
-                                        </TableBody>
-                                    </Table>
-                                    <p className="text-sm text-gray-600 mt-2">
-                                        <strong>Note:</strong> Some providers might require you to enter "@" for the root domain or omit the domain name if it's automatically appended (e.g., for <code>{domain.domain}</code> as the name, just enter <code>@</code> or leave blank). For subdomains like <code>default._domainkey</code> or <code>_dmarc</code>, just enter the subdomain part.
-                                    </p>
-                                </div>
-                            );
-                        })}
-                    </div>
                 </DialogContent>
-            </Dialog>
-        </div>
+            </motion.div>
+        </Dialog>
     );
 }
