@@ -30,8 +30,8 @@ const baseSteps = [
 
 export function OnboardingClient() {
   const router = useRouter();
-  const { data: session, status } = useSession({ required: true });
-  
+  const { data: session, status, update } = useSession({ required: true });
+
   const [steps, setSteps] = useState(baseSteps);
   const [currentStep, setCurrentStep] = useState(0);
   const [onboardingData, setOnboardingData] = useState<any>({});
@@ -42,7 +42,7 @@ export function OnboardingClient() {
       newOnboardingData = { ...onboardingData, ...data };
       setOnboardingData(newOnboardingData);
     }
-    
+
     // --- DYNAMIC STEP LOGIC ---
     const currentStepId = steps[currentStep].id;
     let nextSteps = [...steps]; // Create a mutable copy
@@ -53,7 +53,7 @@ export function OnboardingClient() {
         // User added a custom domain, so we need to add the verification and user setup steps.
         const verificationStep = { id: "domainVerification", title: "Verification", component: DomainVerification };
         const usersStep = { id: "users", title: "Invite Team", component: UserSetup };
-        
+
         // Insert verification if not present
         if (!nextSteps.find(s => s.id === 'domainVerification')) {
           nextSteps.splice(currentStep + 1, 0, verificationStep);
@@ -72,7 +72,7 @@ export function OnboardingClient() {
       }
       setSteps(nextSteps);
     }
-    
+
     if (currentStep < nextSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
@@ -80,39 +80,44 @@ export function OnboardingClient() {
       handleComplete(newOnboardingData);
     }
   };
-  
+
   const handlePrevious = () => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
   };
-  
+
   const handleComplete = async (finalData?: any) => {
     try {
       if (finalData?.userEmail) {
         await fetch('/api/mail/send-welcome', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
         });
       }
 
+      await update({ email: finalData?.userEmail });
+      
       const response = await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: true }),
       });
       if (!response.ok) throw new Error("Server failed to finalize onboarding.");
-
+      const sessionRes = await update({ onboarding: { completed: true } });
+      
       // Find the index of the "complete" step in the potentially modified array
       const completeStepIndex = steps.findIndex(s => s.id === 'complete');
-      if(completeStepIndex !== -1) {
-          setCurrentStep(completeStepIndex);
-      } else {
-          // Fallback if complete step is somehow missing
-          router.push("/mail/inbox");
+      if (completeStepIndex !== -1) {
+        setCurrentStep(completeStepIndex);
       }
-      
+      if(sessionRes?.user.onboarding.completed){
+        router.push("/mail/inbox");
+      } else {
+        router.refresh()
+      }
+
     } catch (error) {
       console.error("Onboarding completion error:", error);
       toast({
@@ -128,7 +133,7 @@ export function OnboardingClient() {
   }
 
   const CurrentStepComponent = steps[currentStep].component;
-  
+
   const variants = {
     enter: { opacity: 0, x: 50 },
     center: { opacity: 1, x: 0 },

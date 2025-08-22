@@ -1,12 +1,32 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { motion } from "framer-motion"
-import { UserCircleIcon, ChatBubbleLeftRightIcon } from "@heroicons/react/24/outline"
+import React, { useState, useEffect } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import {
+  UserCircleIcon,
+  ChatBubbleLeftRightIcon,
+  GlobeAltIcon,
+  SunIcon,
+  PaintBrushIcon,
+  BellIcon,
+  ComputerDesktopIcon,
+  BriefcaseIcon,
+  AtSymbolIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+  DevicePhoneMobileIcon,
+  CodeBracketIcon,
+  ChartBarIcon,
+  WrenchScrewdriverIcon,
+  PaperAirplaneIcon,
+  SparklesIcon,
+  CheckIcon,
+  ArrowRightIcon,
+} from "@heroicons/react/24/outline"
 import { toast } from "@/hooks/use-toast"
+import { LoaderCircle } from "lucide-react"
 
+// --- Type Definitions ---
 interface ProfileSetupProps {
   onNext: (data: any) => void
   onPrevious: () => void
@@ -14,8 +34,57 @@ interface ProfileSetupProps {
   user: any
 }
 
-export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) {
-  const [profile, setProfile] = useState({
+interface ProfileState {
+  timezone: string
+  language: string
+  theme: "light" | "dark" | "auto"
+  emailNotifications: boolean
+  desktopNotifications: boolean
+}
+
+interface SurveyState {
+  primaryUse: string
+  currentEmailProvider: string
+  importantFeatures: string[]
+  experience: "beginner" | "intermediate" | "advanced" | ""
+}
+
+// --- Data and Mappings ---
+const featuresMap: { [key: string]: React.ElementType } = {
+  "Advanced Security": ShieldCheckIcon,
+  "Custom Domains": AtSymbolIcon,
+  "Team Collaboration": UsersIcon,
+  "Mobile Access": DevicePhoneMobileIcon,
+  "Integration APIs": CodeBracketIcon,
+  "Analytics & Reporting": ChartBarIcon,
+  "Automation": WrenchScrewdriverIcon,
+  "Large Attachments": PaperAirplaneIcon,
+}
+
+// --- Sub-components ---
+const CompletionScreen = () => (
+  <motion.div
+    key="completion"
+    initial={{ opacity: 0, scale: 0.9 }}
+    animate={{ opacity: 1, scale: 1 }}
+    exit={{ opacity: 0, scale: 0.9 }}
+    className="text-center py-16"
+  >
+    <motion.div
+      initial={{ scale: 0 }}
+      animate={{ scale: 1 }}
+      transition={{ type: "spring", stiffness: 260, damping: 20, delay: 0.2 }}
+    >
+      <CheckIcon className="w-24 h-24 text-green-500 mx-auto mb-6 p-4 bg-green-50 rounded-full" />
+    </motion.div>
+    <h1 className="text-4xl font-bold text-gray-800 mb-3">You're All Set!</h1>
+    <p className="text-lg text-gray-500">Personalizing your workspace...</p>
+  </motion.div>
+)
+
+// --- Main Component ---
+export default function ProfileSetup({ data, onNext, onPrevious }: ProfileSetupProps) {
+  const [profile, setProfile] = useState<ProfileState>({
     timezone: "UTC",
     language: "en",
     theme: "light",
@@ -23,47 +92,22 @@ export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) 
     desktopNotifications: true,
   })
 
-  const [survey, setSurvey] = useState<{
-      primaryUse: string;
-      teamSize: string;
-      currentEmailProvider: string;
-      importantFeatures: string[];
-      experience: string;
-    }>({
-      primaryUse: "",
-      teamSize: "",
-      currentEmailProvider: "",
-      importantFeatures: [],
-      experience: "",
-    })
+  const [survey, setSurvey] = useState<SurveyState>({
+    primaryUse: "",
+    teamSize: "",
+    currentEmailProvider: "",
+    importantFeatures: [],
+    experience: "",
+  })
 
   const [loading, setLoading] = useState(false)
-
-  const primaryUses = [
-    "Business Communication",
-    "Customer Support",
-    "Marketing Campaigns",
-    "Internal Team Collaboration",
-    "Client Communication",
-    "Other",
-  ]
-
-  const features = [
-    "Advanced Security",
-    "Custom Domains",
-    "Team Collaboration",
-    "Mobile Access",
-    "Integration APIs",
-    "Analytics & Reporting",
-    "Automation",
-    "Large Attachments",
-  ]
+  const [isComplete, setIsComplete] = useState(false)
 
   const handleFeatureToggle = (feature: string) => {
-    setSurvey((prev) => ({
+    setSurvey(prev => ({
       ...prev,
       importantFeatures: prev.importantFeatures.includes(feature)
-        ? prev.importantFeatures.filter((f) => f !== feature)
+        ? prev.importantFeatures.filter(f => f !== feature)
         : [...prev.importantFeatures, feature],
     }))
   }
@@ -74,233 +118,182 @@ export default function ProfileSetup({ onNext, onPrevious }: ProfileSetupProps) 
 
     try {
       const token = localStorage.getItem("accessToken")
-
-      // Update user profile
-      const profileResponse = await fetch("/api/users/profile", {
+      
+      const profilePromise = fetch("/api/users/profile", {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          theme: profile.theme,
-          emailNotifications: profile.emailNotifications,
-          desktopNotifications: profile.desktopNotifications,
-          timezone: profile.timezone,
-          language: profile.language,
-        }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(profile),
       })
 
-      if (!profileResponse.ok) {
-        throw new Error("Failed to update profile")
-      }
-
-      // Save survey data
-      const surveyResponse = await fetch("/api/onboarding/survey", {
+      const surveyPromise = fetch("/api/onboarding/survey", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(survey),
       })
 
-      if (!surveyResponse.ok) {
-        console.warn("Failed to save survey data")
-      }
+      const [profileResponse, surveyResponse] = await Promise.all([profilePromise, surveyPromise])
 
-      onNext({ profile, survey })
-    } catch (error) {
-      console.error("Error saving profile:", error)
+      if (!profileResponse.ok) throw new Error("Failed to update profile.")
+      if (!surveyResponse.ok) console.warn("Survey data failed to save.")
+      
+      setIsComplete(true)
+
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "Failed to save your profile. Please try again.",
+        description: error.message || "Failed to save your profile. Please try again.",
         variant: "destructive",
       })
-    } finally {
       setLoading(false)
     }
   }
+  
+  useEffect(() => {
+    if (isComplete) {
+      const timer = setTimeout(() => {
+        onNext({ ...data, profile, survey })
+      }, 2500); // Wait for animation before proceeding
+      return () => clearTimeout(timer);
+    }
+  }, [isComplete, onNext, profile, survey]);
 
   return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="max-w-3xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <UserCircleIcon className="w-8 h-8 text-white" />
-        </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Personalize your experience</h2>
-        <p className="text-gray-600">Set your preferences and help us understand your needs</p>
-      </div>
-
-      <form onSubmit={handleSubmit} className="space-y-8">
-        {/* Profile Settings */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Settings</h3>
-
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Timezone</label>
-              <select
-                value={profile.timezone}
-                onChange={(e) => setProfile({ ...profile, timezone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="UTC">UTC</option>
-                <option value="America/New_York">Eastern Time</option>
-                <option value="America/Chicago">Central Time</option>
-                <option value="America/Denver">Mountain Time</option>
-                <option value="America/Los_Angeles">Pacific Time</option>
-                <option value="Europe/London">London</option>
-                <option value="Europe/Paris">Paris</option>
-                <option value="Asia/Tokyo">Tokyo</option>
-              </select>
+    <AnimatePresence mode="wait">
+      {isComplete ? (
+        <CompletionScreen />
+      ) : (
+        <motion.div
+          key="form"
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          className="max-w-3xl mx-auto"
+        >
+          <div className="text-center mb-10">
+            <div className="w-16 h-16 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+              <SparklesIcon className="w-8 h-8 text-blue-600" />
             </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
-              <select
-                value={profile.language}
-                onChange={(e) => setProfile({ ...profile, language: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="en">English</option>
-                <option value="es">Spanish</option>
-                <option value="fr">French</option>
-                <option value="de">German</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Theme</label>
-              <select
-                value={profile.theme}
-                onChange={(e) => setProfile({ ...profile, theme: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-                <option value="auto">Auto</option>
-              </select>
-            </div>
+            <h2 className="text-3xl font-bold text-gray-800 mb-2">Personalize Your Experience</h2>
+            <p className="text-gray-500">Help us tailor DITMail to your needs.</p>
           </div>
 
-          <div className="mt-6 space-y-4">
-            <label className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                checked={profile.emailNotifications}
-                onChange={(e) => setProfile({ ...profile, emailNotifications: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Email notifications for new messages</span>
-            </label>
-
-            <label className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                checked={profile.desktopNotifications}
-                onChange={(e) => setProfile({ ...profile, desktopNotifications: e.target.checked })}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-              />
-              <span className="text-sm text-gray-700">Desktop notifications</span>
-            </label>
-          </div>
-        </div>
-
-        {/* Quick Survey */}
-        <div className="bg-white rounded-xl p-6 shadow-sm border">
-          <div className="flex items-center space-x-2 mb-4">
-            <ChatBubbleLeftRightIcon className="w-5 h-5 text-blue-600" />
-            <h3 className="text-lg font-semibold text-gray-900">Quick Survey</h3>
-            <span className="text-xs text-gray-500">(Optional)</span>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                What will you primarily use DITMail for?
-              </label>
-              <select
-                value={survey.primaryUse}
-                onChange={(e) => setSurvey({ ...survey, primaryUse: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select primary use</option>
-                {primaryUses.map((use) => (
-                  <option key={use} value={use}>
-                    {use}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                What's your current email provider?
-              </label>
-              <input
-                type="text"
-                value={survey.currentEmailProvider}
-                onChange={(e) => setSurvey({ ...survey, currentEmailProvider: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Gmail, Outlook, etc."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Which features are most important to you? (Select all that apply)
-              </label>
-              <div className="grid md:grid-cols-2 gap-3">
-                {features.map((feature) => (
-                  <label key={feature} className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      checked={survey.importantFeatures.includes(feature)}
-                      onChange={() => handleFeatureToggle(feature)}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                    />
-                    <span className="text-sm text-gray-700">{feature}</span>
+          <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Profile Settings */}
+            <div className="p-6 border-2 border-gray-200 rounded-lg bg-white">
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-6">
+                <UserCircleIcon className="w-6 h-6 mr-2 text-blue-600" />
+                Profile Settings
+              </h3>
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Timezone and Language can be added back here if needed */}
+                <div>
+                  <label className="text-sm font-medium text-gray-600 flex items-center mb-2">
+                    <PaintBrushIcon className="w-4 h-4 mr-2" /> Theme
                   </label>
-                ))}
+                  <div className="flex space-x-2">
+                    {(["light", "dark", "auto"] as const).map(t => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setProfile({ ...profile, theme: t })}
+                        className={`flex-1 py-2 px-4 rounded-md text-sm font-semibold transition-all ${
+                          profile.theme === t
+                            ? "bg-blue-600 text-white shadow"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                   <label className="text-sm font-medium text-gray-600 flex items-center mb-2">
+                     <BellIcon className="w-4 h-4 mr-2" /> Notifications
+                  </label>
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                     <span className="text-sm text-gray-800 flex items-center"><BellIcon className="w-4 h-4 mr-2"/> Email</span>
+                     <button type="button" onClick={() => setProfile(p => ({...p, emailNotifications: !p.emailNotifications}))} className={`${profile.emailNotifications ? 'bg-blue-600' : 'bg-gray-200'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
+                       <span className={`${profile.emailNotifications ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
+                     </button>
+                  </div>
+                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                     <span className="text-sm text-gray-800 flex items-center"><ComputerDesktopIcon className="w-4 h-4 mr-2"/> Desktop</span>
+                     <button type="button" onClick={() => setProfile(p => ({...p, desktopNotifications: !p.desktopNotifications}))} className={`${profile.desktopNotifications ? 'bg-blue-600' : 'bg-gray-200'} relative inline-flex h-6 w-11 items-center rounded-full transition-colors`}>
+                       <span className={`${profile.desktopNotifications ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}/>
+                     </button>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                How would you describe your email management experience?
-              </label>
-              <select
-                value={survey.experience}
-                onChange={(e) => setSurvey({ ...survey, experience: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select experience level</option>
-                <option value="beginner">Beginner - I use basic email features</option>
-                <option value="intermediate">Intermediate - I use folders, filters, etc.</option>
-                <option value="advanced">Advanced - I need enterprise features</option>
-              </select>
+            {/* Quick Survey */}
+            <div className="p-6 border-2 border-gray-200 rounded-lg bg-white">
+               <h3 className="text-lg font-semibold text-gray-800 flex items-center mb-1">
+                <ChatBubbleLeftRightIcon className="w-6 h-6 mr-2 text-blue-600" />
+                Tell Us About You
+              </h3>
+              <p className="text-sm text-gray-500 mb-6">(This helps us improve your experience)</p>
+              <div className="space-y-8">
+                <div>
+                   <label className="block text-sm font-medium text-gray-600 mb-2">Which features are most important to you?</label>
+                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                     {Object.entries(featuresMap).map(([feature, Icon]) => (
+                       <button
+                         key={feature}
+                         type="button"
+                         onClick={() => handleFeatureToggle(feature)}
+                         className={`flex flex-col items-center justify-center text-center p-3 border-2 rounded-lg transition-all ${
+                           survey.importantFeatures.includes(feature)
+                             ? 'border-blue-600 bg-blue-50 text-blue-700'
+                             : 'border-gray-200 bg-white hover:border-gray-300'
+                         }`}
+                       >
+                         <Icon className="w-6 h-6 mb-1.5"/>
+                         <span className="text-xs font-semibold">{feature}</span>
+                       </button>
+                     ))}
+                   </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">How would you describe your email experience?</label>
+                  <div className="grid sm:grid-cols-3 gap-4">
+                    {(["beginner", "intermediate", "advanced"] as const).map(exp => (
+                      <button
+                        key={exp}
+                        type="button"
+                        onClick={() => setSurvey({...survey, experience: exp})}
+                        className={`p-4 border-2 rounded-lg text-left transition-all ${
+                           survey.experience === exp ? 'border-blue-600 bg-blue-50' : 'border-gray-200 bg-white hover:border-gray-300'
+                        }`}
+                      >
+                         <span className="font-semibold text-gray-800">{exp.charAt(0).toUpperCase() + exp.slice(1)}</span>
+                         <p className="text-xs text-gray-500 mt-1">
+                           {exp === 'beginner' && 'I use basic features.'}
+                           {exp === 'intermediate' && 'I use folders, filters, etc.'}
+                           {exp === 'advanced' && 'I need enterprise-level tools.'}
+                         </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
 
-        <div className="flex justify-between">
-          <button
-            type="button"
-            onClick={onPrevious}
-            className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-          >
-            Previous
-          </button>
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-8 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg font-semibold disabled:opacity-50 hover:shadow-lg transition-all duration-200"
-          >
-            {loading ? "Saving..." : "Complete Setup"}
-          </button>
-        </div>
-      </form>
-    </motion.div>
+            <div className="pt-4 flex justify-between items-center">
+              <button type="button" onClick={onPrevious} className="text-sm font-semibold text-gray-600 hover:text-gray-800">Back</button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="group inline-flex items-center justify-center bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg disabled:opacity-50 transition-all"
+              >
+                {loading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : 'Complete Setup'}
+                {!loading && <ArrowRightIcon className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />}
+              </button>
+            </div>
+          </form>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

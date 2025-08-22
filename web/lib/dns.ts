@@ -82,7 +82,7 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
       const mxRecords = await dns.promises.resolveMx(domain)
       results.details.mx = mxRecords.map((r) => `${r.priority} ${r.exchange}`)
       results.mx = mxRecords.some(
-        (record) => record.exchange.includes("mx.freecustom.email") || record.exchange.includes("freecustom.email"),
+        (record) => record.exchange.includes("mx.ditmail.online") || record.exchange.includes("ditmail.online"),
       )
       logInfo("MX records found", { domain, records: results.details.mx })
     } catch (error) {
@@ -98,8 +98,8 @@ export async function verifyDNSRecords(domain: string, verificationCode: string)
       results.spf = spfRecords.some((record) => {
         const spfString = record.join("")
         return (
-          spfString.includes("include:smtp.freecustom.email") ||
-          spfString.includes("include:freecustom.email") ||
+          spfString.includes("include:smtp.ditmail.online") ||
+          spfString.includes("include:ditmail.online") ||
           spfString.includes("mx")
         )
       })

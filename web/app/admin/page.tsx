@@ -1,13 +1,11 @@
 "use client"
 
-import { useAuth } from "@/contexts/AuthContext"
 import { useEffect, useState } from "react"
 import AdminSidebar from "@/components/admin/AdminSidebar"
 import DashboardStats from "@/components/admin/DashboardStats"
 import AccessDeniedPage from "./accessDenied"
 
 export default function AdminPage() {
-  const { user } = useAuth()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 

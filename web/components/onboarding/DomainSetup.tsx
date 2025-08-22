@@ -31,15 +31,8 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
     const fetchDomain = async () => {
       setIsDomainLoading(true);
       try {
-        const token = localStorage.getItem("accessToken");
-        // If there's no token, we can't fetch a domain.
-        if (!token) return;
 
-        const response = await fetch("/api/domains", {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        const response = await fetch("/api/domains");
 
         if (response.ok) {
           const domainData = await response.json();
@@ -77,7 +70,7 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
       setLoading(false);
       return;
     }
-    
+
     if (selection === 'custom') {
       // If the domain was pre-fetched, just continue to the next step.
       if (existingDomain) {
@@ -93,18 +86,16 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
         setLoading(false);
         return;
       }
-      
+
       try {
-        const token = localStorage.getItem("accessToken");
         const response = await fetch("/api/domains", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ domain: customDomain.toLowerCase().trim() }),
         });
-        
+
         if (response.ok) {
           const domainData = await response.json();
           onNext({ domain: domainData });
@@ -112,7 +103,7 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
           const errorData = await response.json();
           setError(errorData.error || "Failed to add domain.");
         }
-      } catch(err: any) {
+      } catch (err: any) {
         console.error("Error adding domain:", err);
         setError(err.message || "An unexpected error occurred.");
       } finally {
@@ -126,11 +117,11 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
   };
 
   if (isDomainLoading) {
-      return (
-          <div className="flex justify-center items-center h-64">
-              <LoaderCircle className="w-8 h-8 text-blue-600 animate-spin" />
-          </div>
-      );
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoaderCircle className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
   }
 
   return (
@@ -145,73 +136,72 @@ export default function DomainSetup({ onNext, onPrevious, user }: DomainSetupPro
 
       <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4">
         {/* Option 1: DITMail.online Address */}
-        {!userHasDitmail && (
           <motion.div
             onClick={() => setSelection('ditmail')}
             className={`p-6 border-2 rounded-lg cursor-pointer transition-all ${selection === 'ditmail' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 bg-white hover:border-gray-400'}`}
           >
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-semibold text-gray-800">Use a free DITMail address</h3>
+                <h3 className="font-semibold text-gray-800">{userHasDitmail ? 'Use your current email' : 'Use a free DITMail address'}</h3>
                 <p className="text-sm text-blue-600">{username}@ditmail.online</p>
               </div>
               {selection === 'ditmail' && <CheckIcon className="w-6 h-6 text-blue-600" />}
             </div>
             <p className="text-xs text-gray-500 mt-2">Get started immediately. Includes 5GB of storage, forever free.</p>
           </motion.div>
-        )}
-        
+
         {/* Option 2: Custom Domain */}
         <motion.div
-            onClick={() => {
-                if (!existingDomain) setSelection('custom');
-            }}
-            className={`p-6 border-2 rounded-lg transition-all ${selection === 'custom' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 bg-white'} ${!existingDomain && 'cursor-pointer hover:border-gray-400'}`}
+          onClick={() => {
+            setSelection('custom');
+          }}
+          className={`p-6 border-2 rounded-lg transition-all ${selection === 'custom' ? 'border-blue-600 bg-blue-50' : 'border-gray-300 bg-white'} cursor-pointer hover:border-gray-400`}
         >
-            <div className="flex items-center justify-between">
-                <div>
-                    <h3 className="font-semibold text-gray-800">Use your own domain</h3>
-                    <p className="text-sm text-gray-500">e.g., yourname@yourcompany.com</p>
-                </div>
-                {selection === 'custom' && <CheckIcon className="w-6 h-6 text-blue-600" />}
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-800">Use your own domain</h3>
+              <p className="text-sm text-gray-500">e.g., yourname@yourcompany.com</p>
             </div>
-             {selection === 'custom' && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4">
-                    <input
-                        type="text"
-                        value={customDomain}
-                        onChange={(e) => {
-                            setCustomDomain(e.target.value.toLowerCase().trim());
-                            setError(null);
-                        }}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
-                        placeholder="yourcompany.com"
-                        onClick={(e) => e.stopPropagation()}
-                        disabled={!!existingDomain}
-                    />
-                    {error && 
-                        <div className="mt-2 text-sm text-red-600 flex items-center">
-                            <ExclamationTriangleIcon className="inline w-4 h-4 mr-1.5" />
-                            {error}
-                        </div>
-                    }
-                </motion.div>
-            )}
+            {selection === 'custom' && <CheckIcon className="w-6 h-6 text-blue-600" />}
+
+          </div>
+          <p className="text-xs text-gray-500 mt-2">Connect upto 1 domain with upto 2 users. Includes 5GB of storage each, forever free.</p>
+          {selection === 'custom' && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} className="mt-4">
+              <input
+                type="text"
+                value={customDomain}
+                onChange={(e) => {
+                  setCustomDomain(e.target.value.toLowerCase().trim());
+                  setError(null);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                placeholder="yourcompany.com"
+                onClick={(e) => e.stopPropagation()}
+              />
+              {error &&
+                <div className="mt-2 text-sm text-red-600 flex items-center">
+                  <ExclamationTriangleIcon className="inline w-4 h-4 mr-1.5" />
+                  {error}
+                </div>
+              }
+            </motion.div>
+          )}
         </motion.div>
 
         <div className="pt-4 flex justify-between items-center">
-            <button type="button" onClick={onPrevious} className="text-sm font-semibold text-gray-600 hover:text-gray-800">Back</button>
-            <div>
-              <button type="button" onClick={handleSkip} className="text-sm font-semibold text-gray-600 hover:text-gray-800 mr-4">Skip for now</button>
-              <button
-                type="submit"
-                disabled={loading || !selection || (selection === 'custom' && !customDomain)}
-                className="group inline-flex items-center justify-center bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg disabled:opacity-50 transition-all"
-              >
-                {loading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : 'Continue'}
-                {!loading && <ArrowRightIcon className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />}
-              </button>
-            </div>
+          <button type="button" onClick={onPrevious} className="text-sm font-semibold text-gray-600 hover:text-gray-800">Back</button>
+          <div>
+            <button type="button" onClick={handleSkip} className="text-sm font-semibold text-gray-600 hover:text-gray-800 mr-4">Skip for now</button>
+            <button
+              type="submit"
+              disabled={loading || !selection || (selection === 'custom' && !customDomain)}
+              className="group inline-flex items-center justify-center bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg disabled:opacity-50 transition-all"
+            >
+              {loading ? <LoaderCircle className="w-5 h-5 animate-spin" /> : 'Continue'}
+              {!loading && <ArrowRightIcon className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />}
+            </button>
+          </div>
         </div>
       </form>
     </motion.div>

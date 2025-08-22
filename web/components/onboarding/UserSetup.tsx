@@ -6,7 +6,7 @@ import { useEffect, useState } from "react"
 import { motion } from "framer-motion"
 import { UsersIcon, PlusIcon, TrashIcon } from "@heroicons/react/24/outline"
 import { useToast } from "@/hooks/use-toast"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, ArrowRightIcon, LoaderCircle } from "lucide-react"
 
 interface UserSetupProps {
   onNext: (data: any) => void
@@ -20,7 +20,7 @@ interface User {
   lastName: string
   role: string
   password: string
-  showPassword?: boolean // Optional field to toggle password visibility
+  showPassword?: boolean
 }
 
 export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) {
@@ -28,27 +28,24 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
     data.users?.length > 0
       ? data.users
       : [
-        {
-          email: "",
-          firstName: "",
-          lastName: "",
-          role: "user",
-          password: "",
-          showPassword: false, // Added to toggle password visibility
-        },
-      ],
+          {
+            email: "",
+            firstName: "",
+            lastName: "",
+            role: "user",
+            password: "",
+            showPassword: false,
+          },
+        ],
   )
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
   const [existingUsers, setExistingUsers] = useState<any[]>([])
 
-
-  // Safely get the custom domain name. If it doesn't exist, we know it's a ditmail.online setup.
-  const customDomainName = data?.domain?.domain?.domain;
-  const emailSuffix = customDomainName ? `@${customDomainName}` : `@ditmail.online`;
+  const customDomainName = data?.domain?.domain?.domain
+  const emailSuffix = customDomainName ? `@${customDomainName}` : `@ditmail.online`
 
   useEffect(() => {
-    // Fetch existing users from API if available
     const fetchUsers = async () => {
       try {
         const token = localStorage.getItem("accessToken")
@@ -74,7 +71,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
               password: "not-allowed",
               showPassword: false,
             }))
-          if (filteredUsers.some((user: User) => user.email.split("@")[1] === data.domain.domain?.domain)) {
+          if (
+            filteredUsers.some(
+              (user: User) => user.email.split("@")[1] === data.domain.domain?.domain,
+            )
+          ) {
             setExistingUsers(filteredUsers)
           }
         } else {
@@ -97,7 +98,7 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
         lastName: "",
         role: "user",
         password: "",
-        showPassword: false, // Added to toggle password visibility
+        showPassword: false,
       },
     ])
   }
@@ -146,24 +147,26 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
   const updateUser = (index: number, field: keyof User, value: string) => {
     const updatedUsers = [...users]
     if (field === "firstName" || field === "lastName") {
-      // update the email based on first and last name
       const firstName = field === "firstName" ? value : updatedUsers[index].firstName
       const lastName = field === "lastName" ? value : updatedUsers[index].lastName
-      updatedUsers[index].email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`.replace(/\s+/g, "")
+      updatedUsers[index].email = `${firstName.toLowerCase()}.${lastName.toLowerCase()}`.replace(
+        /\s+/g,
+        "",
+      )
     }
     updatedUsers[index] = { ...updatedUsers[index], [field]: value }
     setUsers(updatedUsers)
   }
 
   const generatePassword = (index: number) => {
-    const password = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase()
+    const password =
+      Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-12).toUpperCase()
     updateUser(index, "password", password)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-
 
     if (users.length === 0 && existingUsers.length) {
       setLoading(false)
@@ -173,13 +176,14 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
     try {
       const token = localStorage.getItem("accessToken")
-      const validUsers = users.filter((user) => user.email && user.firstName && user.lastName && user.password)
+      const validUsers = users.filter(
+        (user) => user.email && user.firstName && user.lastName && user.password,
+      )
 
       if (validUsers.length === 0) {
         throw new Error("Please add at least one user")
       }
 
-      // Create users
       const createdUsers = []
       for (const user of validUsers) {
         const response = await fetch("/api/users", {
@@ -190,7 +194,9 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           },
           body: JSON.stringify({
             ...user,
-            email: data.domain.domain ? `${user.email}@${data.domain.domain.domain}` : user.email,
+            email: data.domain.domain
+              ? `${user.email}@${data.domain.domain.domain}`
+              : user.email,
           }),
         })
 
@@ -208,7 +214,6 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           })
         }
       }
-
     } catch (error) {
       console.error("Error creating users:", error)
       toast({
@@ -221,75 +226,88 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
     }
   }
 
-  const isFormValid = users.some((user) => user.email && user.firstName && user.lastName && user.password)
+  const isFormValid = users.some(
+    (user) => user.email && user.firstName && user.lastName && user.password,
+  )
 
   return (
-    <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="max-w-4xl mx-auto">
-      <div className="text-center mb-8">
-        <div className="w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center mx-auto mb-4">
-          <UsersIcon className="w-8 h-8 text-white" />
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="max-w-3xl mx-auto">
+      <div className="text-center mb-10">
+        <div className="w-16 h-16 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+          <UsersIcon className="w-8 h-8 text-blue-600" />
         </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Add team members</h2>
-        <p className="text-gray-600">Create email accounts for your team members</p>
+        <h2 className="text-3xl font-bold text-gray-800 mb-2">Add team members</h2>
+        <p className="text-gray-500">Create email accounts for your team members.</p>
         {data.domain.domain && (
-          <p className="text-sm text-blue-600 mt-2">Email addresses will use your domain: @{data.domain.domain.domain}</p>
+          <p className="text-sm text-blue-600 mt-2">
+            Email addresses will use your domain: @{data.domain.domain.domain}
+          </p>
         )}
       </div>
 
-      {/* Show cards with existing users */}
-      {existingUsers.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 space-y-4"
-        >
-          {existingUsers.map((user, index) => (
-            <div key={index} className="bg-white rounded-xl p-6 shadow-sm border">
-              <div className="flex items-center space-x-4 mb-4">
-                <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
-                  <UsersIcon className="w-6 h-6 text-gray-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">{user.firstName} {user.lastName}</h3>
-                  <p className="text-sm text-gray-600">{user.email}</p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <span className={`px-3 py-1 text-xs rounded-full ${user.role === "admin" ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600"}`}>
-                  {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleUserRemove(index, user.id)
-                  }}
-                  disabled={loading}
-                  className="text-red-600 hover:text-red-800 p-1"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </motion.div>
-      )}
-
       <form onSubmit={handleSubmit} className="space-y-6">
+        {existingUsers.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-700">Existing Team Members</h3>
+            {existingUsers.map((user, index) => (
+              <motion.div
+                key={user.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-6 border-2 border-gray-200 rounded-lg bg-white"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
+                      <UsersIcon className="w-5 h-5 text-gray-500" />
+                    </div>
+                    <div>
+                      <h4 className="font-semibold text-gray-800">
+                        {user.firstName} {user.lastName}
+                      </h4>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <span
+                      className={`px-3 py-1 text-xs font-medium rounded-full ${
+                        user.role === "admin"
+                          ? "bg-purple-100 text-purple-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleUserRemove(index, user.id)}
+                      disabled={loading}
+                      className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors"
+                    >
+                      <TrashIcon className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
         <div className="space-y-4">
           {users.map((user, index) => (
             <motion.div
               key={index}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl p-6 shadow-sm border"
+              className="p-6 border-2 border-gray-200 rounded-lg bg-white"
             >
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="font-semibold text-gray-900">User {index + 1}</h3>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="font-semibold text-gray-800">New User {index + 1}</h3>
                 {users.length > 1 && (
                   <button
                     type="button"
                     onClick={() => removeUser(index)}
-                    className="text-red-600 hover:text-red-800 p-1"
+                    className="text-gray-400 hover:text-red-500 p-1 rounded-full transition-colors"
                   >
                     <TrashIcon className="w-4 h-4" />
                   </button>
@@ -298,29 +316,33 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    First Name *
+                  </label>
                   <input
                     type="text"
                     value={user.firstName}
                     onChange={(e) => updateUser(index, "firstName", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     placeholder="John"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Last Name *
+                  </label>
                   <input
                     type="text"
                     value={user.lastName}
                     onChange={(e) => updateUser(index, "lastName", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                     placeholder="Doe"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
                     Email {data.domain.domain ? "Username" : "Address"} *
                   </label>
                   <div className="flex">
@@ -328,11 +350,13 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                       type="text"
                       value={user.email}
                       onChange={(e) => updateUser(index, "email", e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className={`w-full px-4 py-2 border border-gray-300 focus:ring-2 focus:ring-blue-500 ${
+                        data.domain.domain ? "rounded-l-md" : "rounded-md"
+                      }`}
                       placeholder={data.domain.domain ? "john.doe" : "john.doe@company.com"}
                     />
-                    {data.domain && (
-                      <span className="px-3 py-2 bg-gray-100 border border-l-0 border-gray-300 rounded-r-lg text-gray-600">
+                    {data.domain.domain && (
+                      <span className="inline-flex items-center px-3 border border-l-0 border-gray-300 bg-gray-50 text-gray-500 rounded-r-md">
                         @{data.domain.domain.domain}
                       </span>
                     )}
@@ -340,11 +364,11 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Role</label>
                   <select
                     value={user.role}
                     onChange={(e) => updateUser(index, "role", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="user">User</option>
                     <option value="admin">Admin</option>
@@ -352,35 +376,33 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">
+                    Password *
+                  </label>
                   <div className="relative">
                     <input
                       type={user.showPassword ? "text" : "password"}
                       value={user.password}
                       onChange={(e) => updateUser(index, "password", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm pr-10"
-                      placeholder="Enter password"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 font-mono text-sm pr-10"
+                      placeholder="Enter a secure password"
                     />
                     <button
                       type="button"
                       onClick={() => {
-                        const updatedUsers = [...users];
-                        updatedUsers[index].showPassword = !updatedUsers[index].showPassword;
-                        setUsers(updatedUsers);
+                        const updatedUsers = [...users]
+                        updatedUsers[index].showPassword = !updatedUsers[index].showPassword
+                        setUsers(updatedUsers)
                       }}
-                      className="absolute inset-y-0 right-0 flex items-center px-2 text-gray-700 hover:text-gray-900"
+                      className="absolute inset-y-0 right-0 flex items-center px-3 text-gray-500 hover:text-gray-700"
                     >
-                      {user.showPassword ? (
-                        <EyeOff className="w-5 h-5" />
-                      ) : (
-                        <Eye className="w-5 h-5" />
-                      )}
+                      {user.showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
                   <button
                     type="button"
                     onClick={() => generatePassword(index)}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm mt-2"
+                    className="mt-2 px-4 py-1.5 bg-gray-100 text-gray-700 text-sm font-semibold rounded-md hover:bg-gray-200 transition-colors"
                   >
                     Generate
                   </button>
@@ -394,26 +416,33 @@ export default function UserSetup({ onNext, onPrevious, data }: UserSetupProps) 
           type="button"
           onClick={addUser}
           disabled={loading || users.some((user) => !user.email || !user.firstName || !user.lastName || !user.password)}
-          className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-blue-400 hover:text-blue-600 transition-colors flex items-center justify-center space-x-2"
+          className="w-full py-2.5 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-blue-500 hover:text-blue-600 transition-colors flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Add Another User</span>
         </button>
 
-        <div className="flex justify-between">
+        <div className="pt-4 flex justify-between items-center">
           <button
             type="button"
             onClick={onPrevious}
-            className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            className="text-sm font-semibold text-gray-600 hover:text-gray-800"
           >
-            Previous
+            Back
           </button>
           <button
             type="submit"
             disabled={loading || !(isFormValid || existingUsers.length > 0)}
-            className="px-8 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold disabled:opacity-50 hover:shadow-lg transition-all duration-200"
+            className="group inline-flex items-center justify-center bg-blue-600 text-white px-6 py-2.5 rounded-lg font-semibold shadow-lg disabled:opacity-50 transition-all"
           >
-            {loading ? "Creating Users..." : "Continue"}
+            {loading ? (
+              <LoaderCircle className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                Continue
+                <ArrowRightIcon className="w-5 h-5 ml-2 transition-transform group-hover:translate-x-1" />
+              </>
+            )}
           </button>
         </div>
       </form>

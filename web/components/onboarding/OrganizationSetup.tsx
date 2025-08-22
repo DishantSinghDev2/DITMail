@@ -1,9 +1,10 @@
 // components/onboarding/OrganizationSetup.tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRightIcon, BuildingOfficeIcon } from "@heroicons/react/24/outline";
+import { LoaderCircle } from "lucide-react";
 
 interface OrganizationSetupProps {
   onNext: (data: any) => void;
@@ -13,13 +14,65 @@ interface OrganizationSetupProps {
 
 export default function OrganizationSetup({ onNext, data }: OrganizationSetupProps) {
   const [orgName, setOrgName] = useState(data.organization?.name || "");
-  
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Here you would typically have an API call to PATCH the org name.
-    // For now, we pass the data to the parent conductor.
-    onNext({ organization: { name: orgName } });
-  };
+  const [isOrgNameLoading, setIsOrgNameLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchOrganization = async () => {
+      try {
+        const response = await fetch("/api/organizations")
+
+        if (response.ok) {
+          const { organization } = await response.json()
+          setOrgName(organization.name)
+        } else {
+          console.error("Failed to fetch organization details")
+        }
+      } catch (error) {
+        console.error("Error fetching organization details:", error)
+      } finally {
+        setIsOrgNameLoading(false)
+      }
+    }
+
+    fetchOrganization()
+  }, [])
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    try {
+
+      const response = await fetch("/api/organizations", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: orgName
+        }),
+      })
+
+      if (response.ok) {
+        const organization = await response.json()
+        onNext({...data, organization })
+      } else {
+        throw new Error("Failed to create organization")
+      }
+    } catch (error) {
+      console.error("Error creating organization:", error)
+      alert("Failed to create organization. Please try again.")
+    }
+  }
+
+
+  if (isOrgNameLoading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <LoaderCircle className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>

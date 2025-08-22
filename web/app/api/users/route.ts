@@ -1,17 +1,23 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import User from "@/models/User"
 import Organization from "@/models/Organization"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../auth/[...nextauth]/route"
+import { SessionUser } from "@/types"
 import { logAuditEvent } from "@/lib/audit"
 import Domain from "@/models/Domain"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-    if (!user || !["owner", "admin"].includes(user.role)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-    }
+     const session = await getServerSession(authOptions);
+     const user = session?.user as SessionUser | undefined;
+   
+     // Use the standard, secure way to get the session.
+     if (!user) {
+       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+     }
+   
 
     await connectDB()
 
@@ -20,7 +26,7 @@ export async function GET(request: NextRequest) {
     const limit = Number.parseInt(searchParams.get("limit") || "25")
     const search = searchParams.get("search") || ""
 
-    const query: { org_id: any; _id?: { $ne: any }; $or?: Array<{ name?: { $regex: string; $options: string }; email?: { $regex: string; $options: string } }> } = { org_id: user.org_id, _id: { $ne: user._id } }
+    const query: { org_id: any; _id?: { $ne: any }; $or?: Array<{ name?: { $regex: string; $options: string }; email?: { $regex: string; $options: string } }> } = { org_id: user.org_id, _id: { $ne: user.id } }
     if (search) {
       query.$or = [{ name: { $regex: search, $options: "i" } }, { email: { $regex: search, $options: "i" } }]
     }
@@ -51,7 +57,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+      const session = await getServerSession(authOptions);
+      const user = session?.user as SessionUser | undefined;
+    
+    
     if (!user || !["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -107,15 +116,15 @@ export async function POST(request: NextRequest) {
     await newUser.save()
 
     await logAuditEvent({
-      user_id: user._id,
+      user_id: user.id,
       action: "user_created",
-      details: { created_user_id: newUser._id, email: newUser.email },
+      details: { created_user_id: newUser.id, email: newUser.email },
       ip: request.headers.get("x-forwarded-for") || "unknown",
     })
 
     return NextResponse.json({
       user: {
-        id: newUser._id,
+        id: newUser.id,
         name: newUser.name,
         mailboxAccess: newUser.mailboxAccess,
         email: newUser.email,

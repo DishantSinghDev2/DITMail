@@ -4,6 +4,8 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from "next/navigation";
 import { SessionUser } from "@/types";
 import { OnboardingClient } from "@/components/onboarding/OnboardingClient";
+import { connectDB } from "@/lib/db";
+import User from "@/models/User";
 
 export default async function OnboardingPage() {
   const session = await getServerSession(authOptions);
@@ -14,7 +16,9 @@ export default async function OnboardingPage() {
     redirect("/api/auth/signin/wyi"); // NextAuth handles provider signin
   }
 
-  if (user?.onboarding?.completed) {
+  await connectDB()
+  const userDB = await User.findById({_id :user.id})
+  if (userDB?.onboarding?.completed) {
     redirect("/mail/inbox");
   }
 

@@ -8,16 +8,20 @@ import type { User as NextAuthUser } from "next-auth";
  * Handles the initial setup for a brand new user.
  * This function is called when a user signs up for the first time.
  * It creates a default "Free" plan if one doesn't exist, creates a new
- * organization for the user, and updates the user's role to "owner".
+ * organization for the user, and updates the user's role to "owner" and
+ * links them to the new organization.
  */
 export async function handleNewUserOnboarding(user: NextAuthUser) {
   try {
     await connectDB();
 
-    // Check if the user already has an organization. If so, they are not a new user.
+    // Find the user in the database to check their status.
     const dbUser = await User.findById(user.id);
+
+    // Check if the user exists and does not already have an organization.
+    // If they do, they are not a new user for onboarding purposes.
     if (!dbUser || dbUser.org_id) {
-      console.log(`User ${user.email} already has an organization. Skipping new user setup.`);
+      console.log(`User ${user.email} is not eligible for new user setup. Skipping.`);
       return;
     }
     
@@ -35,35 +39,49 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
         features: ["Basic Email", "1 Domain", "1 User"],
       });
       await freePlan.save();
+      console.log(`Default 'Free' plan created with ID: ${freePlan._id}`);
     }
 
     // Step 2: Create a new organization for the user.
-    // We can name it based on the user's name initially.
     const orgName = `${user.name}'s Organization`;
     const organization = new Organization({
       name: orgName,
       plan_id: freePlan._id,
     });
     await organization.save();
+    console.log(`New organization "${orgName}" created with ID: ${organization._id}`);
 
-    // Step 3: Update the newly created user document.
-    // Set their role to "owner" and link them to the new organization.
-    dbUser.org_id = organization._id;
-    dbUser.role = "owner";
-    dbUser.onboarding = {
-      completed: false, // Start the onboarding process
-      startedAt: new Date(),
-    };
-    // By default, the owner does not have mailbox access until they set up a domain/user.
-    dbUser.mailboxAccess = false; 
-    
-    await dbUser.save();
+    // Step 3: Atomically find and update the user document.
+    // This is a more direct way to ensure the user record is updated.
+    const updatedUser = await User.findByIdAndUpdate(
+      dbUser._id,
+      {
+        $set: {
+          org_id: organization._id,
+          role: "owner",
+          onboarding: {
+            completed: false,
+            startedAt: new Date(),
+          },
+          // By default, the owner does not have mailbox access until setup.
+          mailboxAccess: false, 
+        },
+      },
+      { new: true } // This option returns the updated document.
+    );
 
-    console.log(`Successfully created organization ${organization._id} for user ${user.id}`);
+    if (!updatedUser) {
+        // This is an edge case, but good practice to handle.
+        // It means the user was deleted between the initial find and the update.
+        throw new Error(`Failed to find and update user ${user.id} during onboarding.`);
+    }
+
+    console.log(`Successfully updated user ${updatedUser.email}. They are now the owner of organization ${organization._id}`);
 
   } catch (error) {
     console.error("Error during new user onboarding setup:", error);
-    // You might want to add more robust error handling here,
-    // like sending an alert to an admin.
+    // In a production environment, you might want to add more robust error handling,
+    // such as cleaning up the created organization if the user update fails,
+    // or sending an alert to an admin.
   }
 }

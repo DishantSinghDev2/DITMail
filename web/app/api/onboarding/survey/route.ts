@@ -1,11 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAuthUser } from "@/lib/auth"
-import connectDB from "@/lib/db"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route";
+import {connectDB} from "@/lib/db"
 import User from "@/models/User"
+import { SessionUser } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+    
     if (!user || !["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -15,7 +19,7 @@ export async function POST(request: NextRequest) {
     const surveyData = await request.json()
 
     // Save survey data to user profile
-    await User.findByIdAndUpdate(user._id, {
+    await User.findByIdAndUpdate(user.id, {
       $set: {
         "onboarding.survey": surveyData,
       },

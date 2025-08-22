@@ -47,22 +47,6 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(signInUrl);
     }
   }
-
-  // --- Step 2: Apply Rate Limiting (if the user has a session or is accessing /api/auth) ---
-  let rateLimitResponse: NextResponse | null = null;
-  if (pathname.startsWith("/api/auth")) { // Apply auth rate limit specifically
-    rateLimitResponse = await authRateLimit(request);
-  } else if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
-    rateLimitResponse = await smtpBridgeRateLimit(request);
-  } else if (pathname.startsWith("/api/")) {
-    rateLimitResponse = await apiRateLimit(request);
-  }
-
-  if (rateLimitResponse) {
-     applySecurityHeaders(rateLimitResponse);
-     return rateLimitResponse;
-  }
-
   // --- Step 3: Path-Specific Logic (if allowed) ---
   if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
     const ip = request.ip ?? "127.0.0.1";

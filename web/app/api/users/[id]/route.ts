@@ -1,12 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import User from "@/models/User"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../auth/[...nextauth]/route"
+import { SessionUser } from "@/types"
 import { logAuditEvent } from "@/lib/audit"
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
+     const session = await getServerSession(authOptions);
+     const user = session?.user as SessionUser | undefined;
     if (!user || !["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
@@ -29,7 +32,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updatedUser = await User.findByIdAndUpdate(params.id, updates, { new: true }).select("-password_hash")
 
     await logAuditEvent({
-      user_id: user._id,
+      user_id: user.id,
       action: "user_updated",
       details: { updated_user_id: params.id, changes: updates },
       ip: request.headers.get("x-forwarded-for") || "unknown",
@@ -44,7 +47,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
+     const session = await getServerSession(authOptions);
+     const user = session?.user as SessionUser | undefined;
     if (!user || user.role !== "owner") {
       return NextResponse.json({ error: "Only owners can delete users" }, { status: 403 })
     }
@@ -57,7 +61,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Prevent deletion of own account
-    if (targetUser._id.toString() === user._id.toString()) {
+    if (targetUser._id.toString() === user.id.toString()) {
       return NextResponse.json({ error: "Cannot delete your own account" }, { status: 403 })
     }
 
@@ -68,7 +72,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     await User.findByIdAndDelete(params.id)
 
     await logAuditEvent({
-      user_id: user._id,
+      user_id: user.id,
       action: "user_deleted",
       details: { deleted_user_id: params.id, email: targetUser.email },
       ip: request.headers.get("x-forwarded-for") || "unknown",
