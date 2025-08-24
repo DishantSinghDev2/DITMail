@@ -1,22 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Folder from "@/models/Folder"
 import Message from "@/models/Message"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { logAuditEvent } from "@/lib/audit"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
     await connectDB()
 
     const folder = await Folder.findOne({
       _id: params.id,
-      user_id: user._id,
+      user_id: user.id,
     })
 
     if (!folder) {
@@ -25,12 +28,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     // Get message counts
     const totalCount = await Message.countDocuments({
-      user_id: user._id,
+      user_id: user.id,
       folder: folder._id,
     })
 
     const unreadCount = await Message.countDocuments({
-      user_id: user._id,
+      user_id: user.id,
       folder: folder._id,
       read: false,
     })
@@ -50,9 +53,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const updates = await request.json()
@@ -65,7 +69,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     const folder = await Folder.findOne({
       _id: params.id,
-      user_id: user._id,
+      user_id: user.id,
     })
 
     if (!folder) {
@@ -75,7 +79,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     // Check for duplicate name if updating name
     if (updates.name && updates.name.trim() !== folder.name) {
       const existingFolder = await Folder.findOne({
-        user_id: user._id,
+        user_id: user.id,
         name: updates.name.trim(),
         _id: { $ne: params.id },
       })
@@ -88,7 +92,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updatedFolder = await Folder.findByIdAndUpdate(params.id, updates, { new: true })
 
     await logAuditEvent({
-      user_id: user._id.toString(),
+      user_id: user.id.toString(),
       action: "folder_updated",
       details: {
         folderId: folder._id,
@@ -107,16 +111,17 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     await connectDB()
 
     const folder = await Folder.findOne({
       _id: params.id,
-      user_id: user._id,
+      user_id: user.id,
     })
 
     if (!folder) {
@@ -125,7 +130,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Check if folder has messages
     const messageCount = await Message.countDocuments({
-      user_id: user._id,
+      user_id: user.id,
       folder: folder._id,
     })
 
@@ -133,7 +138,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       // Move messages to inbox before deleting folder
       await Message.updateMany(
         {
-          user_id: user._id,
+          user_id: user.id,
           folder: folder._id,
         },
         {
@@ -145,7 +150,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     await Folder.findByIdAndDelete(params.id)
 
     await logAuditEvent({
-      user_id: user._id.toString(),
+      user_id: user.id.toString(),
       action: "folder_deleted",
       details: {
         folderId: folder._id,

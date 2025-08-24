@@ -1,14 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import { redis } from "@/lib/redis"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth"
+import { authOptions } from "../../auth/[...nextauth]/route"
 import { asyncHandler } from "@/lib/error-handler"
 
 export const GET = asyncHandler(async (request: NextRequest) => {
-  const user = await getAuthUser(request)
-  if (!user || !["owner", "admin"].includes(user.role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  const session = await getServerSession(authOptions)
+    const user = session?.user
+    if (!user || !["owner", "admin"].includes(user.role)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
 
   const health = {
     status: "healthy",

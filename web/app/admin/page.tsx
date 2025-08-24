@@ -1,59 +1,31 @@
-"use client"
+import { Suspense } from 'react';
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { SessionUser } from "@/types";
+import { getOrganizationStats, getSystemHealth, getRecentActivity } from "@/lib/data/admin";
+import { DashboardClient } from '@/components/admin/DashboardClient';
+import { DashboardSkeleton } from '@/components/admin/Skeletons';
 
-import { useEffect, useState } from "react"
-import AdminSidebar from "@/components/admin/AdminSidebar"
-import DashboardStats from "@/components/admin/DashboardStats"
-import AccessDeniedPage from "./accessDenied"
+export default async function AdminDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser;
 
-export default function AdminPage() {
-  const [stats, setStats] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Fetch all data concurrently on the server before the page is rendered
+  const [stats, health, activity] = await Promise.all([
+    getOrganizationStats(user.org_id),
+    getSystemHealth(),
+    getRecentActivity(user.org_id)
+  ]);
 
-  useEffect(() => {
-    if (user && ["owner", "admin"].includes(user.role)) {
-      fetchStats()
-    }
-  }, [user])
-
-  const fetchStats = async () => {
-    try {
-      const token = localStorage.getItem("accessToken")
-      const response = await fetch("/api/admin/stats", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        setStats(data.stats)
-      }
-    } catch (error) {
-      console.error("Error fetching stats:", error)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (!user || !["owner", "admin"].includes(user.role)) {
-    return <AccessDeniedPage />
-  }
-
+  // The Suspense boundary shows a skeleton while data is being fetched on the server
   return (
-    <div className="min-h-screen bg-gray-100 flex">
-      <AdminSidebar />
-      <div className="flex-1 p-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Manage your organization and users</p>
-        </div>
-
-        {loading ? (
-          <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-          </div>
-        ) : (
-          <DashboardStats stats={stats} />
-        )}
-      </div>
-    </div>
-  )
+    <Suspense fallback={<DashboardSkeleton />}>
+      {/* The client component receives all data as props */}
+      <DashboardClient
+        stats={stats}
+        health={health}
+        activity={activity}
+      />
+    </Suspense>
+  );
 }

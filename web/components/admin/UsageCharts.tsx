@@ -139,18 +139,18 @@ export default function UsageCharts() {
   }
 
   const emailChartData = {
-    labels: usageData.emailsOverTime.labels,
+    labels: usageData.emailsOverTime?.labels,
     datasets: [
       {
         label: "Emails Sent",
-        data: usageData.emailsOverTime.sent,
+        data: usageData.emailsOverTime?.sent,
         borderColor: "rgb(59, 130, 246)",
         backgroundColor: "rgba(59, 130, 246, 0.1)",
         tension: 0.4,
       },
       {
         label: "Emails Received",
-        data: usageData.emailsOverTime.received,
+        data: usageData.emailsOverTime?.received,
         borderColor: "rgb(16, 185, 129)",
         backgroundColor: "rgba(16, 185, 129, 0.1)",
         tension: 0.4,
@@ -159,11 +159,11 @@ export default function UsageCharts() {
   }
 
   const storageChartData = {
-    labels: usageData.storageUsage.labels,
+    labels: usageData.storageUsage?.labels,
     datasets: [
       {
         label: "Storage Used (GB)",
-        data: usageData.storageUsage.data,
+        data: usageData.storageUsage?.data,
         backgroundColor: "rgba(139, 92, 246, 0.8)",
         borderColor: "rgb(139, 92, 246)",
         borderWidth: 1,
@@ -172,11 +172,11 @@ export default function UsageCharts() {
   }
 
   const userActivityData = {
-    labels: usageData.userActivity.labels,
+    labels: usageData.userActivity?.labels,
     datasets: [
       {
         label: "Active Users",
-        data: usageData.userActivity.data,
+        data: usageData.userActivity?.data,
         backgroundColor: "rgba(245, 158, 11, 0.8)",
         borderColor: "rgb(245, 158, 11)",
         borderWidth: 1,
@@ -185,11 +185,11 @@ export default function UsageCharts() {
   }
 
   const planDistributionData = {
-    labels: usageData.planDistribution.labels,
+    labels: usageData.planDistribution?.labels,
     datasets: [
       {
-        data: usageData.planDistribution.data,
-        backgroundColor: usageData.planDistribution.colors,
+        data: usageData.planDistribution?.data,
+        backgroundColor: usageData.planDistribution?.colors,
         borderWidth: 2,
         borderColor: "#ffffff",
       },
@@ -251,24 +251,24 @@ export default function UsageCharts() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-blue-600">
-            {usageData.emailsOverTime.sent.reduce((a, b) => a + b, 0)}
+            {usageData.emailsOverTime?.sent.reduce((a, b) => a + b, 0)}
           </div>
           <div className="text-sm text-gray-600">Total Emails Sent</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-green-600">
-            {usageData.emailsOverTime.received.reduce((a, b) => a + b, 0)}
+            {usageData.emailsOverTime?.received.reduce((a, b) => a + b, 0)}
           </div>
           <div className="text-sm text-gray-600">Total Emails Received</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
           <div className="text-2xl font-bold text-purple-600">
-            {Math.max(...usageData.storageUsage.data).toFixed(1)} GB
+            {Math.max(...usageData.storageUsage?.data || []).toFixed(1)} GB
           </div>
           <div className="text-sm text-gray-600">Peak Storage Usage</div>
         </div>
         <div className="bg-white rounded-lg shadow p-4">
-          <div className="text-2xl font-bold text-yellow-600">{Math.max(...usageData.userActivity.data)}</div>
+          <div className="text-2xl font-bold text-yellow-600">{Math.max(...usageData.userActivity?.data || [])}</div>
           <div className="text-sm text-gray-600">Peak Daily Users</div>
         </div>
       </div>

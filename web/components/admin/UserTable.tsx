@@ -76,7 +76,7 @@ export default function UserTable({ users, loading, onRefresh }: UserTableProps)
                 </span>
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {formatDistanceToNow(new Date(user.created_at), { addSuffix: true })}
+                {formatDistanceToNow(new Date(user.created_at || new Date()), { addSuffix: true })}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                 <div className="flex justify-end space-x-2">

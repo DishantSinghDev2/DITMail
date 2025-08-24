@@ -3,6 +3,8 @@ import { unstable_cache } from 'next/cache';
 import Message from '@/models/Message';
 import {connectDB} from '@/lib/db';
 import { Types } from 'mongoose';
+import Folder from '@/models/Folder';
+import Label from '@/models/Label';
 
 export interface FolderCounts {
   inbox?: { total: number; unread: number };
@@ -39,3 +41,40 @@ export const getFolderCounts = unstable_cache(
   ['folder-counts'],
   { tags: (userId) => [`counts:${userId}`], revalidate: 300 } // Revalidate every 5 mins
 );
+
+export async function getCustomFolders(userId: string) {
+  try {
+    await connectDB();
+    // Use .lean() to get plain JS objects instead of Mongoose docs
+    const folders = await Folder.find({ user_id: userId }).lean();
+
+    // Manually serialize the data to ensure it's plain
+    return folders.map(folder => ({
+      _id: folder._id.toString(), // Convert ObjectId to string
+      name: folder.name,
+      // Add other folder properties here if they exist
+    }));
+  } catch (error) {
+    console.error("Database Error: Failed to fetch custom folders.", error);
+    return [];
+  }
+}
+
+export async function getLabels(userId: string) {
+  try {
+    await connectDB();
+    const labels = await Label.find({ user_id: userId }).lean();
+
+    // Manually serialize the data
+    return labels.map(label => ({
+      _id: label._id.toString(), // Convert ObjectId to string
+      name: label.name,
+      color: label.color,
+      // Convert any other complex types here (like Dates)
+      // created_at: label.created_at.toISOString(),
+    }));
+  } catch (error) {
+    console.error("Database Error: Failed to fetch labels.", error);
+    return [];
+  }
+}

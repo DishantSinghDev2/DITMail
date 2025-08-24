@@ -1,33 +1,36 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Folder from "@/models/Folder"
 import Message from "@/models/Message"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { logAuditEvent } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
     await connectDB()
 
     const folders = await Folder.find({
-      user_id: user._id,
+      user_id: user.id,
     }).sort({ created_at: 1 })
 
     // Get message counts for each folder
     const foldersWithCounts = await Promise.all(
       folders.map(async (folder) => {
         const totalCount = await Message.countDocuments({
-          user_id: user._id,
+          user_id: user.id,
           folder: folder._id,
         })
 
         const unreadCount = await Message.countDocuments({
-          user_id: user._id,
+          user_id: user.id,
           folder: folder._id,
           read: false,
         })
@@ -49,9 +52,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { name, color, description } = await request.json()
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest) {
 
     // Check if folder already exists
     const existingFolder = await Folder.findOne({
-      user_id: user._id,
+      user_id: user.id,
       name: name.trim(),
     })
 
@@ -77,7 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check folder limit (max 50 custom folders per user)
-    const folderCount = await Folder.countDocuments({ user_id: user._id })
+    const folderCount = await Folder.countDocuments({ user_id: user.id })
     if (folderCount >= 50) {
       return NextResponse.json({ error: "Maximum folder limit reached (50)" }, { status: 400 })
     }
@@ -86,14 +90,14 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       color: color || "#3B82F6",
       description: description?.trim() || "",
-      user_id: user._id,
+      user_id: user.id,
       org_id: user.org_id,
     })
 
     await folder.save()
 
     await logAuditEvent({
-      user_id: user._id.toString(),
+      user_id: user.id.toString(),
       action: "folder_created",
       details: {
         folderId: folder._id,

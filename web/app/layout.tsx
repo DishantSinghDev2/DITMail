@@ -5,7 +5,8 @@ import { Inter } from "next/font/google"
 import { initSentry } from "@/lib/sentry"
 import { Providers } from "./providers" // Import the new provider component
 import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Adjust this path to your auth options
+import { authOptions } from "@/app/api/auth/[...nextauth]/route" // Adjust this path to your auth 
+import { Toaster } from "@/components/ui/toaster";
 
 // Initialize Sentry
 initSentry()
@@ -40,6 +41,7 @@ export default async function RootLayout({
         <Providers session={session}>
           {children}
         </Providers>
+              <Toaster />
       </body>
     </html>
   )

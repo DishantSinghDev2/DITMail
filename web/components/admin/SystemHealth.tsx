@@ -99,7 +99,7 @@ export default function SystemHealth({ refreshInterval = 30000 }: SystemHealthPr
   }
 
   const overallStatus =
-    healthMetrics.length > 0
+    (healthMetrics || []).length > 0
       ? healthMetrics.some((m) => m.status === "critical")
         ? "critical"
         : healthMetrics.some((m) => m.status === "warning")
@@ -142,14 +142,14 @@ export default function SystemHealth({ refreshInterval = 30000 }: SystemHealthPr
       </div>
 
       <div className="p-6">
-        {healthMetrics.length === 0 ? (
+        {(healthMetrics || []).length === 0 ? (
           <div className="text-center py-8">
             <ServerIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
             <p className="text-gray-500">No health metrics available</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {healthMetrics.map((metric, index) => (
+            {(healthMetrics || []).map((metric, index) => (
               <div key={index} className={`p-4 rounded-lg border ${getStatusColor(metric.status)}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-3">

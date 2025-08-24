@@ -1,22 +1,25 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Label from "@/models/Label"
 import Message from "@/models/Message"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { logAuditEvent } from "@/lib/audit"
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     await connectDB()
 
     const label = await Label.findOne({
       _id: params.id,
-      user_id: user._id,
+      user_id: user.id,
     })
 
     if (!label) {
@@ -26,7 +29,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     // Remove label from all messages
     await Message.updateMany(
       {
-        user_id: user._id,
+        user_id: user.id,
         labels: label.name,
       },
       {
@@ -37,7 +40,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     await Label.findByIdAndDelete(params.id)
 
     await logAuditEvent({
-      user_id: user._id.toString(),
+      user_id: user.id.toString(),
       action: "label_deleted",
       details: {
         labelId: label._id,

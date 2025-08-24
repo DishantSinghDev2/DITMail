@@ -34,3 +34,19 @@ export function formatDate(date: Date): string {
     return date.toLocaleDateString([], { month: "short", day: "numeric" })
   }
 }
+
+/**
+ * Serializes data to ensure it's a plain, JSON-serializable object.
+ * This is crucial when passing data from Server Components to Client Components,
+ * or when caching data that might contain non-plain types like Mongoose documents,
+ * Date objects, or ObjectId instances.
+ *
+ * @param data The data to serialize.
+ * @returns A plain, JSON-serializable version of the data.
+ */
+export function serialize<T>(data: T): T {
+  // Use JSON.parse(JSON.stringify(data)) as a robust way to deep clone and serialize.
+  // This handles Dates, ObjectIds (if .toJSON() is implemented or they are within a Mongoose doc),
+  // and other non-plain structures by converting them to their string representations.
+  return JSON.parse(JSON.stringify(data));
+}

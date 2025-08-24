@@ -1,28 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Label from "@/models/Label"
 import Message from "@/models/Message"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { logAuditEvent } from "@/lib/audit"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+        if (!user) {
+          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        }
 
     await connectDB()
 
     const labels = await Label.find({
-      user_id: user._id,
+      user_id: user.id,
     }).sort({ created_at: 1 })
 
     // Get message counts for each label
     const labelsWithCounts = await Promise.all(
       labels.map(async (label) => {
         const count = await Message.countDocuments({
-          user_id: user._id,
+          user_id: user.id,
           labels: label.name,
         })
 
@@ -42,9 +45,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { name, color, description } = await request.json()
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Check if label already exists
     const existingLabel = await Label.findOne({
-      user_id: user._id,
+      user_id: user.id,
       name: name.trim(),
     })
 
@@ -70,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check label limit (max 100 labels per user)
-    const labelCount = await Label.countDocuments({ user_id: user._id })
+    const labelCount = await Label.countDocuments({ user_id: user.id })
     if (labelCount >= 100) {
       return NextResponse.json({ error: "Maximum label limit reached (100)" }, { status: 400 })
     }
@@ -79,14 +83,14 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       color: color || "#3B82F6",
       description: description?.trim() || "",
-      user_id: user._id,
+      user_id: user.id,
       org_id: user.org_id,
     })
 
     await label.save()
 
     await logAuditEvent({
-      user_id: user._id.toString(),
+      user_id: user.id.toString(),
       action: "label_created",
       details: {
         labelId: label._id,
