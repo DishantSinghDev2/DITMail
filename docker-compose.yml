@@ -52,13 +52,13 @@ services:
 
   # ClamAV Daemon
   clamav:
-    image: clamav/clamav:latest
+    image: mkodockx/docker-clamav:alpine
     container_name: clamav
     restart: unless-stopped
     networks:
       - mail_network
     ports:
-      - "3310:3310"   # Optional: expose to host, not needed for internal comms
+      - "3310"
     volumes:
       - clamav_db:/var/lib/clamav
     command: ["clamd"]   # Start clamd daemon
