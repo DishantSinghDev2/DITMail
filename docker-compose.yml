@@ -52,7 +52,7 @@ services:
 
   # ClamAV Daemon
   clamav:
-    image: mkodockx/docker-clamav:latest
+    image: mkodockx/docker-clamav:alpine
     container_name: clamav
     restart: unless-stopped
     networks:
