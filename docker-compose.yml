@@ -57,11 +57,10 @@ services:
     restart: unless-stopped
     networks:
       - mail_network
-    ports:
+    expose:
       - "3310"
     volumes:
       - clamav_db:/var/lib/clamav
-    command: ["clamd"]   # Start clamd daemon
 
   # WebSocket API
   ws:
