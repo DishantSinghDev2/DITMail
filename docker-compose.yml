@@ -123,9 +123,18 @@ services:
       - certs:/etc/letsencrypt
       - ./cloudflare:/root/.secrets/certbot:ro
     command: >
-      certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini
-      --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1
-      -d mx.ditmail.online -d smtp.ditmail.online -d ws.ditmail.online -d worker.ditmail.online ${CERTBOT_ENV}
+      certonly --dns-cloudflare
+              --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini
+              --email admin@ditmail.online
+              --agree-tos
+              --no-eff-email
+              --key-type ecdsa
+              --elliptic-curve secp384r1
+              -d mx.ditmail.online
+              -d smtp.ditmail.online
+              -d ws.ditmail.online
+              -d worker.ditmail.online
+              --expand --non-interactive ${CERTBOT_ENV}
 
   # Certbot automatic renewal (update for new domains)
   certbot-renew:
