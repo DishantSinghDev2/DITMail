@@ -63,23 +63,41 @@ services:
       - clamav_db:/var/lib/clamav
       - ./clamd.conf:/etc/clamav/clamd.conf:ro   # Mount our custom config
 
-  # WebSocket API
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    depends_on:
+      - ws
+      - worker
+    networks:
+      - mail_network
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - certs:/etc/letsencrypt:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/logs:/var/log/nginx
+
+  # WS service (unchanged)
   ws:
     build:
       context: ./ws
     container_name: ws
     restart: unless-stopped
-    ports:
-      - "4000:8080" # External 4000 -> internal 8080
     networks:
       - mail_network
+    expose:
+      - "8080"
     depends_on:
       - redis
     environment:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
 
-  # Background Worker
+  # Worker service (unchanged, no direct ports since proxied by nginx)
   worker:
     build:
       context: ./worker
@@ -87,6 +105,8 @@ services:
     restart: unless-stopped
     networks:
       - mail_network
+    expose:
+      - "8081"
     depends_on:
       - mongodb
       - redis
@@ -95,7 +115,7 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
       JWT_SECRET: ${JWT_SECRET}
 
-  # Certbot initial issuance via Cloudflare DNS
+  # Certbot initial issuance (update with new domains)
   certbot-initial:
     image: certbot/dns-cloudflare:latest
     container_name: certbot-initial
@@ -103,9 +123,11 @@ services:
       - certs:/etc/letsencrypt
       - ./cloudflare:/root/.secrets/certbot:ro
     command: >
-      certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1 -d mx.ditmail.online -d smtp.ditmail.online ${CERTBOT_ENV}
+      certonly --dns-cloudflare --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini
+      --email admin@ditmail.online --agree-tos --no-eff-email --key-type ecdsa --elliptic-curve secp384r1
+      -d mx.ditmail.online -d smtp.ditmail.online -d ws.ditmail.online -d worker.ditmail.online ${CERTBOT_ENV}
 
-  # Certbot automatic renewal
+  # Certbot automatic renewal (update for new domains)
   certbot-renew:
     image: certbot/dns-cloudflare:latest
     container_name: certbot-renew
@@ -121,9 +143,11 @@ services:
             --dns-cloudflare-credentials /root/.secrets/certbot/cloudflare.ini;
           docker kill --signal=HUP inbound-mx;
           docker kill --signal=HUP outbound-smtp;
+          docker kill --signal=HUP nginx;
           sleep 12h;
         done
       "
+
 
   # MongoDB
   mongodb:

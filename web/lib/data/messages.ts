@@ -43,6 +43,7 @@ export const getMessagesForFolder = unstable_cache(
       { $skip: (page - 1) * limit },
       { $limit: limit },
     ];
+    console.log('new')
 
     const threads = await Message.aggregate(pipeline);
     
