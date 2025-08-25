@@ -90,7 +90,7 @@ services:
     networks:
       - mail_network
     expose:
-      - "8080"
+      - "4000"
     depends_on:
       - redis
     environment:
@@ -105,8 +105,6 @@ services:
     restart: unless-stopped
     networks:
       - mail_network
-    expose:
-      - "8081"
     depends_on:
       - mongodb
       - redis
@@ -133,7 +131,6 @@ services:
               -d mx.ditmail.online
               -d smtp.ditmail.online
               -d ws.ditmail.online
-              -d worker.ditmail.online
               --expand --non-interactive ${CERTBOT_ENV}
 
   # Certbot automatic renewal (update for new domains)
