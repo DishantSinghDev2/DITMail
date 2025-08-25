@@ -6,6 +6,8 @@ import { SessionUser } from "@/types";
 import { generateDKIMKeys } from "@/lib/dns"
 import Organization from "@/models/Organization"
 import { authOptions } from "../auth/[...nextauth]/route";
+import { revalidateTag } from "next/cache";
+
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +87,8 @@ export async function POST(request: NextRequest) {
     })
 
     await newDomain.save()
+
+    revalidateTag(`org:${user.org_id}:domains`);
 
     return NextResponse.json({
       domain: newDomain,

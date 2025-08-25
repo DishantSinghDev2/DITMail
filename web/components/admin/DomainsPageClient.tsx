@@ -28,7 +28,6 @@ interface DomainsPageClientProps {
 export function DomainsPageClient({ initialDomains }: DomainsPageClientProps) {
   const router = useRouter();
   const { toast } = useToast();
-
   const [domains, setDomains] = useState<AdminDomain[]>(initialDomains);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newDomainName, setNewDomainName] = useState('');

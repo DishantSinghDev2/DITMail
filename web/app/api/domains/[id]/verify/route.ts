@@ -6,12 +6,13 @@ import { logAuditEvent } from "@/lib/audit"
 import { getServerSession } from "next-auth";
 import { SessionUser } from "@/types";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+import { revalidateTag } from "next/cache"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user as SessionUser | undefined;
-    
+
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -47,6 +48,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       details: { domain: domain.domain, verificationStatus: verification },
       ip: request.headers.get("x-forwarded-for") || request.ip || "unknown",
     });
+
+    revalidateTag(`org:${user.org_id}:domains`);
 
     return NextResponse.json({
       domain: updatedDomain,

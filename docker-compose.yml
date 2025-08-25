@@ -12,6 +12,7 @@ services:
     depends_on:
       - mongodb
       - redis
+      - clamav
     volumes:
       - certs:/etc/letsencrypt:ro
     environment:
@@ -20,6 +21,8 @@ services:
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      CLAMAV_HOST: "clamav"
+      CLAMAV_PORT: "3310"
 
   # Outbound SMTP Server
   outbound_smtp:
@@ -35,6 +38,7 @@ services:
     depends_on:
       - mongodb
       - redis
+      - clamav
     volumes:
       - certs:/etc/letsencrypt:ro
     environment:
@@ -43,6 +47,21 @@ services:
       REDIS_HOST: "redis"
       REDIS_PORT: "6379"
       REDIS_PASSWORD: "${REDIS_PASSWORD}"
+      CLAMAV_HOST: "clamav"
+      CLAMAV_PORT: "3310"
+
+  # ClamAV Daemon
+  clamav:
+    image: clamav/clamav:latest
+    container_name: clamav
+    restart: unless-stopped
+    networks:
+      - mail_network
+    ports:
+      - "3310:3310"   # Optional: expose to host, not needed for internal comms
+    volumes:
+      - clamav_db:/var/lib/clamav
+    command: ["clamd"]   # Start clamd daemon
 
   # WebSocket API
   ws:
@@ -119,8 +138,8 @@ services:
     volumes:
       - mongo_data:/data/db
     ports:
-      - "27017:27017" # expose MongoDB to host
-    command: [ "mongod", "--bind_ip_all" ] # allow connections from outside
+      - "27017:27017"
+    command: [ "mongod", "--bind_ip_all" ]
 
   # Redis
   redis:
@@ -131,7 +150,7 @@ services:
     networks:
       - mail_network
     ports:
-      - "6379:6379" # expose to host / remote
+      - "6379:6379"
     volumes:
       - redis_data:/data
 
@@ -143,3 +162,4 @@ volumes:
   certs:
   mongo_data:
   redis_data:
+  clamav_db:
