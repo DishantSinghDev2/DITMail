@@ -47,9 +47,9 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
       // The actual URL should come from your environment variables
       const isSecure = window.location.protocol === "https:";
-      const wsProtocol = isSecure ? "wss://" : "wss://";
+      const wsProtocol = isSecure ? "wss://" : "ws://";
       const wsHost = 'ws.ditmail.online'; // This will be your server's public IP or domain
-      const wsUrl = `${wsProtocol}${wsHost}:4000`;
+      const wsUrl = `${wsProtocol}${wsHost}`;
 
       console.log("Attempting to connect to WebSocket at:", wsUrl);
 
