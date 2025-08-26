@@ -7,6 +7,7 @@ import User from "@/models/User" // Your User model
 import "@/models/Organization" // Import Organization model
 import "@/models/Plan" // Import Plan model
 import { handleNewUserOnboarding } from "@/lib/auth/onboarding"
+import Account from "@/models/Account"
 
 // STEP 1: Update the type declarations to include all your custom data.
 // This provides type safety for your session and token objects.
@@ -27,6 +28,7 @@ declare module "next-auth" {
             };
             plan: string;
             nextDueDate?: string; // Optional, as it's not in the schema yet
+            accessToken?: string;
         };
     }
 }
@@ -47,6 +49,7 @@ declare module "next-auth/jwt" {
         };
         plan: string;
         nextDueDate?: string;
+        accessToken?: string;
     }
 }
 
@@ -153,6 +156,42 @@ export const authOptions: NextAuthOptions = {
 
 
    callbacks: {
+    async signIn({ user, account, profile }) {
+            // This callback is triggered on a successful sign-in.
+            await connectDB();
+
+            const existingUser = await User.findOne({ email: user.email });
+
+            if (existingUser) {
+                // If a user with this email already exists, check if the account is linked.
+                const isAccountLinked = await Account.findOne({
+                    provider: account?.provider,
+                    providerAccountId: account?.providerAccountId,
+                });
+
+                if (!isAccountLinked) {
+                    // If the account is not linked, this is where you can create the link.
+                    // This assumes you trust that owning the email on the new provider
+                    // means they are the same user.
+                    await Account.insertOne({
+                        userId: existingUser._id,
+                        type: account?.type,
+                        provider: account?.provider,
+                        providerAccountId: account?.providerAccountId,
+                        access_token: account?.access_token,
+                        refresh_token: account?.refresh_token,
+                        expires_at: account?.expires_at,
+                        token_type: account?.token_type,
+                        scope: account?.scope,
+                        id_token: account?.id_token,
+                        session_state: account?.session_state,
+                    });
+                    console.log("Successfully linked new provider to existing user.");
+                }
+            }
+            return true; // Continue with the sign-in process
+        },
+
         async jwt({ token, user, profile, account, trigger, session }) {
             await connectDB();
 
@@ -174,6 +213,8 @@ export const authOptions: NextAuthOptions = {
                 token.org_id = dbUser.org_id?._id.toString();
                 token.onboarding = { completed: dbUser.onboarding?.completed || false };
                 token.plan = dbUser.org_id?.plan_id?.name || 'none';
+                token.accessToken = account.access_token; // from provider
+
                 
                 return token;
             }
@@ -206,6 +247,7 @@ export const authOptions: NextAuthOptions = {
             session.user.onboarding = token.onboarding; // Ensure onboarding status is always fresh
             session.user.plan = token.plan;
             session.user.nextDueDate = token.nextDueDate;
+            session.user.accessToken = token.accessToken
 
             if (token.picture) {
                 session.user.image = token.picture;

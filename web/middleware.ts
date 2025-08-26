@@ -5,22 +5,11 @@ import { createRateLimiter } from "./lib/rate-limit"; // Correct path
 import { getToken } from "next-auth/jwt";
 
 // --- Rate Limiter Configurations ---
-// Stricter limit for authentication attempts
-const authRateLimit = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  maxRequests: 10,
-});
 
 // General API limit
 const apiRateLimit = createRateLimiter({
   windowMs: 1 * 60 * 1000, // 1 minute
   maxRequests: 100,
-});
-
-// High-throughput limit for trusted local services
-const smtpBridgeRateLimit = createRateLimiter({
-  windowMs: 1 * 60 * 1000, // 1 minute
-  maxRequests: 1000,
 });
 
 // --- Main Middleware Logic ---

@@ -6,6 +6,14 @@ import { ObjectId } from 'mongodb';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
 import { SessionUser } from "@/types";
+import jwt from "jsonwebtoken";
+
+const INTERNAL_SECRET = process.env.INTERNAL_JWT_SECRET as string;
+
+function generateInternalToken(payload: object) {
+  return jwt.sign(payload, INTERNAL_SECRET, { expiresIn: "5m" });
+}
+
 
 export async function POST(request: Request) {
   try {
@@ -42,6 +50,23 @@ export async function POST(request: Request) {
 
       // Perform the update. This will now run even if the emails are the same.
       await User.updateOne({ _id: user._id }, { $set: updatePayload });
+
+      // Example inside your `if (email.endsWith('@ditmail.online')) { ... }` block
+      const internalToken = generateInternalToken({
+        email: user.email,        // old email
+        newEmail: email           // new email
+      });
+
+      await fetch(`https://whatsyour.info/api/DIT/ditmail`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${internalToken}`,
+          "Origin": "https://mail.dishis.tech", // must be in ALLOWED_ORIGINS
+        },
+        body: JSON.stringify({})
+      });
+
     }
 
     // Create welcome email message (no changes needed here)

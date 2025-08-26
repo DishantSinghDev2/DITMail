@@ -43,12 +43,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       const { default: io } = await import("socket.io-client")
 
       console.log("Attempting to connect socket...")
-      const token = localStorage.getItem("accessToken")
+      const token = user.accessToken
 
       // The actual URL should come from your environment variables
       const isSecure = window.location.protocol === "https:";
-      const wsProtocol = isSecure ? "wss://" : "ws://";
-      const wsHost = '152.53.170.239'; // This will be your server's public IP or domain
+      const wsProtocol = isSecure ? "wss://" : "wss://";
+      const wsHost = 'ws.ditmail.online'; // This will be your server's public IP or domain
       const wsUrl = `${wsProtocol}${wsHost}:4000`;
 
       console.log("Attempting to connect to WebSocket at:", wsUrl);
