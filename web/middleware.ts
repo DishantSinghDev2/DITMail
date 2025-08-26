@@ -20,22 +20,7 @@ export async function middleware(request: NextRequest) {
   // --- Step 1: Session Check for Protected Routes ---
   // We check for a session on all routes protected by the matcher
   // except for the auth API routes themselves.
-  if (!pathname.startsWith('/api/auth')) {
-    const token = await getToken({ req: request, secret: process.env.NEXTAUTH_SECRET });
-
-    // If there is no token (user is not logged in)
-    if (!token) {
-      const signInUrl = new URL("/api/auth/signin/wyi", request.url);
-      // Append a callbackUrl so the user is redirected back to the
-      // page they originally tried to visit after logging in.
-      signInUrl.searchParams.set("callbackUrl", request.url);
-      
-      // Redirect to the NextAuth.js sign-in page. Because we have only one
-      // OAuth provider and no custom login page, NextAuth will automatically
-      // redirect from here to the WYI OAuth screen.
-      return NextResponse.redirect(signInUrl);
-    }
-  }
+  
   // --- Step 3: Path-Specific Logic (if allowed) ---
   if (pathname.startsWith("/api/smtp") || pathname.startsWith("/api/auth/bridge")) {
     const ip = request.ip ?? "127.0.0.1";

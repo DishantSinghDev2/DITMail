@@ -20,25 +20,32 @@ import Dropdown from "../ui/Dropdown"; // Assuming path is correct
 import { ArrowDownWideNarrow, ChevronDown, MailMinus, MailOpen, OctagonAlert } from "lucide-react";
 import { useComposerStore } from "@/lib/store/composer"; // <--- IMPORT ZUSTAND STORE
 
-// --- PROPS INTERFACE ---
+// --- PROPS INTERFACE (THE FIX IS HERE) ---
 interface MessageListClientProps {
   initialMessages: MessageThread[];
-  totalMessages: number;
-  currentPage: number;
+  // totalMessages and currentPage are now inside the pagination object
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
   folder: string;
-  storageUsedGB: number;
-  storageTotalGB: number;
+  // This now accepts a single object, matching what the server sends
+  storageInfo: {
+    used: number;
+    limit: number;
+  };
 }
+
 
 const ITEMS_PER_PAGE = 25; // Should match the server-side limit
 
 export function MessageListClient({
   initialMessages,
-  totalMessages,
-  currentPage,
+  pagination, // Destructure the new pagination prop
   folder,
-  storageUsedGB,
-  storageTotalGB,
+  storageInfo, // Destructure the new storageInfo prop
 }: MessageListClientProps) {
   // --- HOOKS ---
   const router = useRouter();
@@ -47,21 +54,16 @@ export function MessageListClient({
   // --- STATE MANAGEMENT ---
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
-  const [sortBy, setSortBy] = useState("date");
-  const [sortOrder, setSortOrder] = useState("desc");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
-  const searchParams = useSearchParams(); // <--- Get access to URL query params
-
   const pathname = usePathname();
+
   // --- EFFECTS ---
-  // Reset selection when messages change (e.g., navigating pages/folders)
   useEffect(() => {
     setSelectedMessages(new Set());
   }, [initialMessages]);
 
-  // Effect to manage the indeterminate state of the "select all" checkbox
   useEffect(() => {
     const isAllSelected = selectedMessages.size === initialMessages.length && initialMessages.length > 0;
     const isPartiallySelected = selectedMessages.size > 0 && selectedMessages.size < initialMessages.length;
@@ -122,13 +124,15 @@ export function MessageListClient({
   const handleRefresh = () => {
     setIsRefreshing(true);
     router.refresh();
-    // Next.js will handle the loading state, but we can disable the button for a moment
     setTimeout(() => setIsRefreshing(false), 1000);
   };
 
   const onPageChange = (newPage: number) => {
-    if (newPage < 1 || (newPage - 1) * ITEMS_PER_PAGE >= totalMessages) return;
-    router.push(`/mail/${folder}?page=${newPage}`);
+    if (newPage < 1 || newPage > pagination.pages) return;
+
+    const params = new URLSearchParams(window.location.search);
+    params.set('page', newPage.toString());
+    router.push(`${pathname}?${params.toString()}`);
   };
 
   const onMessageSelect = (message: MessageThread) => {
@@ -181,29 +185,34 @@ export function MessageListClient({
     setSelectedMessages(newSelectedIds);
   };
 
-  const sortedMessages = useCallback(() => {
-    return [...initialMessages].sort((a, b) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case "date":
-          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-          break;
-        case "sender":
-          comparison = (folder === "sent" ? a.to[0] : a.from).localeCompare(folder === "sent" ? b.to[0] : b.from);
-          break;
-        case "subject":
-          comparison = a.subject.localeCompare(b.subject);
-          break;
-      }
-      return sortOrder === "desc" ? -comparison : comparison;
-    });
-  }, [initialMessages, sortBy, sortOrder, folder]);
+  // const sortedMessages = useCallback(() => {
+  //   return [...initialMessages].sort((a, b) => {
+  //     let comparison = 0;
+  //     switch (sortBy) {
+  //       case "date":
+  //         comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+  //         break;
+  //       case "sender":
+  //         comparison = (folder === "sent" ? a.to[0] : a.from).localeCompare(folder === "sent" ? b.to[0] : b.from);
+  //         break;
+  //       case "subject":
+  //         comparison = a.subject.localeCompare(b.subject);
+  //         break;
+  //     }
+  //     return sortOrder === "desc" ? -comparison : comparison;
+  //   });
+  // }, [initialMessages, sortBy, sortOrder, folder]);
 
-  const currentMessages = sortedMessages();
+  const currentMessages = initialMessages;
 
-  // --- RENDER LOGIC ---
+  // --- RENDER LOGIC (MORE FIXES HERE) ---
+  const { page: currentPage, total: totalMessages } = pagination;
   const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
   const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
+
+  // Calculate width safely to prevent division by zero
+  const storagePercentage = storageInfo.limit > 0 ? (storageInfo.used / storageInfo.limit) * 100 : 0;
+
 
   return (
     <div className="flex h-full flex-col bg-white">
@@ -323,13 +332,17 @@ export function MessageListClient({
         </div>
       )}
 
-      {/* Footer */}
+      {/* Footer (THE FIX IS HERE) */}
       <div className="border-t border-gray-200 p-2 bg-white text-xs text-gray-600 sticky bottom-0 z-10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="w-1/3">
-            <p>{storageUsedGB.toFixed(2)} GB of {storageTotalGB} GB used</p>
+            {/* Use the properties from the storageInfo object */}
+            <p>{storageInfo.used.toFixed(2)} GB of {storageInfo.limit} GB used</p>
             <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-              <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${(storageUsedGB / storageTotalGB) * 100}%` }}></div>
+              <div
+                className="bg-blue-600 h-1 rounded-full"
+                style={{ width: `${storagePercentage}%` }}
+              ></div>
             </div>
           </div>
           <div className="flex space-x-4">

@@ -92,11 +92,11 @@ function calculate_spam_score(connection, transaction, parsed, cfg) {
   if (clamd?.found) {
     addScore(spamCfg.virus_found, `VIRUS:${clamd.found}`);
   }
-  
+
   // 7. Attachment results (from 'attachment' plugin)
   const attach = transaction.results.get('attachment');
   if (attach?.fail.length > 0) {
-      addScore(spamCfg.dangerous_attachment, 'ATTACHMENT_BANNED');
+    addScore(spamCfg.dangerous_attachment, 'ATTACHMENT_BANNED');
   }
 
   // 8. FCrDNS results (from 'fcrdns' plugin)
@@ -108,7 +108,7 @@ function calculate_spam_score(connection, transaction, parsed, cfg) {
   // 9. HELO checks (from 'helo.checks' plugin)
   const helo = connection.results.get('helo.checks');
   if (helo?.fail.length > 0) {
-      addScore(spamCfg.helo_fail, 'HELO_FAIL');
+    addScore(spamCfg.helo_fail, 'HELO_FAIL');
   }
 
   // 10. TLS check
@@ -145,10 +145,10 @@ exports.save_to_mongo = function (next, connection) {
     });
 
     const parsed = await simpleParser(raw);
-     const spamReport = calculate_spam_score(connection, transaction, parsed, plugin.cfg);
+    const spamReport = calculate_spam_score(connection, transaction, parsed, plugin.cfg);
     const spamThreshold = plugin.cfg.spam?.threshold || 15;
     const folder = spamReport.score >= spamThreshold ? 'spam' : 'inbox';
-    
+
     plugin.loginfo(`Message ${transaction.uuid} from ${parsed.from.value[0].address} scored ${spamReport.score} with reasons: [${spamReport.reasons.join(', ')}]. Destination: ${folder}`);
 
     const attachmentsSizeInBytes = parsed.attachments?.reduce((sum, att) => sum + (att.size || 0), 0) || 0;
@@ -182,7 +182,7 @@ exports.save_to_mongo = function (next, connection) {
         },
         { $unwind: { path: "$plan_data", preserveNullAndEmptyArrays: true } }
       ]).toArray();
-      
+
       const user = userDetailsAggregation[0];
 
       if (!user) {
@@ -200,8 +200,8 @@ exports.save_to_mongo = function (next, connection) {
 
       // 3. Check if user has enough storage space
       if (storageLimitKB > 0 && (currentStorageKB + totalMessageSizeInKB > storageLimitKB)) {
-          plugin.logwarn(`User ${destinationEmail} has exceeded their storage limit of ${storageLimitGB} GB. Rejecting message.`);
-          return next(DENY, `Recipient's mailbox is full. Your message could not be delivered.`);
+        plugin.logwarn(`User ${destinationEmail} has exceeded their storage limit of ${storageLimitGB} GB. Rejecting message.`);
+        return next(DENY, `Recipient's mailbox is full. Your message could not be delivered.`);
       }
 
       const userId = user._id;
@@ -210,75 +210,75 @@ exports.save_to_mongo = function (next, connection) {
       const attachmentIds = [];
 
       if (parsed.attachments?.length) {
-          const attachmentPromises = parsed.attachments.map(att =>
-              new Promise((resolve, reject) => {
-                  const uploadStream = gfsBucket.openUploadStream(att.filename, {
-                      contentType: att.contentType,
-                      metadata: { user_id: userId, message_id: messageMongoId, original_filename: att.filename },
-                  });
-                  const gridfsId = uploadStream.id;
-                  uploadStream.on('finish', () => {
-                      const attachmentDoc = {
-                          _id: new ObjectId(),
-                          filename: att.filename,
-                          mimeType: att.contentType,
-                          user_id: userId,
-                          gridfs_id: gridfsId,
-                          message_id: messageMongoId,
-                          size: att.size,
-                          created_at: new Date(),
-                      };
-                      resolve(attachmentDoc);
-                  });
-                  uploadStream.on('error', reject);
-                  uploadStream.end(att.content);
-              })
-          );
-          const attachmentDocs = await Promise.all(attachmentPromises);
-          if (attachmentDocs.length > 0) {
-              const insertResult = await db.collection('attachments').insertMany(attachmentDocs);
-              Object.values(insertResult.insertedIds).forEach(id => attachmentIds.push(id));
-          }
+        const attachmentPromises = parsed.attachments.map(att =>
+          new Promise((resolve, reject) => {
+            const uploadStream = gfsBucket.openUploadStream(att.filename, {
+              contentType: att.contentType,
+              metadata: { user_id: userId, message_id: messageMongoId, original_filename: att.filename },
+            });
+            const gridfsId = uploadStream.id;
+            uploadStream.on('finish', () => {
+              const attachmentDoc = {
+                _id: new ObjectId(),
+                filename: att.filename,
+                mimeType: att.contentType,
+                user_id: userId,
+                gridfs_id: gridfsId,
+                message_id: messageMongoId,
+                size: att.size,
+                created_at: new Date(),
+              };
+              resolve(attachmentDoc);
+            });
+            uploadStream.on('error', reject);
+            uploadStream.end(att.content);
+          })
+        );
+        const attachmentDocs = await Promise.all(attachmentPromises);
+        if (attachmentDocs.length > 0) {
+          const insertResult = await db.collection('attachments').insertMany(attachmentDocs);
+          Object.values(insertResult.insertedIds).forEach(id => attachmentIds.push(id));
+        }
       }
 
       const messageDoc = {
-          _id: messageMongoId,
-          message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
-          in_reply_to: parsed.inReplyTo,
-          references: Array.isArray(parsed.references) ? parsed.references : [parsed.references].filter(Boolean),
-          from: parsed.from.value[0].address.toLowerCase(),
-          to: parsed.to.value.map(addr => addr.address.toLowerCase()),
-          cc: parsed.cc?.value.map(addr => addr.address.toLowerCase()) || [],
-          bcc: [],
-          subject: parsed.subject || '(no subject)',
-          html: parsed.html || '',
-          text: parsed.text || '',
-          attachments: attachmentIds,
-          status: 'received',
-          folder, // <-- This is now dynamically set
-          spam_score: spamReport.score, // <-- Store the 
-          org_id: orgId,
-          user_id: userId,
-          read: false,
-          starred: false,
-          important: false,
-          thread_id: parsed.inReplyTo || parsed.messageId || messageMongoId.toString(),
-          labels: [],
-          size: totalMessageSizeInBytes,
-          spam_score: folder === 'spam' ? 100 : 0,
-          encryption_status: 'none',
-          delivery_status: 'delivered',
-          created_at: new Date(),
-          received_at: new Date(parsed.date) || new Date(),
-          headers: Object.fromEntries(parsed.headers.entries()),
-          search_text: `${parsed.subject || ''} ${parsed.text || ''}`.trim(),
+        _id: messageMongoId,
+        message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
+        in_reply_to: parsed.inReplyTo,
+        references: Array.isArray(parsed.references) ? parsed.references : [parsed.references].filter(Boolean),
+        from: parsed.from.value[0].address.toLowerCase(),
+        to: parsed.to.value.map(addr => addr.address.toLowerCase()),
+        cc: parsed.cc?.value.map(addr => addr.address.toLowerCase()) || [],
+        bcc: [],
+        subject: parsed.subject || '(no subject)',
+        html: parsed.html || '',
+        text: parsed.text || '',
+        attachments: attachmentIds,
+        status: 'received',
+        folder, // <-- This is now dynamically set
+        spam_score: spamReport.score, // <-- Store the 
+        org_id: orgId,
+        user_id: userId,
+        read: false,
+        starred: false,
+        important: false,
+        thread_id: parsed.inReplyTo || parsed.messageId || messageMongoId.toString(),
+        labels: [],
+        size: totalMessageSizeInBytes,
+        spam_score: folder === 'spam' ? 100 : 0,
+        encryption_status: 'none',
+        delivery_status: 'delivered',
+        created_at: new Date(),
+        received_at: new Date(parsed.date) || new Date(),
+        headers: Object.fromEntries(parsed.headers.entries()),
+        search_text: `${parsed.subject || ''} ${parsed.text || ''}`.trim(),
       };
 
       // 4. Insert message and update user storage atomically
       await db.collection('messages').insertOne(messageDoc);
       await db.collection('users').updateOne(
-          { _id: userId },
-          { $inc: { 'plan_usage.storage': totalMessageSizeInKB } }
+        { _id: userId },
+        { $inc: { 'plan_usage.storage': totalMessageSizeInKB } }
       );
 
       plugin.loginfo(`Saved message ${messageMongoId} for ${destinationEmail} and updated storage by ${totalMessageSizeInKB.toFixed(2)} KB.`);
@@ -288,6 +288,23 @@ exports.save_to_mongo = function (next, connection) {
         const cfg = plugin.config.get('queue.redis.ini');
         const mailbox_size = ((cfg.main || {}).mailbox_size || 10) - 1;
         const mailbox_ttl = ((cfg.main || {}).mailbox_ttl || 3600);
+
+        const userId = user._id.toString(); // We need the string version of the user's ID
+
+        // --- CACHE INVALIDATION ON NEW MAIL ---
+        // Flush the user's web app cache so they see this new message on next load
+        const pattern = `cache:msg:${userId}:*`;
+        try {
+          const keys = await redis.keys(pattern);
+          if (keys.length > 0) {
+            await redis.del(keys);
+            plugin.loginfo(`Invalidated ${keys.length} web cache keys for user ${userId}.`);
+          }
+        } catch (err) {
+          plugin.logerror(`Failed to invalidate web cache for user ${userId}: ${err}`);
+        }
+        // --- END OF CACHE INVALIDATION ---
+
         const key = `mailbox:${destinationEmail}`;
         const lite = {
           id: messageMongoId.toString(),
