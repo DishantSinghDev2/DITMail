@@ -8,6 +8,8 @@ import "@/models/Organization" // Import Organization model
 import "@/models/Plan" // Import Plan model
 import { handleNewUserOnboarding } from "@/lib/auth/onboarding"
 import Account from "@/models/Account"
+// --- NEW: IMPORT THE ENCODE FUNCTION ---
+import { encode } from "next-auth/jwt"
 
 // STEP 1: Update the type declarations to include all your custom data.
 // This provides type safety for your session and token objects.
@@ -28,7 +30,7 @@ declare module "next-auth" {
             };
             plan: string;
             nextDueDate?: string; // Optional, as it's not in the schema yet
-            accessToken?: JWT;
+            accessToken?: string;
         };
     }
 }
@@ -246,7 +248,13 @@ export const authOptions: NextAuthOptions = {
             session.user.onboarding = token.onboarding; // Ensure onboarding status is always fresh
             session.user.plan = token.plan;
             session.user.nextDueDate = token.nextDueDate;
-            session.user.accessToken = token
+                        // Encode the entire token object into a secure, verifiable JWT string.
+            // Use the same secret that your WebSocket server uses!
+            session.user.accessToken = await encode({
+                secret: process.env.NEXTAUTH_SECRET!,
+                token: token,
+            });
+
 
             if (token.picture) {
                 session.user.image = token.picture;
