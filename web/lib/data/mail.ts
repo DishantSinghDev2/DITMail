@@ -1,10 +1,11 @@
 // lib/data/mail.ts
 import { unstable_cache } from 'next/cache';
 import Message from '@/models/Message';
-import {connectDB} from '@/lib/db';
+import { connectDB } from '@/lib/db';
 import { Types } from 'mongoose';
 import Folder from '@/models/Folder';
 import Label from '@/models/Label';
+import { ObjectId } from 'mongodb';
 
 export interface FolderCounts {
   inbox?: { total: number; unread: number };
@@ -17,36 +18,33 @@ export interface FolderCounts {
 /**
  * Fetches and caches total and unread counts for all standard mail folders.
  */
-export const getFolderCounts = unstable_cache(
-  async (userId: string | Types.ObjectId): Promise<FolderCounts> => {
-    await connectDB();
-    const counts = await Message.aggregate([
-      { $match: { user_id: userId } },
-      {
-        $group: {
-          _id: '$folder',
-          total: { $sum: 1 },
-          unread: { $sum: { $cond: [{ $eq: ['$read', false] }, 1, 0] } },
-        },
+export const getFolderCounts = async (userId: string | Types.ObjectId): Promise<FolderCounts> => {
+  await connectDB();
+  const counts = await Message.aggregate([
+    { $match: { user_id: new ObjectId(userId) } },
+    {
+      $group: {
+        _id: '$folder',
+        total: { $sum: 1 },
+        unread: { $sum: { $cond: [{ $eq: ['$read', false] }, 1, 0] } },
       },
-    ]);
+    },
+  ]);
 
-    // Format the result into a more accessible object
-    const folderCounts: FolderCounts = {};
-    counts.forEach(count => {
-      folderCounts[count._id] = { total: count.total, unread: count.unread };
-    });
-    return folderCounts;
-  },
-  ['folder-counts'],
-  { tags: (userId) => [`counts:${userId}`], revalidate: 300 } // Revalidate every 5 mins
-);
+  // Format the result into a more accessible object
+  const folderCounts: FolderCounts = {};
+  counts.forEach(count => {
+    folderCounts[count._id] = { total: count.total, unread: count.unread };
+  });
+  return folderCounts;
+}
+
 
 export async function getCustomFolders(userId: string) {
   try {
     await connectDB();
     // Use .lean() to get plain JS objects instead of Mongoose docs
-    const folders = await Folder.find({ user_id: userId }).lean();
+    const folders = await Folder.find({ user_id: new ObjectId(userId) }).lean();
 
     // Manually serialize the data to ensure it's plain
     return folders.map(folder => ({
@@ -63,7 +61,7 @@ export async function getCustomFolders(userId: string) {
 export async function getLabels(userId: string) {
   try {
     await connectDB();
-    const labels = await Label.find({ user_id: userId }).lean();
+    const labels = await Label.find({ user_id: new ObjectId(userId) }).lean();
 
     // Manually serialize the data
     return labels.map(label => ({

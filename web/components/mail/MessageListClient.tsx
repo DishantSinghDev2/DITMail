@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { MessageThread } from "@/types";
 import { formatDistanceToNow } from "date-fns";
@@ -16,42 +16,41 @@ import {
   ChevronRightIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
-import Dropdown from "../ui/Dropdown"; // Assuming path is correct
-import { ArrowDownWideNarrow, ChevronDown, MailMinus, MailOpen, OctagonAlert } from "lucide-react";
-import { useComposerStore } from "@/lib/store/composer"; // <--- IMPORT ZUSTAND STORE
+import Dropdown from "../ui/Dropdown";
+import { MailMinus, MailOpen, OctagonAlert, ChevronDown } from "lucide-react";
+import { useRealtime } from "@/contexts/RealtimeContext";
 
-// --- PROPS INTERFACE (THE FIX IS HERE) ---
+// --- NEW: IMPORT THE ZUSTAND MAIL STORE ---
+import { useMailStore } from "@/lib/store/mail";
+import { mailAppEvents } from "@/lib/events";
+
+
+// Props interface remains the same
 interface MessageListClientProps {
   initialMessages: MessageThread[];
-  // totalMessages and currentPage are now inside the pagination object
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    pages: number;
-  };
+  pagination: { page: number; limit: number; total: number; pages: number; };
   folder: string;
-  // This now accepts a single object, matching what the server sends
-  storageInfo: {
-    used: number;
-    limit: number;
-  };
+  storageInfo: { used: number; limit: number; };
 }
 
-
-const ITEMS_PER_PAGE = 25; // Should match the server-side limit
+const ITEMS_PER_PAGE = 25;
 
 export function MessageListClient({
   initialMessages,
-  pagination, // Destructure the new pagination prop
+  pagination,
   folder,
-  storageInfo, // Destructure the new storageInfo prop
+  storageInfo,
 }: MessageListClientProps) {
   // --- HOOKS ---
   const router = useRouter();
   const { toast } = useToast();
+  const { newMessages, markMessagesRead } = useRealtime();
 
-  // --- STATE MANAGEMENT ---
+  // --- NEW: USE THE GLOBAL MAIL STORE ---
+  const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId } = useMailStore();
+
+  // Local state is still useful for things like selection
+  const [messages, setMessages] = useState<MessageThread[]>(initialMessages);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -60,64 +59,145 @@ export function MessageListClient({
   const pathname = usePathname();
 
   // --- EFFECTS ---
+  // Sync local state when server props change
   useEffect(() => {
+    setMessages(initialMessages);
     setSelectedMessages(new Set());
   }, [initialMessages]);
 
   useEffect(() => {
-    const isAllSelected = selectedMessages.size === initialMessages.length && initialMessages.length > 0;
-    const isPartiallySelected = selectedMessages.size > 0 && selectedMessages.size < initialMessages.length;
+    // We now derive the read status from both server props and global state
+    const currentMessages = initialMessages.map(msg => ({
+      ...msg,
+      read: msg.read || optimisticallyReadIds.has(msg._id),
+    }));
+    const isAllSelected = currentMessages.length > 0 && selectedMessages.size === currentMessages.length;
+    const isPartiallySelected = selectedMessages.size > 0 && selectedMessages.size < currentMessages.length;
     setSelectAll(isAllSelected);
     if (selectAllCheckboxRef.current) {
       selectAllCheckboxRef.current.indeterminate = isPartiallySelected;
     }
-  }, [selectedMessages, initialMessages]);
+  }, [selectedMessages, initialMessages, optimisticallyReadIds]);
 
-  // --- CORE HANDLERS ---
+
+  useEffect(() => {
+    if (newMessages > 0 && folder === "inbox") {
+      router.refresh();
+      markMessagesRead();
+    }
+  }, [newMessages, folder, router, markMessagesRead]);
+
+  // --- UPDATED: BACKGROUND FUNCTION WITH ROLLBACK ---
+  const markAsReadInBackground = async (messageId: string) => {
+    try {
+      const response = await fetch('/api/messages/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'read', messageIds: [messageId] }),
+      });
+      if (!response.ok) throw new Error("API call failed");
+
+       // --- NEW: EMIT EVENT ON SUCCESS ---
+       mailAppEvents.emit('countsChanged');
+    } catch (error) {
+      console.error("Failed to mark message as read:", error);
+      // ON FAILURE: Revert the global optimistic state
+      revertOptimisticallyReadId(messageId);
+      toast({ title: "Sync Error", description: "Could not mark message as read.", variant: "destructive" });
+      // We don't need to call router.refresh() here, as reverting the state will fix the UI.
+    }
+  };
+
+  // --- UPDATED: MESSAGE SELECTION HANDLER ---
+  const onMessageSelect = (message: MessageThread) => {
+    // Check original server state to see if an action is needed
+    if (!message.read && !message.isDraft) {
+      // 1. Update the GLOBAL optimistic state. This will persist across navigations.
+      addOptimisticallyReadId(message._id);
+      // 2. Call the background function to sync with the server.
+      markAsReadInBackground(message._id);
+    }
+
+    // Navigation logic remains the same
+    const params = new URLSearchParams(window.location.search);
+    if (message.isDraft) {
+      params.set('compose', message._id);
+      router.push(`${pathname}?${params.toString()}`);
+    } else {
+      params.delete('compose');
+      const queryString = params.toString();
+      router.push(`/mail/${folder}/${message._id}${queryString ? `?${queryString}` : ''}`);
+    }
+  };
+
+  // --- CORE HANDLERS (WITH OPTIMISTIC UPDATES) ---
   const handleBulkAction = async (action: string) => {
     if (selectedMessages.size === 0) return;
+    const originalMessages = [...messages];
+    const messageIdsToUpdate = Array.from(selectedMessages);
+    let newMessages;
+    const isDestructiveAction = ['delete', 'archive', 'spam'].includes(action);
+
+    if (isDestructiveAction) {
+      newMessages = messages.filter(msg => !messageIdsToUpdate.includes(msg._id));
+    } else {
+      newMessages = messages.map(msg => {
+        if (messageIdsToUpdate.includes(msg._id)) {
+          switch (action) {
+            case 'read': return { ...msg, read: true };
+            case 'unread': return { ...msg, read: false };
+            case 'star': return { ...msg, starred: true };
+            case 'unstar': return { ...msg, starred: false };
+            default: return msg;
+          }
+        }
+        return msg;
+      });
+    }
+
+    setMessages(newMessages);
+    setSelectedMessages(new Set());
+
+    try {
+      const response = await fetch('/api/messages/bulk-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, messageIds: messageIdsToUpdate, currentFolder: folder }),
+      });
+      if (!response.ok) throw new Error("API request failed");
+
+      // --- NEW: EMIT EVENT ON SUCCESS ---
+      mailAppEvents.emit('countsChanged');
+
+      toast({ title: "Success", description: "Messages have been updated." });
+    } catch (error) {
+      console.error("Bulk action error:", error);
+      setMessages(originalMessages);
+      toast({ title: "Error", description: "Could not update messages. Please try again.", variant: "destructive" });
+    }
+  };
+
+  const handleSingleStar = async (messageId: string, newStarredState: boolean) => {
+    const originalMessages = [...messages];
+    const newMessages = messages.map(msg =>
+      msg._id === messageId ? { ...msg, starred: newStarredState } : msg
+    );
+    setMessages(newMessages);
 
     try {
       const response = await fetch('/api/messages/bulk-update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action,
-          messageIds: Array.from(selectedMessages),
-          currentFolder: folder,
-        }),
-      });
-
-      if (!response.ok) throw new Error("API request failed");
-
-      toast({ title: "Success", description: "Messages have been updated." });
-
-      // router.refresh() tells Next.js to re-run the Server Component's data fetch
-      router.refresh();
-    } catch (error) {
-      console.error("Bulk action error:", error);
-      toast({ title: "Error", description: "Could not update messages.", variant: "destructive" });
-    }
-  };
-
-  const handleSingleStar = async (messageId: string, starred: boolean) => {
-    // Refresh immediately for snappy UI, then perform the action.
-    // In a real-world scenario, you might do an optimistic update here.
-    router.refresh();
-
-    try {
-      await fetch('/api/messages/bulk-update', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: starred ? 'star' : 'unstar',
+          action: newStarredState ? 'star' : 'unstar',
           messageIds: [messageId],
           currentFolder: folder
         })
       });
+      if (!response.ok) throw new Error("Star update failed");
     } catch (error) {
+      setMessages(originalMessages);
       toast({ title: "Error", description: "Could not update star status.", variant: "destructive" });
-      // You could add logic to revert the optimistic update here.
     }
   };
 
@@ -129,32 +209,13 @@ export function MessageListClient({
 
   const onPageChange = (newPage: number) => {
     if (newPage < 1 || newPage > pagination.pages) return;
-
     const params = new URLSearchParams(window.location.search);
     params.set('page', newPage.toString());
     router.push(`${pathname}?${params.toString()}`);
   };
 
-  const onMessageSelect = (message: MessageThread) => {
-    const params = new URLSearchParams(window.location.search);
 
-    if (message.isDraft) {
-      // For a draft, set the 'compose' param to the draft's ID
-      params.set('compose', message._id);
-      router.push(`${pathname}?${params.toString()}`);
-    } else {
-      // For a regular message, navigate to its detail page
-      // We also clear the 'compose' param to ensure the composer closes
-      params.delete('compose');
-      const queryString = params.toString();
-      router.push(`/mail/${folder}/${message._id}${queryString ? `?${queryString}` : ''}`);
-    }
-  };
-
-
-
-
-  // --- SELECTION & SORTING ---
+  // --- SELECTION HANDLERS (Unchanged) ---
   const handleSelectMessage = (messageId: string, checked: boolean) => {
     const newSelected = new Set(selectedMessages);
     if (checked) {
@@ -168,55 +229,37 @@ export function MessageListClient({
   const handleSelectionChange = (type: "all" | "none" | "read" | "unread" | "starred" | "unstarred") => {
     let newSelectedIds = new Set<string>();
     if (type === "all") {
-      newSelectedIds = new Set(initialMessages.map((msg) => msg._id));
+      newSelectedIds = new Set(messages.map((msg) => msg._id));
     } else if (type !== "none") {
-      initialMessages.forEach((msg) => {
+      messages.forEach((msg) => {
         const condition =
           (type === "read" && msg.read) ||
           (type === "unread" && !msg.read) ||
           (type === "starred" && msg.starred) ||
           (type === "unstarred" && !msg.starred);
-
-        if (condition) {
-          newSelectedIds.add(msg._id);
-        }
+        if (condition) newSelectedIds.add(msg._id);
       });
     }
     setSelectedMessages(newSelectedIds);
   };
 
-  // const sortedMessages = useCallback(() => {
-  //   return [...initialMessages].sort((a, b) => {
-  //     let comparison = 0;
-  //     switch (sortBy) {
-  //       case "date":
-  //         comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-  //         break;
-  //       case "sender":
-  //         comparison = (folder === "sent" ? a.to[0] : a.from).localeCompare(folder === "sent" ? b.to[0] : b.from);
-  //         break;
-  //       case "subject":
-  //         comparison = a.subject.localeCompare(b.subject);
-  //         break;
-  //     }
-  //     return sortOrder === "desc" ? -comparison : comparison;
-  //   });
-  // }, [initialMessages, sortBy, sortOrder, folder]);
-
-  const currentMessages = initialMessages;
-
-  // --- RENDER LOGIC (MORE FIXES HERE) ---
+  // --- RENDER LOGIC (Unchanged) ---
   const { page: currentPage, total: totalMessages } = pagination;
   const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
   const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
-
-  // Calculate width safely to prevent division by zero
   const storagePercentage = storageInfo.limit > 0 ? (storageInfo.used / storageInfo.limit) * 100 : 0;
+    // --- RENDER LOGIC ---
+  // (Header, Footer, etc. remain the same)
+  const currentMessages = initialMessages.map(msg => ({
+    ...msg,
+    // THE CORE FIX: Derive read status from server data OR our global optimistic set.
+    read: msg.read || optimisticallyReadIds.has(msg._id),
+  }));
 
 
   return (
     <div className="flex h-full flex-col bg-white">
-      {/* Header with controls */}
+      {/* Header and Controls (JSX is unchanged) */}
       <div className="border-b border-gray-200 p-2 sm:p-4 bg-white sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-1 sm:space-x-2">
@@ -241,7 +284,6 @@ export function MessageListClient({
                 align="left"
               />
             </div>
-
             {selectedMessages.size > 0 ? (
               <div className="flex items-center space-x-1">
                 <button title="Archive" onClick={() => handleBulkAction('archive')} className="p-2 hover:bg-gray-100 rounded-full"><ArchiveBoxIcon className="h-4 w-4 text-gray-500" /></button>
@@ -264,7 +306,6 @@ export function MessageListClient({
               </button>
             )}
           </div>
-
           <div className="flex items-center space-x-2 sm:space-x-4">
             <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
               {totalMessages > 0 ? `${paginationStart}-${paginationEnd} of ${totalMessages}` : "0 of 0"}
@@ -273,12 +314,12 @@ export function MessageListClient({
               <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 text-gray-500 hover:text-gray-700 rounded-full disabled:opacity-50"><ChevronLeftIcon className="h-3.5 w-3.5" /></button>
               <button onClick={() => onPageChange(currentPage + 1)} disabled={paginationEnd >= totalMessages} className="p-2 text-gray-500 hover:text-gray-700 rounded-full disabled:opacity-50"><ChevronRightIcon className="h-3.5 w-3.5" /></button>
             </div>
-            {/* Sorting dropdown can be re-added here if needed */}
           </div>
         </div>
       </div>
 
-      {currentMessages.length === 0 ? (
+      {/* Message List Area */}
+      {messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4 text-center">
           <div className="text-6xl mb-4">{folder === "inbox" ? "📭" : "📂"}</div>
           <h3 className="text-lg font-medium mb-2">No messages here</h3>
@@ -287,13 +328,15 @@ export function MessageListClient({
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="divide-y divide-gray-200">
+            {/* RENDER USING THE DERIVED `currentMessages` ARRAY */}
             {currentMessages.map((message) => (
               <div
                 key={message._id}
+                // The `read` property here is now the combined state
                 className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${!message.read ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
-                onClick={() => onMessageSelect(message)}
+                onClick={() => onMessageSelect(initialMessages.find(m => m._id === message._id)!)} // Pass original message to handler
               >
-                <div className="absolute left-0 top-0 bottom-0 w-1 ${!message.read ? 'bg-blue-600' : 'bg-transparent'}"></div>
+                <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${!message.read ? 'bg-blue-600' : 'bg-transparent'}`}></div>
                 <div className="flex items-center gap-3 mr-3">
                   <input
                     type="checkbox"
@@ -303,7 +346,7 @@ export function MessageListClient({
                     className="w-3.5 h-3.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
                   />
                   <button onClick={(e) => { e.stopPropagation(); handleSingleStar(message._id, !message.starred); }} className="p-1 rounded-full">
-                    {message.starred ? (<StarIconSolid className="h-5 w-5 text-yellow-500" />) : (<StarIcon className="h-5 w-5 text-gray-300 hover:text-gray-500" />)}
+                    {message.starred ? (<StarIconSolid className="h-5 w-5 text-yellow-500" />) : (<StarIcon className="h-5 w-5 text-gray-300 hover:text-yellow-400" />)}
                   </button>
                 </div>
 
@@ -332,17 +375,13 @@ export function MessageListClient({
         </div>
       )}
 
-      {/* Footer (THE FIX IS HERE) */}
+      {/* Footer (JSX is unchanged) */}
       <div className="border-t border-gray-200 p-2 bg-white text-xs text-gray-600 sticky bottom-0 z-10">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="w-1/3">
-            {/* Use the properties from the storageInfo object */}
             <p>{storageInfo.used.toFixed(2)} GB of {storageInfo.limit} GB used</p>
             <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
-              <div
-                className="bg-blue-600 h-1 rounded-full"
-                style={{ width: `${storagePercentage}%` }}
-              ></div>
+              <div className="bg-blue-600 h-1 rounded-full" style={{ width: `${storagePercentage}%` }}></div>
             </div>
           </div>
           <div className="flex space-x-4">

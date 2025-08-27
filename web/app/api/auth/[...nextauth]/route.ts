@@ -28,7 +28,7 @@ declare module "next-auth" {
             };
             plan: string;
             nextDueDate?: string; // Optional, as it's not in the schema yet
-            accessToken?: string;
+            accessToken?: JWT;
         };
     }
 }
@@ -213,7 +213,6 @@ export const authOptions: NextAuthOptions = {
                 token.org_id = dbUser.org_id?._id.toString();
                 token.onboarding = { completed: dbUser.onboarding?.completed || false };
                 token.plan = dbUser.org_id?.plan_id?.name || 'none';
-                token.accessToken = account.access_token; // from provider
 
                 
                 return token;
@@ -247,7 +246,7 @@ export const authOptions: NextAuthOptions = {
             session.user.onboarding = token.onboarding; // Ensure onboarding status is always fresh
             session.user.plan = token.plan;
             session.user.nextDueDate = token.nextDueDate;
-            session.user.accessToken = token.accessToken
+            session.user.accessToken = token
 
             if (token.picture) {
                 session.user.image = token.picture;
