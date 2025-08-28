@@ -14,6 +14,7 @@ import {
   InboxIcon, PaperAirplaneIcon, DocumentIcon, TrashIcon, StarIcon, ArchiveBoxIcon, ExclamationTriangleIcon,
   PlusIcon, UserIcon, ArrowRightOnRectangleIcon, FolderIcon, ChevronDownIcon, ChevronRightIcon, Bars3Icon, Cog6ToothIcon
 } from "@heroicons/react/24/outline";
+import Link from "next/link";
 
 // --- Type Definitions ---
 interface MailSidebarClientProps {
@@ -198,15 +199,18 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
   };
 
   // --- Render Helper Functions ---
+  // --- Render Helper Functions (THE MAIN FIX IS HERE) ---
   const renderFolderItem = (folder: { id: string, name: string, icon: React.ElementType }) => {
     const Icon = folder.icon;
     const unreadCount = folderCounts[folder.id]?.unread || 0;
     const isSelected = selectedPath === folder.id;
 
+    // --- CHANGE: Use <Link> instead of <button> ---
     return (
-      <button
+      <Link
         key={folder.id}
-        onClick={() => onFolderSelect(folder.id)}
+        href={`/mail/${folder.id}`}
+        scroll={false} // Prevents page from jumping to top, good for layouts
         title={folder.name}
         className={`w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors group ${isExpanded ? "justify-between" : "justify-start"} ${isSelected ? 'bg-blue-100 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-100'}`}
       >
@@ -225,7 +229,7 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
         {isExpanded && unreadCount > 0 && (
           <span className="text-xs font-bold bg-blue-200 text-blue-800 px-2 py-0.5 rounded-full">{unreadCount}</span>
         )}
-      </button>
+      </Link>
     );
   };
 
@@ -285,10 +289,14 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
               )}
               {(customFolders || []).map((folder) => (
                 <div key={folder._id} className="group flex items-center justify-between text-sm pr-1">
-                  <button onClick={() => onFolderSelect(`folder/${folder._id}`)} className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'folder' && selectedId === folder._id ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}>
+                  <Link 
+                    href={`/mail/folder/${folder._id}`} 
+                    scroll={false}
+                    className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'folder' && selectedId === folder._id ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}
+                  >
                     <FolderIcon className="h-4 w-4 flex-shrink-0 text-gray-500" />
                     <span className="truncate">{folder.name}</span>
-                  </button>
+                  </Link>
                   <button onClick={() => handleDelete('folder', folder._id)} className="p-1 text-gray-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100" title="Delete">
                     <TrashIcon className="h-3.5 w-3.5" />
                   </button>
@@ -331,10 +339,14 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
               )}
               {(labels || []).map((label) => (
                 <div key={label._id} className="group flex items-center justify-between text-sm pr-1">
-                  <button onClick={() => onFolderSelect(`label/${label.name}`)} className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'label' && selectedId === label.name ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}>
+                 <Link 
+                    href={`/mail/label/${label.name}`} 
+                    scroll={false}
+                    className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'label' && selectedId === label.name ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}
+                  >
                     <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: label.color }} />
                     <span className="truncate">{label.name}</span>
-                  </button>
+                  </Link>
                   <button onClick={() => handleDelete('label', label._id)} className="p-1 text-gray-400 hover:text-red-500 rounded opacity-0 group-hover:opacity-100" title="Delete">
                     <TrashIcon className="h-3.5 w-3.5" />
                   </button>
@@ -358,7 +370,7 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
                 <p className="text-xs text-gray-500 truncate">{user.email}</p>
               </div>
               <div className="flex items-center">
-                <button onClick={() => router.push('/settings')} className="p-1 text-gray-400 hover:text-gray-700" title="Settings"><Cog6ToothIcon className="h-4 w-4" /></button>
+                <Link href="?settings=profile" scroll={false} className="p-1 text-gray-400 hover:text-gray-700" title="Settings"><Cog6ToothIcon className="h-4 w-4" /></Link>
                 <button onClick={() => signOut()} className="p-1 text-gray-400 hover:text-red-500" title="Sign Out"><ArrowRightOnRectangleIcon className="h-4 w-4" /></button>
               </div>
             </div>

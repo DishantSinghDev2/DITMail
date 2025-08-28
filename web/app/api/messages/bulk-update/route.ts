@@ -1,4 +1,4 @@
-// app/api/messages/bulk-update/route.ts
+// /app/api/messages/bulk-update/route.ts
 
 import { NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
@@ -6,7 +6,7 @@ import Message from "@/models/Message";
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { SessionUser } from "@/types";
-import { revalidateTag } from "next/cache"; // <--- IMPORT THE REVALIDATION FUNCTION
+import { revalidateTag } from "next/cache"; // <-- IMPORTED
 import { redis } from "@/lib/redis";
 
 export async function POST(request: NextRequest) {
@@ -31,19 +31,18 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // --- CACHE INVALIDATION STEP 1: Find out which folders are affected ---
+    // --- CACHE INVALIDATION PREPARATION ---
     const filter = {
       user_id: user.id,
       _id: { $in: messageIds },
     };
 
-    // Find the original messages to get their folders before the update
-    const originalMessages = await Message.find(filter).select('folder').lean();
-
-    // Use a Set to store unique folder names that need revalidation
-    const foldersToRevalidate = new Set<string>();
-    originalMessages.forEach(msg => foldersToRevalidate.add(msg.folder));
-
+    // Find the original messages to get their IDs and folders before the update
+    // We only need the _id for revalidateTag, but folder is useful for Redis logic.
+    const originalMessages = await Message.find(filter).select('_id folder').lean();
+    if (originalMessages.length === 0) {
+      return NextResponse.json({ message: "No matching messages found." }, { status: 200 });
+    }
 
     // 4. Define the update operation based on the action
     let updateOperation: any;
@@ -51,15 +50,12 @@ export async function POST(request: NextRequest) {
     switch (action) {
       case "delete":
         updateOperation = { $set: { folder: "trash" } };
-        foldersToRevalidate.add("trash"); // Add destination folder
         break;
       case "archive":
         updateOperation = { $set: { folder: "archive" } };
-        foldersToRevalidate.add("archive"); // Add destination folder
         break;
       case "spam":
         updateOperation = { $set: { folder: "spam" } };
-        foldersToRevalidate.add("spam"); // Add destination folder
         break;
       case "unread":
         updateOperation = { $set: { read: false } };
@@ -69,38 +65,42 @@ export async function POST(request: NextRequest) {
         break;
       case "star":
         updateOperation = { $set: { starred: true } };
-        foldersToRevalidate.add("starred"); // Also revalidate the starred view
         break;
       case "unstar":
         updateOperation = { $set: { starred: false } };
-        foldersToRevalidate.add("starred"); // Also revalidate the starred view
         break;
       default:
         return NextResponse.json({ error: "Invalid action." }, { status: 400 });
     }
 
-    // 5. Perform the bulk update
+    // 5. Perform the bulk update in the database
     const result = await Message.updateMany(filter, updateOperation);
 
-    if (result.matchedCount === 0) {
-      return NextResponse.json(
-        { message: "No matching messages found to update." },
-        { status: 200 }
-      );
-    }
+    // --- CACHE INVALIDATION EXECUTION ---
 
-    // --- CACHE INVALIDATION STEP ---
-    // Instead of revalidateTag, we find and delete all cache entries for this user.
-    // This ensures that any page they visit next will fetch fresh data.
+    // A) Invalidate Next.js cache for each individual thread that was affected.
+    // This ensures the MessageViewClient gets fresh data if visited again.
+    console.log(`Revalidating unstable_cache tags for ${originalMessages.length} messages.`);
+    originalMessages.forEach(msg => {
+      const tag = `thread:${msg._id}`;
+      revalidateTag(tag);
+      console.log(`- Revalidated tag: ${tag}`);
+    });
+
+    // B) Invalidate Redis cache for all message lists for this user.
+    // This is a "catch-all" to ensure any folder view is refreshed.
     try {
       const pattern = `cache:msg:${user.id}:*`;
-      console.log(`Invalidating cache with pattern: ${pattern}`);
+      console.log(`Invalidating Redis cache with pattern: ${pattern}`);
       const keys = await redis.keys(pattern);
       if (keys.length > 0) {
         await redis.del(keys);
-        console.log(`Deleted ${keys.length} cache keys.`);
+        console.log(`- Deleted ${keys.length} Redis cache keys.`);
+      } else {
+        console.log(`- No Redis keys found for pattern.`);
       }
-    } catch (error) {
+    } catch (error)      {
+      // Log the error but don't fail the request, as the main DB operation succeeded.
       console.error("Redis cache invalidation error:", error);
     }
     // --- END OF CACHE INVALIDATION ---

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
 import { SessionUser } from "@/types";
 import { revalidateTag } from "next/cache";
+import { redis } from "@/lib/redis";
 
 /**
  * GET: Fetches a single message by ID.
@@ -60,30 +61,39 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const updates = await request.json();
     await connectDB();
 
-    // Find the message *before* updating to know its original folder for cache invalidation.
-    const messageToUpdate = await Message.findOne({ _id: params.id, user_id: user.id }, { folder: 1 }).lean();
-    if (!messageToUpdate) {
-        return NextResponse.json({ error: "Message not found" }, { status: 404 });
-    }
-    const originalFolder = messageToUpdate.folder;
+    // Perform the database update
+    const message = await Message.findOneAndUpdate(
+      { _id: params.id, user_id: user.id },
+      updates,
+      { new: true }
+    );
 
-    const message = await Message.findOneAndUpdate({ _id: params.id, user_id: user.id }, updates, { new: true });
     if (!message) {
-        return NextResponse.json({ error: "Message not found after update" }, { status: 404 });
+        return NextResponse.json({ error: "Message not found or update failed" }, { status: 404 });
     }
 
-    // Invalidate cache for the original folder's list and position data.
-    revalidateTag(`messages:${user.id}:${originalFolder}`);
-    revalidateTag(`messages-position:${user.id}:${originalFolder}`);
+    // --- DUAL CACHE INVALIDATION ---
 
-    // If the folder was changed, invalidate the new folder's cache too.
-    if (updates.folder && updates.folder !== originalFolder) {
-        revalidateTag(`messages:${user.id}:${updates.folder}`);
-        revalidateTag(`messages-position:${user.id}:${updates.folder}`);
+    // 1. Invalidate Next.js cache for the specific thread.
+    // This is for the detailed message view.
+    const threadTag = `thread:${params.id}`;
+    revalidateTag(threadTag);
+    console.log(`Revalidated unstable_cache tag: ${threadTag}`);
+
+    // 2. Invalidate Redis cache for ALL message lists for this user.
+    // This is the simplest and most robust way to ensure all list views are fresh.
+    try {
+      const pattern = `cache:msg:${user.id}:*`;
+      console.log(`Invalidating Redis cache with pattern: ${pattern}`);
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(keys);
+        console.log(`- Deleted ${keys.length} Redis cache keys.`);
+      }
+    } catch (error) {
+      // Log Redis errors but don't fail the entire request
+      console.error("Redis cache invalidation error during PATCH:", error);
     }
-    
-    // Also revalidate the specific thread cache in case its properties (like star) changed.
-    revalidateTag(`thread:${message._id}`);
 
     return NextResponse.json({ message });
   } catch (error) {
@@ -106,20 +116,33 @@ export async function DELETE (request: NextRequest, { params }: { params: { id: 
 
     await connectDB();
 
-    // Find the message *before* deleting it to know its folder for cache invalidation.
-    const messageToDelete = await Message.findOne({ _id: params.id, user_id: user.id }).lean();
-    if (!messageToDelete) {
-      // Return a success response even if not found, as the desired state (deleted) is achieved.
-      return NextResponse.json({ message: "Message already deleted." });
+    const result = await Message.deleteOne({ _id: params.id, user_id: user.id });
+
+    if (result.deletedCount === 0) {
+      // If nothing was deleted, we can just say it's successful.
+      return NextResponse.json({ message: "Message not found or already deleted." });
     }
-    const folder = messageToDelete.folder;
 
-    await Message.deleteOne({ _id: params.id, user_id: user.id });
+    // --- DUAL CACHE INVALIDATION ---
 
-    // Invalidate the cache for the folder the message was in.
-    revalidateTag(`messages:${user.id}:${folder}`);
-    revalidateTag(`messages-position:${user.id}:${folder}`);
-    revalidateTag(`thread:${params.id}`);
+    // 1. Invalidate Next.js cache for the specific thread.
+    const threadTag = `thread:${params.id}`;
+    revalidateTag(threadTag);
+    console.log(`Revalidated unstable_cache tag: ${threadTag}`);
+
+    // 2. Invalidate Redis cache for ALL message lists for this user.
+    try {
+      const pattern = `cache:msg:${user.id}:*`;
+      console.log(`Invalidating Redis cache with pattern: ${pattern}`);
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(keys);
+        console.log(`- Deleted ${keys.length} Redis cache keys.`);
+      }
+    } catch (error) {
+      console.error("Redis cache invalidation error during DELETE:", error);
+    }
+
 
     return NextResponse.json({ message: "Message permanently deleted." });
   } catch (error) {

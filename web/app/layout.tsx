@@ -41,7 +41,7 @@ export default async function RootLayout({
         <Providers session={session}>
           {children}
         </Providers>
-              <Toaster />
+        <Toaster />
       </body>
     </html>
   )

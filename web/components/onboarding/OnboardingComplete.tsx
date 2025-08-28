@@ -3,17 +3,21 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useRouter } from "next/navigation";
 import { LoaderCircle } from "lucide-react";
 
 export default function OnboardingComplete({onComplete, data}: {onComplete: (data: any) => Promise<void>, data: any}) {
-  const router = useRouter();
-
   useEffect(() => {
-    // Navigate after the "Redirecting" message has been shown
-    console.log('from onboard complete comp', data)
-    onComplete(data)
-  }, [router]);
+    // We only want this to run ONCE when the component mounts.
+    // The empty dependency array [] ensures this.
+    onComplete(data);
+
+    // By adding the eslint-disable comment, we acknowledge that we are
+    // intentionally not including `onComplete` and `data` in the
+    // dependency array because we want to avoid re-triggering the effect
+    // on parent re-renders. This is a valid use case for a one-time trigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // <-- THE KEY FIX: Use an empty dependency array.
+
 
   return (
     <motion.div

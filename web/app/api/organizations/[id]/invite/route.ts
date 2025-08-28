@@ -1,33 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import User from "@/models/User"
 import Organization from "@/models/Organization"
-import { verifyToken } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../auth/[...nextauth]/route";
 import { logAuditEvent } from "@/lib/audit"
 import { sendEmail } from "@/lib/smtp"
 import crypto from "crypto"
+import { SessionUser } from "@/types";
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await connectDB()
 
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
+    
+        const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+    if (!user) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 })
     }
 
     // Check if user has admin permissions
-    if (!["owner", "admin"].includes(decoded.role)) {
+    if (!["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 })
     }
 
     // Check if user belongs to this organization
-    if (params.id !== decoded.organizationId) {
+    if (params.id !== user.org_id) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
 
@@ -102,8 +101,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     // Log audit event
     await logAuditEvent({
-      user_id: decoded.userId,
-      org_id: decoded.organizationId,
+      user_id: user.id,
+      org_id: user.org_id,
       action: "user.invited",
       resource_type: "user",
       resource_id: newUser._id.toString(),

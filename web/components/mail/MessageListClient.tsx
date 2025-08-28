@@ -46,8 +46,8 @@ export function MessageListClient({
   const { toast } = useToast();
   const { newMessages, markMessagesRead } = useRealtime();
 
-  // --- NEW: USE THE GLOBAL MAIL STORE ---
-  const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId } = useMailStore();
+  // --- USE THE GLOBAL MAIL STORE ---
+  const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId, pendingRemovalIds } = useMailStore(); // <-- Get pendingRemovalIds
 
   // Local state is still useful for things like selection
   const [messages, setMessages] = useState<MessageThread[]>(initialMessages);
@@ -97,8 +97,8 @@ export function MessageListClient({
       });
       if (!response.ok) throw new Error("API call failed");
 
-       // --- NEW: EMIT EVENT ON SUCCESS ---
-       mailAppEvents.emit('countsChanged');
+      // --- NEW: EMIT EVENT ON SUCCESS ---
+      mailAppEvents.emit('countsChanged');
     } catch (error) {
       console.error("Failed to mark message as read:", error);
       // ON FAILURE: Revert the global optimistic state
@@ -243,18 +243,24 @@ export function MessageListClient({
     setSelectedMessages(newSelectedIds);
   };
 
-  // --- RENDER LOGIC (Unchanged) ---
-  const { page: currentPage, total: totalMessages } = pagination;
-  const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
-  const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
-  const storagePercentage = storageInfo.limit > 0 ? (storageInfo.used / storageInfo.limit) * 100 : 0;
-    // --- RENDER LOGIC ---
-  // (Header, Footer, etc. remain the same)
-  const currentMessages = initialMessages.map(msg => ({
+  // --- RENDER LOGIC ---
+
+  // --- CORE OPTIMISTIC UI FIX ---
+  // 1. Filter out messages that are pending removal *before* deriving the read status.
+  const visibleMessages = initialMessages.filter(msg => !pendingRemovalIds.has(msg._id));
+
+  // 2. Derive the read status from the *visible* messages.
+  const currentMessages = visibleMessages.map(msg => ({
     ...msg,
-    // THE CORE FIX: Derive read status from server data OR our global optimistic set.
     read: msg.read || optimisticallyReadIds.has(msg._id),
   }));
+
+  const { page: currentPage, total: totalMessages } = pagination;
+  // Adjust pagination display based on the visible count for a better UX
+  const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
+  const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
+
+  const storagePercentage = storageInfo.limit > 0 ? (storageInfo.used / storageInfo.limit) * 100 : 0;
 
 
   return (
@@ -319,7 +325,8 @@ export function MessageListClient({
       </div>
 
       {/* Message List Area */}
-      {messages.length === 0 ? (
+      {/* --- RENDER USING `visibleMessages.length` for the empty state check --- */}
+      {visibleMessages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-gray-500 p-4 text-center">
           <div className="text-6xl mb-4">{folder === "inbox" ? "📭" : "📂"}</div>
           <h3 className="text-lg font-medium mb-2">No messages here</h3>
@@ -328,13 +335,12 @@ export function MessageListClient({
       ) : (
         <div className="flex-1 overflow-y-auto">
           <div className="divide-y divide-gray-200">
-            {/* RENDER USING THE DERIVED `currentMessages` ARRAY */}
+            {/* --- RENDER USING THE `currentMessages` DERIVED ARRAY --- */}
             {currentMessages.map((message) => (
               <div
                 key={message._id}
-                // The `read` property here is now the combined state
                 className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${!message.read ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
-                onClick={() => onMessageSelect(initialMessages.find(m => m._id === message._id)!)} // Pass original message to handler
+                onClick={() => onMessageSelect(initialMessages.find(m => m._id === message._id)!)}
               >
                 <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${!message.read ? 'bg-blue-600' : 'bg-transparent'}`}></div>
                 <div className="flex items-center gap-3 mr-3">

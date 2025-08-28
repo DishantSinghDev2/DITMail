@@ -11,8 +11,10 @@ import { SessionUser } from "@/types";
 import { ComposerSyncProvider } from "@/components/mail/ComposerSyncProvider";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
-import { ProgressBarProvider } from "@/components/providers/ProgressBarProvider"; // <--- IMPORT THE NEW PROVIDER
+import { ProgressBarProvider } from "@/components/providers/ProgressBarProvider";
+import { SettingsDialog } from "@/components/settings/SettingsDialog"; // <-- IMPORT SETTINGS DIALOG
 
+// Update the layout to accept searchParams
 export default async function MailLayout({ children }: { children: React.ReactNode }) {
   const session = await getServerSession(authOptions);
   const user = session?.user as SessionUser | undefined;
@@ -33,7 +35,6 @@ export default async function MailLayout({ children }: { children: React.ReactNo
   }
 
   return (
-    // Wrap the entire layout content with your new client-side provider
     <ProgressBarProvider>
       <div className="h-screen w-screen flex bg-gray-100 dark:bg-gray-900 overflow-hidden">
         <MailSidebar />
@@ -47,6 +48,11 @@ export default async function MailLayout({ children }: { children: React.ReactNo
         </div>
         <Toaster />
         <Composer />
+
+        {/* --- ADD THE SETTINGS DIALOG HERE --- */}
+        {/* It will manage its own open/closed state based on the URL */}
+        {/* Pass the server-fetched session to the client component */}
+        <SettingsDialog userSession={session!} />
       </div>
     </ProgressBarProvider>
   );

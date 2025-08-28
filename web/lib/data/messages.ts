@@ -272,52 +272,6 @@ export const getMessageThread = unstable_cache(
   }
 );
 
-/**
- * Finds the position of a specific message's thread within a sorted folder list.
- */
-export const getMessagePositionInFolder = unstable_cache(
-  // Standardize to userId: string
-  async (userId: string, folder: string, messageId: string): Promise<{ total: number; index: number }> => {
-    console.log(`DATABASE QUERY: Finding position for message ${messageId} in folder ${folder}`);
-    await connectDB();
-
-    const currentMessage = await Message.findOne({ _id: messageId, user_id: userId }, { thread_id: 1 }).lean();
-    if (!currentMessage) {
-      return { total: 0, index: 0 };
-    }
-    const currentThreadId = currentMessage.thread_id;
-
-    const threadsInFolder = await Message.aggregate([
-      { $match: { user_id: userId, folder: folder } },
-      { $sort: { created_at: -1 } },
-      {
-        $group: {
-          _id: "$thread_id",
-          latestMessageDate: { $first: "$created_at" }
-        }
-      },
-      { $sort: { latestMessageDate: -1 } },
-      { $project: { _id: 1 } }
-    ]);
-
-    const total = threadsInFolder.length;
-
-    // Find the 1-based index of the current thread in the sorted list.
-    // Ensure both are strings for a reliable comparison.
-    const index = threadsInFolder.findIndex(thread => String(thread._id) === String(currentThreadId)) + 1;
-
-    return { total, index };
-  },
-  ['message-position-in-folder'],
-  {
-    // --- THE FIX ---
-    // The tags function now correctly accepts all three arguments (userId, folder, messageId),
-    // even though it only uses the first two to create the tag. This resolves the signature mismatch.
-    tags: (userId, folder, messageId) => [`messages-position:${userId}:${folder}`],
-    revalidate: CACHE_REVALIDATION_PERIOD,
-  }
-);
-
 // --- NEW FUNCTION TO FETCH DRAFTS ---
 /**
  * Fetches and caches drafts for a specific user.
@@ -415,3 +369,57 @@ export const getDraftById = async (userId: string, draftId: string): Promise<any
     initialAttachments: draft.attachments || [],
   };
 };
+
+
+export const getMessagePositionInFolder = async (userId: string, folder: string, messageId: string): Promise<{
+    total: number;
+    index: number;
+    previousMessageId: string | null;
+    nextMessageId: string | null;
+  }> => {
+    console.log(`DATABASE QUERY: Finding position and neighbors for message ${messageId} in folder ${folder}`);
+    await connectDB();
+
+    const currentMessage = await Message.findOne({ _id: messageId, user_id: userId }, { thread_id: 1 }).lean();
+    if (!currentMessage) {
+      return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
+    }
+    const currentThreadId = currentMessage.thread_id;
+
+    // --- MODIFIED AGGREGATION ---
+    // We now need the ID of the latest message in each thread, not just the thread_id.
+    const threadsInFolder = await Message.aggregate([
+      { $match: { user_id: new ObjectId(userId), folder: folder } },
+      { $sort: { created_at: -1 } },
+      {
+        $group: {
+          _id: "$thread_id", // Group by thread
+          latestMessageId: { $first: "$_id" }, // Get the ID of the newest message in the thread
+          latestMessageDate: { $first: "$created_at" }
+        }
+      },
+      { $sort: { latestMessageDate: -1 } }, // Sort threads by newest message
+      { $project: { _id: 1, latestMessageId: 1 } } // Project thread_id and latestMessageId
+    ]);
+
+    const total = threadsInFolder.length;
+
+    // Find the 0-based index of the current thread in the sorted list.
+    const currentIndex = threadsInFolder.findIndex(thread => String(thread._id) === String(currentThreadId));
+
+    if (currentIndex === -1) {
+      // This can happen if the message is not in the specified folder (e.g., archived)
+      return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
+    }
+
+    // Determine the IDs for the previous and next messages
+    const previousMessageId = currentIndex > 0 ? threadsInFolder[currentIndex - 1].latestMessageId.toString() : null;
+    const nextMessageId = currentIndex < total - 1 ? threadsInFolder[currentIndex + 1].latestMessageId.toString() : null;
+
+    return {
+      total,
+      index: currentIndex + 1, // Return 1-based index for the UI
+      previousMessageId,
+      nextMessageId
+    };
+  }

@@ -1,30 +1,29 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import User from "@/models/User"
-import { verifyToken } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../auth/[...nextauth]/route";
 import { logAuditEvent } from "@/lib/audit"
+import { SessionUser } from "@/types";
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string; userId: string } }) {
   try {
     await connectDB()
 
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
+    
+        const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+    if (!user) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 })
     }
 
     // Check if user has admin permissions
-    if (!["owner", "admin"].includes(decoded.role)) {
+    if (!["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 })
     }
 
     // Check if user belongs to this organization
-    if (params.id !== decoded.organizationId) {
+    if (params.id !== user.org_id) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
 
@@ -35,12 +34,12 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ message: "Invalid role" }, { status: 400 })
     }
 
-    const user = await User.findById(params.userId)
-    if (!user) {
+    const userDB = await User.findById(params.userId)
+    if (!userDB) {
       return NextResponse.json({ message: "User not found" }, { status: 404 })
     }
 
-    if (user.organizationId.toString() !== params.id) {
+    if (userDB.organizationId.toString() !== params.id) {
       return NextResponse.json({ message: "User not in organization" }, { status: 400 })
     }
 
@@ -53,14 +52,14 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     // Log audit event
     await logAuditEvent({
-      userId: decoded.userId,
-      organizationId: decoded.organizationId,
+      user_id: user.id,
+      org_id: user.org_id,
       action: "user.role_updated",
-      resource: "user",
-      resourceId: params.userId,
+      resource_type: "user",
+      resource_id: params.userId,
       details: { newRole: role, previousRole: user.role },
-      ipAddress: request.headers.get("x-forwarded-for") || "unknown",
-      userAgent: request.headers.get("user-agent") || "unknown",
+      ip: request.headers.get("x-forwarded-for") || "unknown",
+      user_agent: request.headers.get("user-agent") || "unknown",
     })
 
     return NextResponse.json(updatedUser)
@@ -74,37 +73,34 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
   try {
     await connectDB()
 
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
+    
+        const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+    if (!user) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 })
     }
 
     // Check if user has admin permissions
-    if (!["owner", "admin"].includes(decoded.role)) {
+    if (!["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ message: "Insufficient permissions" }, { status: 403 })
     }
 
     // Check if user belongs to this organization
-    if (params.id !== decoded.organizationId) {
+    if (params.id !== user.org_id) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
 
     // Can't remove yourself
-    if (params.userId === decoded.userId) {
+    if (params.userId === user.id) {
       return NextResponse.json({ message: "Cannot remove yourself" }, { status: 400 })
     }
 
-    const user = await User.findById(params.userId)
-    if (!user) {
+    const userDB = await User.findById(params.userId)
+    if (!userDB) {
       return NextResponse.json({ message: "User not found" }, { status: 404 })
     }
 
-    if (user.organizationId.toString() !== params.id) {
+    if (userDB.organizationId.toString() !== params.id) {
       return NextResponse.json({ message: "User not in organization" }, { status: 400 })
     }
 
@@ -117,8 +113,8 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     // Log audit event
     await logAuditEvent({
-      user_id: decoded.userId,
-      org_id: decoded.organizationId,
+      user_id: user.id,
+      org_id: user.org_id,
       action: "user.removed_from_organization",
       resource_type: "user",
       resource_id: params.userId,

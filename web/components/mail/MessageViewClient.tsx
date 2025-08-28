@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { Message, Attachment } from "@/types";
@@ -26,13 +26,18 @@ import Dropdown from "../ui/Dropdown"; // Assuming path is correct
 import SpamBanner from "../messages/SpamBanner"; // Assuming path is correct
 import EmailViewer from "../messages/EmailViewer"; // Assuming path is correct
 import InlineReplyComposer from "@/components/inline-reply-composer"; // Assuming path is correct
+// --- NEW: Import the Zustand store ---
+import { useMailStore } from "@/lib/store/mail";
+
 
 
 // --- PROPS INTERFACE ---
 interface MessageViewClientProps {
   threadMessages: Message[];
   totalMessages: number;
-  currentMessage: number; // Index of the current message in the list
+  currentMessage: number;
+  previousMessageId?: string | null; // Add this
+  nextMessageId?: string | null;   // Add this
 }
 
 
@@ -40,16 +45,25 @@ export function MessageViewClient({
   threadMessages,
   totalMessages,
   currentMessage,
+  previousMessageId, // Destructure
+  nextMessageId,   // Destructure
 }: MessageViewClientProps) {
+
   // --- HOOKS ---
   const router = useRouter();
+  const params = useParams(); // Get folder from URL for navigation
+
   const { toast } = useToast();
-  
+
   // --- STATE ---
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showFullHeaders, setShowFullHeaders] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // For actions like downloads
   const [editorMode, setEditorMode] = useState<"closed" | "reply" | "forward">("closed");
+
+  // --- NEW: Get actions from the Zustand store ---
+  const { addPendingRemovalId, removePendingRemovalId } = useMailStore();
+
 
   // --- DERIVED STATE ---
   const latestMessage = threadMessages[threadMessages.length - 1];
@@ -64,10 +78,21 @@ export function MessageViewClient({
     setEditorMode("closed");
   }, [threadMessages, latestMessage._id]);
 
-  // --- CORE ACTION HANDLER ---
+  // --- UPDATED CORE ACTION HANDLER ---
   const handleAction = async (method: 'PATCH' | 'DELETE', body?: Record<string, any>, successMessage?: string) => {
+    const messageId = latestMessage._id;
+    const isRemovalAction = body?.folder === 'archive' || body?.folder === 'spam' || body?.folder === 'trash' || method === 'DELETE';
+
+    // --- OPTIMISTIC UI LOGIC ---
+    if (isRemovalAction) {
+      // 1. Instantly update the global state.
+      addPendingRemovalId(messageId);
+      // 2. Immediately navigate back to the list. The list component will see the pending ID and hide the message.
+      onBack();
+    }
+
     try {
-      const response = await fetch(`/api/messages/${latestMessage._id}`, {
+      const response = await fetch(`/api/messages/${messageId}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -75,32 +100,62 @@ export function MessageViewClient({
 
       if (!response.ok) throw new Error("API request failed");
 
+      // 3. On API SUCCESS:
       toast({ title: "Success", description: successMessage || "Action completed." });
-      
-      // After an action, go back to the list view. router.back() is smart and
-      // will trigger a refresh on the previous page if needed.
-      router.back();
+
+      // Trigger a server data refresh to ensure consistency.
+      router.refresh();
 
     } catch (error) {
       console.error("Action error:", error);
-      toast({ title: "Error", description: "The requested action failed.", variant: "destructive" });
+      toast({ title: "Error", description: "The requested action failed. Reverting.", variant: "destructive" });
+
+      // 4. On API FAILURE (Rollback):
+      // Remove the ID from the pending set. The list component will see this change and show the message again.
+      removePendingRemovalId(messageId);
     }
   };
 
   // --- SPECIFIC ACTION HANDLERS ---
-  const onBack = () => router.back();
+  const onBack = () => {
+    router.push(`/mail/${params.folder}`);
+  }
   const onStar = () => handleAction('PATCH', { starred: !latestMessage.starred }, `Message ${latestMessage.starred ? 'unstarred' : 'starred'}.`);
   const onArchive = () => handleAction('PATCH', { folder: 'archive' }, "Message archived.");
   const markAsSpam = () => handleAction('PATCH', { folder: 'spam' }, "Message marked as spam.");
   const onDelete = () => handleAction('PATCH', { folder: 'trash' }, "Message moved to trash.");
-  const markAsUnRead = () => handleAction('PATCH', { read: false }, "Message marked as unread.");
+  const markAsUnRead = async () => {
+    // This is not a removal action, so we can handle it without optimistic navigation
+    try {
+      await fetch(`/api/messages/${latestMessage._id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ read: false }),
+      });
+      toast({ title: "Success", description: "Message marked as unread." });
+      onBack(); // Navigate back after success
+      router.refresh();
+    } catch (error) {
+      toast({ title: "Error", description: "Could not mark as unread.", variant: "destructive" });
+    }
+  };
+
   const handleUnMarkSpam = () => handleAction('PATCH', { folder: 'inbox' }, "Message moved back to inbox.");
   const handleDeleteForever = () => handleAction('DELETE', undefined, "Message permanently deleted.");
-  
+
   // onNext and onPrevious require server-side logic to determine the next/prev message ID.
   // This is a placeholder for that future implementation.
-  const onNext = () => toast({ title: "Info", description: "Next/Previous not yet implemented." });
-  const onPrevious = () => toast({ title: "Info", description: "Next/Previous not yet implemented." });
+  const onNext = () => {
+    if (nextMessageId) {
+      // The folder comes from the URL parameters
+      router.push(`/mail/${params.folder}/${nextMessageId}`);
+    }
+  };
+
+  const onPrevious = () => {
+    if (previousMessageId) {
+      router.push(`/mail/${params.folder}/${previousMessageId}`);
+    }
+  };
 
   // --- UTILITY FUNCTIONS ---
   const toggleMessageExpansion = (messageId: string) => {
@@ -125,7 +180,7 @@ export function MessageViewClient({
       printWindow.print();
     }
   };
-  
+
   // --- SUB-COMPONENTS / RENDER FUNCTIONS ---
   const getPriorityBadge = (priority?: string) => {
     if (priority === 'high') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><ExclamationTriangleIcon className="h-3 w-3 mr-1" />High Priority</span>;
@@ -140,7 +195,7 @@ export function MessageViewClient({
       <div key={msg._id} className={`border rounded-lg ${isThread ? "mb-4" : ""}`}>
         <div className={`p-4 cursor-pointer hover:bg-gray-50 ${isExpanded ? "border-b" : ""}`} onClick={() => isThread && toggleMessageExpansion(msg._id)}>
           {/* ... (Message Header JSX from your original component) ... */}
-           <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">{msg.from.charAt(0).toUpperCase()}</div>
               <div className="flex-1 min-w-0">
@@ -156,17 +211,17 @@ export function MessageViewClient({
           <div className="p-4">
             {msg.folder === "spam" && <SpamBanner onMarkNotSpam={handleUnMarkSpam} />}
             <EmailViewer html={msg.html} isSpam={msg.folder === "spam"} />
-            
+
             {msg.attachments?.length > 0 && (
-                <div className="border-t pt-4 mt-4">
-                  <h4 className="text-sm font-medium mb-2">Attachments</h4>
-                  {msg.attachments.map((att) => (
-                      <button key={att._id} onClick={() => downloadAttachment(att)} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-100 w-full text-left">
-                          <PaperClipIcon className="h-4 w-4 text-gray-500"/>
-                          <span>{att.filename} ({Math.round(att.size / 1024)} KB)</span>
-                      </button>
-                  ))}
-                </div>
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-medium mb-2">Attachments</h4>
+                {msg.attachments.map((att) => (
+                  <button key={att._id} onClick={() => downloadAttachment(att)} className="flex items-center space-x-2 p-2 rounded hover:bg-gray-100 w-full text-left">
+                    <PaperClipIcon className="h-4 w-4 text-gray-500" />
+                    <span>{att.filename} ({Math.round(att.size / 1024)} KB)</span>
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         )}
@@ -187,22 +242,22 @@ export function MessageViewClient({
           {/* Action Buttons */}
           <div className="flex items-center space-x-1 sm:space-x-2">
             <button onClick={onBack} title="Go back" className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft className="h-5 w-5 text-gray-500" /></button>
-            
+
             {/* Contextual Buttons */}
             {latestMessage.folder === 'inbox' && <button title="Archive" onClick={onArchive} className="p-2 hover:bg-gray-100 rounded-full"><Archive className="h-4 w-4 text-gray-500" /></button>}
             {latestMessage.folder !== 'spam' && latestMessage.folder !== 'trash' && <button title="Mark as spam" onClick={markAsSpam} className="p-2 hover:bg-gray-100 rounded-full"><OctagonAlert className="h-4 w-4 text-gray-500" /></button>}
             {latestMessage.folder !== 'trash' && <button title="Delete" onClick={onDelete} className="p-2 hover:bg-gray-100 rounded-full"><TrashIcon className="h-4 w-4 text-gray-500" /></button>}
-            
+
             {latestMessage.folder === 'spam' && <button title="Not spam" onClick={handleUnMarkSpam} className="p-2 hover:bg-gray-100 rounded-full text-sm">Not Spam</button>}
             {(latestMessage.folder === 'spam' || latestMessage.folder === 'trash') && <button title="Delete forever" onClick={handleDeleteForever} className="p-2 hover:bg-gray-100 rounded-full text-sm text-red-600">Delete Forever</button>}
 
             <div className="bg-gray-200 w-px h-5"></div>
-            
+
             <button title="Mark as unread" onClick={markAsUnRead} className="p-2 hover:bg-gray-100 rounded-full"><MailMinus className="h-4 w-4 text-gray-500" /></button>
             <button title="Star" onClick={onStar} className="p-2 hover:bg-gray-100 rounded-full">
               {latestMessage.starred ? <StarIconSolid className="h-5 w-5 text-yellow-500" /> : <StarIcon className="h-5 w-5 text-gray-500" />}
             </button>
-            
+
             <Dropdown
               trigger={<button title="More options" className="p-2 hover:bg-gray-100 rounded-full"><EllipsisVerticalIcon className="h-5 w-5 text-gray-500" /></button>}
               items={[
@@ -213,11 +268,28 @@ export function MessageViewClient({
             />
           </div>
 
+          {/* --- UPDATED PAGINATION CONTROLS --- */}
           <div className="flex items-center space-x-3">
-            <span className="text-sm text-gray-600">{currentMessage} of {totalMessages}</span>
-            <button onClick={onPrevious} disabled={currentMessage <= 1} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50"><ChevronLeft className="w-4 h-4" /></button>
-            <button onClick={onNext} disabled={currentMessage >= totalMessages} className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50"><ChevronRight className="w-4 h-4" /></button>
+            <span className="text-sm text-gray-600">
+              {/* Show only if there are messages to count */}
+              {totalMessages > 0 ? `${currentMessage} of ${totalMessages}` : ''}
+            </span>
+            <button
+              onClick={onPrevious}
+              disabled={!previousMessageId}
+              className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <button
+              onClick={onNext}
+              disabled={!nextMessageId}
+              className="p-2 hover:bg-gray-100 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
+
         </div>
 
         <h2 className="text-xl font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
