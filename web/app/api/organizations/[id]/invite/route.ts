@@ -5,7 +5,6 @@ import Organization from "@/models/Organization"
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 import { logAuditEvent } from "@/lib/audit"
-import { sendEmail } from "@/lib/smtp"
 import crypto from "crypto"
 import { SessionUser } from "@/types";
 
@@ -82,22 +81,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     // Send invitation email
     const invitationUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/${invitationToken}`
 
-    await sendEmail({
-      to: email,
-      subject: `Invitation to join ${organization.name}`,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2>You're invited to join ${organization.name}</h2>
-          <p>You have been invited to join the ${organization.name} organization on DITMail.</p>
-          <p>Click the link below to accept your invitation and set up your account:</p>
-          <a href="${invitationUrl}" style="display: inline-block; padding: 12px 24px; background-color: #3B82F6; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">
-            Accept Invitation
-          </a>
-          <p>This invitation will expire in 7 days.</p>
-          <p>If you didn't expect this invitation, you can safely ignore this email.</p>
-        </div>
-      `,
-    })
+    // await sendEmail({
+    //   to: email,
+    //   subject: `Invitation to join ${organization.name}`,
+    //   html: `
+    //     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+    //       <h2>You're invited to join ${organization.name}</h2>
+    //       <p>You have been invited to join the ${organization.name} organization on DITMail.</p>
+    //       <p>Click the link below to accept your invitation and set up your account:</p>
+    //       <a href="${invitationUrl}" style="display: inline-block; padding: 12px 24px; background-color: #3B82F6; color: white; text-decoration: none; border-radius: 6px; margin: 16px 0;">
+    //         Accept Invitation
+    //       </a>
+    //       <p>This invitation will expire in 7 days.</p>
+    //       <p>If you didn't expect this invitation, you can safely ignore this email.</p>
+    //     </div>
+    //   `,
+    // })
 
     // Log audit event
     await logAuditEvent({
