@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-// Make sure getDraftById is imported if you use it, or remove it if not.
-import { getMessageThread, getMessagePositionInFolder, getDraftById } from "@/lib/data/messages";
+import { getMessageThread, getMessagePositionInFolder } from "@/lib/data/messages"; // Removed getDraftById
 import { MessageViewClient } from "@/components/mail/MessageViewClient";
 import { notFound, redirect } from "next/navigation";
 import { SessionUser } from "@/types";
@@ -18,24 +17,26 @@ export default async function MessagePage({ params }: PageProps) {
     const user = session?.user as SessionUser | undefined;
 
     if (!user) {
-        return notFound();
+        // Using redirect for unauthenticated users might be better for UX
+        redirect("/api/auth/signin/wyi");
     }
     
-    // --- Draft check logic remains the same ---
+    // --- START: CORRECTED DRAFT LOGIC ---
+    // If the user is trying to view a draft message...
     if (params.folder === 'drafts') {
-        const draftData = await getDraftById(user.id, params.messageId);
-        if (draftData) {
-            const urlParams = new URLSearchParams();
-            urlParams.set('openComposer', 'true');
-            urlParams.set('draftId', draftData.draftId);
-            urlParams.set('initialData', JSON.stringify(draftData.initialData));
-            urlParams.set('initialAttachments', JSON.stringify(draftData.initialAttachments));
-            redirect(`/mail/drafts?${urlParams.toString()}`);
-        }
-        return notFound();
-    }
+        // ...we don't render a page for it. Instead, we redirect them.
+        // The redirection URL will include the `compose` query parameter,
+        // which our client-side `ComposerSyncProvider` is designed to detect.
+        
+        const draftId = params.messageId;
 
-    // --- UPDATED REGULAR MESSAGE LOGIC ---
+        // Redirect to the main drafts view, but with the instruction to open the composer.
+        // The client will handle fetching the draft's content.
+        redirect(`/mail/drafts?compose=${draftId}`);
+    }
+    // --- END: CORRECTED DRAFT LOGIC ---
+
+    // --- Regular message logic remains the same ---
     const [threadMessages, positionData] = await Promise.all([
         getMessageThread(user.id, params.messageId),
         getMessagePositionInFolder(user.id, params.folder, params.messageId)
@@ -48,8 +49,6 @@ export default async function MessagePage({ params }: PageProps) {
     return (
         <MessageViewClient
             threadMessages={threadMessages}
-            // Pass the entire positionData object for simplicity,
-            // or destructure it like below.
             totalMessages={positionData.total}
             currentMessage={positionData.index}
             previousMessageId={positionData.previousMessageId}
