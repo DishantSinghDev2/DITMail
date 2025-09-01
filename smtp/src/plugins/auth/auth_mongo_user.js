@@ -155,18 +155,24 @@ exports.on_auth_success = async function (connection, user, cb) {
         return cb(false);
     }
 
-    const orgDomains = await domains.find({ org_id: new mongodb.ObjectId(org_id), status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
-    if (orgDomains.length === 0) {
-        plugin.logwarn(`AUTH failed for user: ${username} (no verified domains for org)`);
-        connection.notes.auth_message = "Your organization does not have any verified domains.";
-        return cb(false);
-    }
-    
-    const domainMatch = orgDomains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
-    if (!domainMatch) {
-        plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
-        connection.notes.auth_message = "Your email address does not match your organization's domain.";
-        return cb(false);
+    // Check if the user's domain is the universal 'ditmail.online'
+    const userDomain = username.substring(username.lastIndexOf('@') + 1).toLowerCase();
+
+    if (userDomain !== 'ditmail.online') {
+        // --- If not a universal domain, perform the standard organization domain verification ---
+        const orgDomains = await domains.find({ org_id: new mongodb.ObjectId(org_id), status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
+        if (orgDomains.length === 0) {
+            plugin.logwarn(`AUTH failed for user: ${username} (no verified domains for org)`);
+            connection.notes.auth_message = "Your organization does not have any verified domains.";
+            return cb(false);
+        }
+        
+        const domainMatch = orgDomains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
+        if (!domainMatch) {
+            plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
+            connection.notes.auth_message = "Your email address does not match your organization's domain.";
+            return cb(false);
+        }
     }
     
     // --- All checks passed ---
