@@ -11,6 +11,7 @@ import { composeEmailSchema } from "@/lib/validations"
 import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
 import { logAuditEvent } from "@/lib/audit"
 import "@/models/Attachment" // Ensure Attachment model is loaded
+import { ObjectId } from "mongodb"
 
 // export async function GET(request: NextRequest) {
 //   try {
@@ -289,6 +290,7 @@ export async function POST(request: NextRequest) {
 
     const message = new Message({
       // All your message fields...
+      message_id: new ObjectId(),
       from: user.email,
       to: validatedData.to,
       cc: validatedData.cc || [],
