@@ -11,6 +11,9 @@ import OrganizationSettings from "@/components/settings/OrganizationSettings";
 import DomainSettings from "@/components/settings/DomainSettings";
 import LoadingSpinner from "../ui/LoadingSpinner";
 import ConnectionSettings from "./ConnectionSettings";
+import AliasesSettings from "@/components/settings/AliasesSettings";
+import CatchAllSettings from "@/components/settings/CatchAllSettings";
+import ContactsSettings from "@/components/settings/ContactsSettings";
 
 interface SettingsDialogProps {
   userSession: Session; // Pass the whole session object
@@ -50,9 +53,16 @@ export function SettingsDialog({ userSession }: SettingsDialogProps) {
         return <ConnectionSettings />;
       case "domains":
         return <DomainSettings user={userSession.user as any} />;
+      case "aliases":
+        return <AliasesSettings />;
+      case "catch-all":
+        return <CatchAllSettings />;
+      case "contacts":
+        return <ContactsSettings />;
       case "profile":
       default:
         return <ProfileSettings user={userSession.user as any} />;
+
     }
   };
 

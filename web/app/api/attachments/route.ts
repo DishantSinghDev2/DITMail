@@ -1,14 +1,18 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Attachment from "@/models/Attachment"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { SessionUser } from "@/types";
 import { uploadFile } from "@/lib/gridfs"
 import Message from "@/models/Message"
 import Draft from "@/models/Draft"
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
+   
+       const session = await getServerSession(authOptions);
+       const user = session?.user as SessionUser | undefined;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
@@ -28,8 +32,8 @@ export async function POST(request: NextRequest) {
     }
 
     // check if message or draft exists with the provided ID
-    const message = await Message.findOne({ _id: messageId, user_id: user._id })
-    const draft = await Draft.findOne({ _id: messageId, user_id: user._id })
+    const message = await Message.findOne({ _id: messageId, user_id: user.id })
+    const draft = await Draft.findOne({ _id: messageId, user_id: user.id })
     if (!message && !draft) {
       return NextResponse.json({ error: "Message or draft not found" }, { status: 404 })
     }
@@ -53,7 +57,7 @@ export async function POST(request: NextRequest) {
       message_id: message ? message._id : draft._id, // Use message ID if exists, otherwise use draft ID
       filename: file.name,
       mimeType: file.type,
-      user_id: user._id,
+      user_id: user.id,
       gridfs_id: gridfsId,
       size: file.size,
     })

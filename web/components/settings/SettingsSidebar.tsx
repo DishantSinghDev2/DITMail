@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { UserIcon, BuildingOfficeIcon, GlobeAltIcon, XMarkIcon, CpuChipIcon } from "@heroicons/react/24/outline";
+import { 
+  UserIcon, BuildingOfficeIcon, GlobeAltIcon, CpuChipIcon, 
+  AtSymbolIcon, InboxArrowDownIcon, UserGroupIcon, // <-- New Icons
+  XMarkIcon
+} from "@heroicons/react/24/outline";
 
 interface SettingsSidebarProps {
   activeTab: string; // Still needed to style the active link
@@ -27,9 +31,12 @@ export default function SettingsSidebar({ activeTab, user }: SettingsSidebarProp
 
   const tabs = [
     { id: "profile", name: "Profile", icon: UserIcon },
-    { id: "connection", name: "Connection", icon: CpuChipIcon }, // New Tab
+    { id: "contacts", name: "Contacts", icon: UserGroupIcon },
+    { id: "connection", name: "Connection", icon: CpuChipIcon },
     { id: "organization", name: "Organization", icon: BuildingOfficeIcon, adminOnly: true },
     { id: "domains", name: "Domains", icon: GlobeAltIcon, adminOnly: true },
+    { id: "aliases", name: "Aliases", icon: AtSymbolIcon, adminOnly: true },
+    { id: "catch-all", name: "Catch-All", icon: InboxArrowDownIcon, adminOnly: true },
   ];
 
   return (
