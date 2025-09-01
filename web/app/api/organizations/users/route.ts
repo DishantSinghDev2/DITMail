@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {connectDB} from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import User from "@/models/User"
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
@@ -9,9 +9,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     await connectDB()
 
-   
-       const session = await getServerSession(authOptions);
-       const user = session?.user as SessionUser | undefined;
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 })
     }

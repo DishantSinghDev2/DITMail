@@ -1,6 +1,5 @@
 // Server-side notification service (with Redis)
 import { getRedisClient } from "./redis-server"
-import { realtimeService } from "./realtime"
 
 export interface Notification {
   id: string
@@ -45,12 +44,6 @@ export class NotificationService {
       // Add to user's notification list
       await redis.lpush(`notifications:${userId}`, notificationId)
       await redis.expire(`notifications:${userId}`, expirationSeconds)
-
-      // Send real-time notification
-      await realtimeService.publishNewMailEvent(userId, {
-        type: "notification",
-        notification: fullNotification,
-      })
 
       return fullNotification
     } catch (error) {
