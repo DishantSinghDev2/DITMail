@@ -15,6 +15,7 @@ import {
   PlusIcon, UserIcon, ArrowRightOnRectangleIcon, FolderIcon, ChevronDownIcon, ChevronRightIcon, Bars3Icon, Cog6ToothIcon
 } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import ComposeLink from "./ComposeLink";
 
 // --- Type Definitions ---
 interface MailSidebarClientProps {
@@ -252,10 +253,7 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
 
       {/* Compose Button */}
       <div className="px-2 py-4 flex-shrink-0">
-        <button onClick={handleComposeClick} className={`w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-md font-medium shadow-sm`}>
-          <PlusIcon className="h-5 w-5 flex-shrink-0" />
-          {isExpanded && <span className="whitespace-nowrap">Compose</span>}
-        </button>
+        <ComposeLink isExpanded={isExpanded} />
       </div>
 
       {/* Navigation Scroller */}
