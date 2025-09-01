@@ -20,9 +20,6 @@ export const GET = asyncHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { searchParams } = new URL(request.url);
-  const inReplyToId = searchParams.get('in_reply_to_id');
-
   await connectDB();
 
   // Find a single draft associated with this conversation thread for this user
