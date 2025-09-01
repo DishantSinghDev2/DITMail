@@ -59,19 +59,8 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    // Security Check: Verify the user's main password before proceeding
-    const userDoc = await User.findById(user.id).select('+password_hash');
-    if (!userDoc || !userDoc.password_hash) {
-      return NextResponse.json({ error: 'User account is not configured correctly.' }, { status: 404 });
-    }
-
-    const isPasswordCorrect = await bcrypt.compare(validation.data.currentPassword, userDoc.password_hash);
-    if (!isPasswordCorrect) {
-      return NextResponse.json({ error: 'The password you entered is incorrect.' }, { status: 403 });
-    }
-
     // Generate a secure, random password
-    const plainTextPassword = `ap-${crypto.randomBytes(16).toString('hex')}`;
+    const plainTextPassword = `ditmail-${crypto.randomBytes(16).toString('hex')}`;
 
     // Create a new AppPassword instance.
     // **IMPORTANT**: We save the PLAIN TEXT password here.
