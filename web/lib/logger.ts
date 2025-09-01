@@ -1,50 +1,39 @@
-// /lib/logger.ts (or wherever your logger file is)
+// /lib/logger.ts
 
 import { createLogger, format, transports } from "winston";
-import fs from "fs";
-import path from "path";
 
-// --- START: MODIFICATION ---
-
-// Define the directory for log files
-const logDir = "logs";
-
-// Check if the logs directory exists, and create it if it doesn't.
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir);
-}
-
-// --- END: MODIFICATION ---
-
+// No more 'fs' or 'path' needed, as we are not interacting with the file system.
 
 const logger = createLogger({
   level: process.env.LOG_LEVEL || "info",
   format: format.combine(
     format.timestamp(),
     format.errors({ stack: true }),
-    format.json()
+    format.json() // Use JSON format so Vercel can parse it nicely
   ),
   defaultMeta: { service: "ditmail" },
+  // --- MODIFICATION START ---
+  // Remove the 'File' transports completely. They will cause a crash on Vercel.
   transports: [
-    // Use path.join to create platform-independent file paths
-    new transports.File({ filename: path.join(logDir, "error.log"), level: "error" }),
-    new transports.File({ filename: path.join(logDir, "combined.log") }),
+    // The Console transport is all you need for Vercel.
+    // It writes to stdout/stderr, which Vercel captures automatically.
+    new transports.Console({
+      format: format.combine(
+        // In a serverless environment, structured JSON logs are often more useful
+        // than simple colored text, even in non-production environments.
+        format.timestamp(),
+        format.json()
+      ),
+    }),
   ],
+  // --- MODIFICATION END ---
 });
 
-// The rest of the file remains the same...
-if (process.env.NODE_ENV !== "production") {
-  logger.add(
-    new transports.Console({
-      format: format.combine(format.colorize(), format.simple()),
-    }),
-  );
-}
-
+// The logger functions remain the same.
 export { logger };
 
 export function logError(error: Error, context?: any) {
-  logger.error("Application error", {
+  logger.error(error.message, { // Pass the message directly for cleaner logging
     error: {
         message: error.message,
         stack: error.stack,
