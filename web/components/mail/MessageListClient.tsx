@@ -23,6 +23,7 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 // --- NEW: IMPORT THE ZUSTAND MAIL STORE ---
 import { useMailStore } from "@/lib/store/mail";
 import { mailAppEvents } from "@/lib/events";
+import Link from "next/link";
 
 
 // Props interface remains the same
@@ -108,27 +109,6 @@ export function MessageListClient({
     }
   };
 
-  // --- UPDATED: MESSAGE SELECTION HANDLER ---
-  const onMessageSelect = (message: MessageThread) => {
-    // Check original server state to see if an action is needed
-    if (!message.read && !message.isDraft) {
-      // 1. Update the GLOBAL optimistic state. This will persist across navigations.
-      addOptimisticallyReadId(message._id);
-      // 2. Call the background function to sync with the server.
-      markAsReadInBackground(message._id);
-    }
-
-    // Navigation logic remains the same
-    const params = new URLSearchParams(window.location.search);
-    if (message.isDraft) {
-      params.set('compose', message._id);
-      router.push(`${pathname}?${params.toString()}`);
-    } else {
-      params.delete('compose');
-      const queryString = params.toString();
-      router.push(`/mail/${folder}/${message._id}${queryString ? `?${queryString}` : ''}`);
-    }
-  };
 
   // --- CORE HANDLERS (WITH OPTIMISTIC UPDATES) ---
   const handleBulkAction = async (action: string) => {
@@ -336,47 +316,77 @@ export function MessageListClient({
         <div className="flex-1 overflow-y-auto">
           <div className="divide-y divide-gray-200">
             {/* --- RENDER USING THE `currentMessages` DERIVED ARRAY --- */}
-            {currentMessages.map((message) => (
-              <div
-                key={message._id}
-                className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${!message.read ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
-                onClick={() => onMessageSelect(initialMessages.find(m => m._id === message._id)!)}
-              >
-                <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${!message.read ? 'bg-blue-600' : 'bg-transparent'}`}></div>
-                <div className="flex items-center gap-3 mr-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedMessages.has(message._id)}
-                    onChange={(e) => handleSelectMessage(message._id, e.target.checked)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-3.5 h-3.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
-                  />
-                  <button onClick={(e) => { e.stopPropagation(); handleSingleStar(message._id, !message.starred); }} className="p-1 rounded-full">
-                    {message.starred ? (<StarIconSolid className="h-5 w-5 text-yellow-500" />) : (<StarIcon className="h-5 w-5 text-gray-300 hover:text-yellow-400" />)}
-                  </button>
-                </div>
+            {currentMessages.map((message) => {
+              // Get the original message from props to check its true 'read' status
+              const originalMessage = initialMessages.find(m => m._id === message._id)!;
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex justify-between items-start">
-                    <div className="text-sm truncate pr-2">
-                      <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
-                        {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from} {message.messageCount > 1 && <span className="text-gray-500 ml-1 text-xs">({message.messageCount})</span>}
-                      </span>
-                    </div>
-                    <div className="flex items-center space-x-2 flex-shrink-0">
-                      {message.attachments?.length > 0 && <PaperClipIcon className="h-4 w-4 text-gray-400" />}
-                      <span className={`text-xs whitespace-nowrap ${!message.read ? "text-gray-800 font-bold" : "text-gray-500"}`}>
-                        {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
-                      </span>
-                    </div>
+              // Prepare the navigation href
+              const params = new URLSearchParams(window.location.search);
+              let href;
+              if (originalMessage.isDraft) {
+                params.set('compose', originalMessage._id);
+                href = `${pathname}?${params.toString()}`;
+              } else {
+                params.delete('compose');
+                const queryString = params.toString();
+                href = `/mail/${folder}/${originalMessage._id}${queryString ? `?${queryString}` : ''}`;
+              }
+
+              return (
+                // --- THE CORE FIX ---
+                // 1. The entire row is now a <Link> component.
+                // 2. The `onMouseDown` event handles the optimistic update just before navigation.
+                <Link
+                  key={message._id}
+                  href={href}
+                  scroll={false}
+                  onMouseDown={() => {
+                    // This is our new "on select" logic
+                    if (!originalMessage.read && !originalMessage.isDraft) {
+                      addOptimisticallyReadId(originalMessage._id);
+                      markAsReadInBackground(originalMessage._id);
+                    }
+                  }}
+                  className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${!message.read ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
+                >
+
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${!message.read ? 'bg-blue-600' : 'bg-transparent'}`}></div>
+                  <div className="flex items-center gap-3 mr-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedMessages.has(message._id)}
+                      onChange={(e) => handleSelectMessage(message._id, e.target.checked)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="w-3.5 h-3.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
+                    />
+                    <button onClick={(e) => { e.stopPropagation(); handleSingleStar(message._id, !message.starred); }} className="p-1 rounded-full">
+                      {message.starred ? (<StarIconSolid className="h-5 w-5 text-yellow-500" />) : (<StarIcon className="h-5 w-5 text-gray-300 hover:text-yellow-400" />)}
+                    </button>
                   </div>
-                  <div className={`text-sm truncate pr-4 ${!message.read ? "text-gray-800" : "text-gray-700"}`}>
-                    {message.subject || "(no subject)"}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start">
+                      <div className="text-sm truncate pr-2">
+                        <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
+                          {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from} {message.messageCount > 1 && <span className="text-gray-500 ml-1 text-xs">({message.messageCount})</span>}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {message.attachments?.length > 0 && <PaperClipIcon className="h-4 w-4 text-gray-400" />}
+                        <span className={`text-xs whitespace-nowrap ${!message.read ? "text-gray-800 font-bold" : "text-gray-500"}`}>
+                          {formatDistanceToNow(new Date(message.created_at), { addSuffix: true })}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`text-sm truncate pr-4 ${!message.read ? "text-gray-800" : "text-gray-700"}`}>
+                      {message.subject || "(no subject)"}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate pr-4">{message.text || "No preview available"}</div>
                   </div>
-                  <div className="text-xs text-gray-500 truncate pr-4">{message.text || "No preview available"}</div>
-                </div>
-              </div>
-            ))}
+                </Link>
+              )
+            })
+            }
           </div>
         </div>
       )}

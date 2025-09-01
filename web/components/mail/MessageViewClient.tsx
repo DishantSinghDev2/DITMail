@@ -165,9 +165,48 @@ export function MessageViewClient({
   };
 
   const downloadAttachment = async (attachment: Attachment) => {
-    // This should call a secure API route that validates the session
-    // and serves the file, e.g., `/api/attachments/[id]`
-    toast({ title: "Info", description: `Downloading ${attachment.filename}...` });
+    try {
+      toast({
+        title: "Info",
+        description: `Downloading ${attachment.filename}...`,
+      });
+
+      // Call your API route securely
+      const res = await fetch(`/api/attachments/${attachment._id}`, {
+        method: "GET",
+        credentials: "include", // ensures cookies/session are sent
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to download: ${res.statusText}`);
+      }
+
+      // Convert response to Blob
+      const blob = await res.blob();
+
+      // Create a temporary URL and trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = attachment.filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      // Cleanup
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: `${attachment.filename} downloaded.`,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Download failed",
+        variant: "destructive",
+      });
+    }
   };
 
   const printMessage = () => {
