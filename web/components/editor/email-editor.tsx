@@ -202,16 +202,18 @@ export function EmailEditor({
     }, 100); // Increased timeout slightly for stability
   }, [form.getValues("content")]); // Run when content value changes
 
-  // (Auto-save, file upload, and other handlers remain largely the same)
-  const saveDraft = useCallback(async (data: any, attachments: Attachment[]) => {
+  const saveDraft = useCallback(
+  async (data: any, attachments: Attachment[]) => {
     const formContent = editorRef.current?.getContent() || data.content;
 
     // --- MODIFICATION START ---
     // More robust check to see if the draft is truly empty.
     const hasRecipients = data.to || data.cc || data.bcc;
     const hasSubject = data.subject;
-    // Check for content beyond the default empty paragraph tags.
-    const hasContent = formContent && formContent !== "<p></p>" && formContent !== "<p><br></p>";
+    const hasContent =
+      formContent &&
+      formContent !== "<p></p>" &&
+      formContent !== "<p><br></p>";
     const hasAttachments = attachments.length > 0;
 
     // Only skip saving if the draft is completely devoid of any user input.
@@ -220,54 +222,74 @@ export function EmailEditor({
     }
     // --- MODIFICATION END ---
 
-    setIsSaving(true)
+    setIsSaving(true);
+
     const payload = {
       type: replyToMessage ? "r" : forwardMessage ? "f" : "d",
-      to: data.to.split(",").map((e: string) => e.trim()).filter(Boolean),
-      cc: data.cc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
-      bcc: data.bcc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
-      subject: data.subject,
+      to: data.to
+        ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean)
+        : [],
+      cc: data.cc
+        ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean)
+        : [],
+      bcc: data.bcc
+        ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean)
+        : [],
+      subject: data.subject || "",
       html: formContent,
       attachments: attachments.map((att) => att._id),
       in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
-    }
-
+    };
 
     // --- THIS IS THE KEY CHANGE ---
     // Call the callback to lift the state up to the parent component.
     if (onDataChange) {
       const schemaCompliantData = {
-        to: data.to,
+        to: data.to || "",
         cc: data.cc || "",
         bcc: data.bcc || "",
-        subject: data.subject,
+        subject: data.subject || "",
         content: formContent,
-        attachments: attachments.map(a => a._id),
-      }
-      onDataChange(schemaCompliantData, attachments) // Send full data up
+        attachments: attachments.map((a) => a._id),
+      };
+      onDataChange(schemaCompliantData, attachments); // Send full data up
     }
 
     try {
       // --- THIS IS THE CRITICAL FIX ---
-      // The URL and method now depend directly on the `draftId` PROP.
       const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
       const method = draftId ? "PATCH" : "POST";
 
-      const response = await fetch(url, { /* ... fetch options ... */ });
-      if (response.ok) {
-        const result = await response.json();
-        // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
-        // which is the `setDraftId` function from the parent.
-        if (!draftId && onDraftCreated) {
-          onDraftCreated(result.draft._id);
-        }
-        setLastSaved(new Date());
+      const response = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save draft: ${response.status}`);
       }
-    } catch (error) { console.error("Auto-save error:", error); }
-    finally { setIsSaving(false); }
+
+      const result = await response.json();
+
+      // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
+      // which is the `setDraftId` function from the parent.
+      if (!draftId && onDraftCreated) {
+        onDraftCreated(result.draft._id);
+      }
+
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error("Auto-save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
   },
-    [draftId, replyToMessage, forwardMessage, onDataChange, onDraftCreated] // <-- Add dependencies
-  )
+  [draftId, replyToMessage, forwardMessage, onDataChange, onDraftCreated]
+);
+
 
   const debouncedSave = useCallback(debounce(saveDraft, 500), [saveDraft])
 
