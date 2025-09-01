@@ -1,3 +1,4 @@
+// /home/dit/DITMail/web/app/api/drafts/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import Draft from "@/models/Draft";

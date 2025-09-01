@@ -203,56 +203,69 @@ export function EmailEditor({
   }, [form.getValues("content")]); // Run when content value changes
 
   // (Auto-save, file upload, and other handlers remain largely the same)
-  const saveDraft = useCallback(
-    async (data: any, attachments: Attachment[]) => {
-      const formContent = editorRef.current?.getContent() || data.content
-      if (!data.subject && (formContent === "<p></p>" || !formContent) && attachments.length === 0) return
+  const saveDraft = useCallback(async (data: any, attachments: Attachment[]) => {
+    const formContent = editorRef.current?.getContent() || data.content;
 
-      setIsSaving(true)
-      const payload = {
-        type: replyToMessage ? "r" : forwardMessage ? "f" : "d",
-        to: data.to.split(",").map((e: string) => e.trim()).filter(Boolean),
-        cc: data.cc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
-        bcc: data.bcc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
+    // --- MODIFICATION START ---
+    // More robust check to see if the draft is truly empty.
+    const hasRecipients = data.to || data.cc || data.bcc;
+    const hasSubject = data.subject;
+    // Check for content beyond the default empty paragraph tags.
+    const hasContent = formContent && formContent !== "<p></p>" && formContent !== "<p><br></p>";
+    const hasAttachments = attachments.length > 0;
+
+    // Only skip saving if the draft is completely devoid of any user input.
+    if (!hasRecipients && !hasSubject && !hasContent && !hasAttachments) {
+      return; // Skip saving for a completely empty draft
+    }
+    // --- MODIFICATION END ---
+
+    setIsSaving(true)
+    const payload = {
+      type: replyToMessage ? "r" : forwardMessage ? "f" : "d",
+      to: data.to.split(",").map((e: string) => e.trim()).filter(Boolean),
+      cc: data.cc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
+      bcc: data.bcc?.split(",").map((e: string) => e.trim()).filter(Boolean) || [],
+      subject: data.subject,
+      html: formContent,
+      attachments: attachments.map((att) => att._id),
+      in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
+    }
+
+
+    // --- THIS IS THE KEY CHANGE ---
+    // Call the callback to lift the state up to the parent component.
+    if (onDataChange) {
+      const schemaCompliantData = {
+        to: data.to,
+        cc: data.cc || "",
+        bcc: data.bcc || "",
         subject: data.subject,
-        html: formContent,
-        attachments: attachments.map((att) => att._id),
-        in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
+        content: formContent,
+        attachments: attachments.map(a => a._id),
       }
+      onDataChange(schemaCompliantData, attachments) // Send full data up
+    }
 
-      // --- THIS IS THE KEY CHANGE ---
-      // Call the callback to lift the state up to the parent component.
-      if (onDataChange) {
-        const schemaCompliantData = {
-          to: data.to,
-          cc: data.cc || "",
-          bcc: data.bcc || "",
-          subject: data.subject,
-          content: formContent,
-          attachments: attachments.map(a => a._id),
+    try {
+      // --- THIS IS THE CRITICAL FIX ---
+      // The URL and method now depend directly on the `draftId` PROP.
+      const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
+      const method = draftId ? "PATCH" : "POST";
+
+      const response = await fetch(url, { /* ... fetch options ... */ });
+      if (response.ok) {
+        const result = await response.json();
+        // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
+        // which is the `setDraftId` function from the parent.
+        if (!draftId && onDraftCreated) {
+          onDraftCreated(result.draft._id);
         }
-        onDataChange(schemaCompliantData, attachments) // Send full data up
+        setLastSaved(new Date());
       }
-
-      try {
-        // --- THIS IS THE CRITICAL FIX ---
-        // The URL and method now depend directly on the `draftId` PROP.
-        const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
-        const method = draftId ? "PATCH" : "POST";
-
-        const response = await fetch(url, { /* ... fetch options ... */ });
-        if (response.ok) {
-          const result = await response.json();
-          // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
-          // which is the `setDraftId` function from the parent.
-          if (!draftId && onDraftCreated) {
-            onDraftCreated(result.draft._id);
-          }
-          setLastSaved(new Date());
-        }
-      } catch (error) { console.error("Auto-save error:", error); }
-      finally { setIsSaving(false); }
-    },
+    } catch (error) { console.error("Auto-save error:", error); }
+    finally { setIsSaving(false); }
+  },
     [draftId, replyToMessage, forwardMessage, onDataChange, onDraftCreated] // <-- Add dependencies
   )
 
@@ -302,10 +315,8 @@ export function EmailEditor({
       formData.append("file", file)
       formData.append("message_id", draftId || "new")
       try {
-        const token = localStorage.getItem("accessToken")
         const response = await fetch("/api/attachments", {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
           body: formData,
         })
         if (!response.ok) throw new Error(`Failed to upload ${file.name}`)
@@ -323,8 +334,7 @@ export function EmailEditor({
   const cleanup = async () => {
     if (draftId) {
       try {
-        const token = localStorage.getItem("accessToken");
-        await fetch(`/api/drafts/${draftId}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+        await fetch(`/api/drafts/${draftId}`, { method: "DELETE" });
 
       } catch (error) { console.error("Failed to delete draft.", error) }
     }
@@ -356,7 +366,6 @@ export function EmailEditor({
         finalHtml = `${userContent}<br>--<br>${signatureHtml}<br>${quotedBlock}`
       }
 
-      const token = localStorage.getItem("accessToken")
       const payload = {
         to: values.to.split(",").map((e) => e.trim()),
         cc: values.cc?.split(",").map((e) => e.trim()).filter(Boolean) || [],
@@ -372,7 +381,7 @@ export function EmailEditor({
 
       const response = await fetch("/api/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       })
 
