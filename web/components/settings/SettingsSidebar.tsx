@@ -7,6 +7,7 @@ import {
   AtSymbolIcon, InboxArrowDownIcon, UserGroupIcon, // <-- New Icons
   XMarkIcon
 } from "@heroicons/react/24/outline";
+import { EarthLock } from "lucide-react";
 
 interface SettingsSidebarProps {
   activeTab: string; // Still needed to style the active link
@@ -33,6 +34,7 @@ export default function SettingsSidebar({ activeTab, user }: SettingsSidebarProp
     { id: "profile", name: "Profile", icon: UserIcon },
     { id: "contacts", name: "Contacts", icon: UserGroupIcon },
     { id: "connection", name: "Connection", icon: CpuChipIcon },
+    { id: "app-pass", name: "App Passwords", icon: EarthLock },
     { id: "organization", name: "Organization", icon: BuildingOfficeIcon, adminOnly: true },
     { id: "domains", name: "Domains", icon: GlobeAltIcon, adminOnly: true },
     { id: "aliases", name: "Aliases", icon: AtSymbolIcon, adminOnly: true },

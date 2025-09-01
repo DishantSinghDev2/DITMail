@@ -14,6 +14,7 @@ import ConnectionSettings from "./ConnectionSettings";
 import AliasesSettings from "@/components/settings/AliasesSettings";
 import CatchAllSettings from "@/components/settings/CatchAllSettings";
 import ContactsSettings from "@/components/settings/ContactsSettings";
+import { AppPasswordManager } from "./AppPasswordManager";
 
 interface SettingsDialogProps {
   userSession: Session; // Pass the whole session object
@@ -52,13 +53,15 @@ export function SettingsDialog({ userSession }: SettingsDialogProps) {
       case "connection": // Add the new case
         return <ConnectionSettings />;
       case "domains":
-        return <DomainSettings user={userSession.user as any} />;
+        return <DomainSettings />;
       case "aliases":
         return <AliasesSettings />;
       case "catch-all":
         return <CatchAllSettings />;
       case "contacts":
         return <ContactsSettings />;
+      case "app-pass":
+        return <AppPasswordManager />;
       case "profile":
       default:
         return <ProfileSettings user={userSession.user as any} />;

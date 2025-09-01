@@ -1,21 +1,22 @@
 {
-    "compilerOptions": {
-      "target": "ES2020",         /* Use a modern but widely compatible JS version */
-      "module": "CommonJS",        /* The standard for Node.js */
-      "outDir": "./dist",          /* Output compiled JS to a 'dist' folder */
-      "rootDir": "./",             /* Where your source code is */
-      "strict": true,              /* Enable all strict type-checking options */
-      "esModuleInterop": true,     /* Allows imports from CommonJS modules */
-      "skipLibCheck": true,        /* Skip type checking of declaration files */
-      "forceConsistentCasingInFileNames": true,
-      "sourceMap": true            /* Creates .map files for easier debugging */
-    },
-    "include": [
-      "worker/**/*.ts",            /* Only compile files in the worker directory */
-      "models/**/*.ts",            /* Also include your Mongoose models */
-      "lib/**/*.ts"                /* And any shared library files */
-, "worker/mailer.ts"    ],
-    "exclude": [
-      "node_modules"
-    ]
-  }
+  "compilerOptions": {
+    "target": "ES2020", /* Use a modern but widely compatible JS version */
+    "module": "CommonJS", /* The standard for Node.js */
+    "outDir": "./dist", /* Output compiled JS to a 'dist' folder */
+    "rootDir": "./", /* Where your source code is */
+    "strict": true, /* Enable all strict type-checking options */
+    "esModuleInterop": true, /* Allows imports from CommonJS modules */
+    "skipLibCheck": true, /* Skip type checking of declaration files */
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true /* Creates .map files for easier debugging */
+  },
+  "include": [
+    "worker/**/*.ts", /* Only compile files in the worker directory */
+    "models/**/*.ts", /* Also include your Mongoose models */
+    "lib/**/*.ts" /* And any shared library files */,
+    "worker/mailer.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
