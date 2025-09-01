@@ -19,15 +19,18 @@ limit
 # --- DKIM ---
 dkim
 
-# This plugin MUST come before 'outbound'
+# This plugin intercepts mail for local domains BEFORE outbound delivery is attempted
 qmail-queue
 
+# This plugin is ESSENTIAL for delivering mail to external domains
+outbound
 
 # --- RELAY ---
 relay
 track.status
 
 # --- QUEUE ---
+# This is your custom queueing mechanism
 queue.redis.mongo
 
 # --- LOGGING / METRICS ---
