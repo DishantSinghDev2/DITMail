@@ -19,6 +19,10 @@ limit
 # --- DKIM ---
 dkim
 
+# This plugin MUST come before 'outbound'
+qmail-queue
+
+
 # --- RELAY ---
 relay
 track.status

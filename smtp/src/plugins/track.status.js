@@ -9,16 +9,19 @@ exports.register = function () {
 exports.update_status = async function (next, hmail, params) {
   const plugin = this;
 
+  // The client is now guaranteed to be available in the child process
   const client = plugin.dbClient;
   if (!client) {
-    plugin.logerror('MongoDB client not initialized.');
+    // This error should no longer occur, but is good for safety
+    plugin.logerror('MongoDB client not initialized in child process.');
     return next();
   }
 
   const db = client.db('ditmail');
   const messages = db.collection('messages');
 
-  const messageId = hmail.todo.uuid || hmail.uuid;
+  // Use hmail.transaction.uuid for better consistency across hooks
+  const messageId = hmail.transaction ? hmail.transaction.uuid : hmail.uuid;
   if (!messageId) {
     plugin.logerror('Missing message UUID');
     return next();
@@ -45,11 +48,18 @@ exports.update_status = async function (next, hmail, params) {
       }
     };
   } else if (hook === 'bounce') {
+    let bounceError = 'Bounce';
+    // Extract a more descriptive error from bounce params if available
+    if (params && params[0] instanceof Error) {
+        bounceError = params[0].message;
+    } else if (typeof params === 'string') {
+        bounceError = params;
+    }
     update = {
       $set: {
         status: 'bounced',
         bounced_at: now,
-        error: params.message || 'Bounce',
+        error: bounceError,
         error_details: params
       }
     };
@@ -58,14 +68,15 @@ exports.update_status = async function (next, hmail, params) {
       $set: {
         status: 'deferred',
         deferred_at: now,
-        error: params.err && params.err.message ? params.err.message : 'Temporary failure',
-        retry_in: params.delay || 60
+        error: params && params.err ? params.err.message : 'Temporary failure',
+        retry_in: params ? params.delay : 60
       }
     };
   }
 
   try {
-    await messages.updateOne({ id: messageId }, update);
+    // In MongoDB, the primary key is often _id. Assuming your field is named 'id'.
+    await messages.updateOne({ message_id: messageId }, update);
     plugin.loginfo(`Updated status for message ${messageId} → ${hook}`);
   } catch (err) {
     plugin.logerror(`Failed to update message status for ${messageId}: ${err}`);
@@ -79,9 +90,14 @@ exports.init_mongo = async function () {
   const MongoClient = mongodb.MongoClient;
   const uri = process.env.MONGO_URI;
 
+  if (plugin.dbClient) {
+    // Avoid re-initializing if already connected
+    return;
+  }
+
   try {
+    // Note: useNewUrlParser is deprecated in recent versions of the driver
     plugin.dbClient = await MongoClient.connect(uri, {
-      useNewUrlParser: true,
       useUnifiedTopology: true,
     });
     plugin.loginfo('MongoDB connected for track_status');
@@ -90,6 +106,7 @@ exports.init_mongo = async function () {
   }
 };
 
-exports.hook_init_master = function (next) {
+// ** FIX: Use hook_init_child to initialize the DB connection in each worker process **
+exports.hook_init_child = function (next) {
   this.init_mongo().then(() => next());
 };
