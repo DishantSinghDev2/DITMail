@@ -7,6 +7,7 @@ import { authOptions } from "../../auth/[...nextauth]/route";
 import { SessionUser } from "@/types";
 import { asyncHandler } from "@/lib/error-handler";
 import { revalidateTag } from "next/cache";
+import '@/models/Attachment'
 
 // GET: Retrieve a specific draft by its ID
 export const GET = asyncHandler(async (request: NextRequest, { params }: { params: { id: string } }) => {
