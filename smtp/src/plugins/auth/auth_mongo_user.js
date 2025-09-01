@@ -42,7 +42,8 @@ exports.load_mongo_config = function () {
     });
 
     plugin.cfg = {
-        uri: process.env.MONGO_URI + '/ditmail' || 'mongodb://127.0.0.1:27017/ditmail',
+        uri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017',
+        dbName: 'ditmail',
         userCollection: config.main.collection || 'users',
         appPasswordCollection: config.main.app_password_collection || 'apppasswords',
         domainCollection: 'domains',
@@ -62,7 +63,7 @@ exports.load_mongo_config = function () {
 
     mongodb.MongoClient.connect(plugin.cfg.uri, { useUnifiedTopology: true })
         .then(client => {
-            db = client.db();
+            db = client.db(plugin.cfg.dbName);
             users = db.collection(plugin.cfg.userCollection);
             domains = db.collection(plugin.cfg.domainCollection);
             appPasswords = db.collection(plugin.cfg.appPasswordCollection);
