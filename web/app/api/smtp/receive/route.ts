@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import { receiveEmail } from "@/lib/smtp"
 import { logInfo, logError } from "@/lib/logger"
 

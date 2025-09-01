@@ -1,16 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { notificationService } from "@/lib/notifications"
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
-    const notifications = await notificationService.getUserNotifications(user._id)
-    const unreadCount = await notificationService.getUnreadCount(user._id)
+    const notifications = await notificationService.getUserNotifications(user.id)
+    const unreadCount = await notificationService.getUnreadCount(user.id)
 
     return NextResponse.json({
       notifications,
@@ -24,14 +27,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getAuthUser(request)
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     const { type, title, message, data, expires_at } = await request.json()
 
-    const notification = await notificationService.createNotification(user._id, {
+    const notification = await notificationService.createNotification(user.id, {
       type,
       title,
       message,

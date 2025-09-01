@@ -1,12 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Branding from "@/models/Branding"
 import Organization from "@/models/Organization"
-import { getAuthUser } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route";
+import { SessionUser } from "@/types";
 import { asyncHandler } from "@/lib/error-handler"
 
 export const GET = asyncHandler(async (request: NextRequest) => {
-  const user = await getAuthUser(request)
+
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
@@ -19,7 +23,9 @@ export const GET = asyncHandler(async (request: NextRequest) => {
 })
 
 export const POST = asyncHandler(async (request: NextRequest) => {
-  const user = await getAuthUser(request)
+
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
   if (!user || user.role !== "owner") {
     return NextResponse.json({ error: "Only owners can manage branding" }, { status: 403 })
   }

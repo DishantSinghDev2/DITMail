@@ -1,20 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { verifyToken } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
+import { SessionUser } from "@/types";
 import { notificationService } from "@/lib/notifications"
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
+   
+        const session = await getServerSession(authOptions);
+        const user = session?.user as SessionUser | undefined;
+    if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }
 
-    const count = await notificationService.getUnreadCount(decoded.userId)
+    const count = await notificationService.getUnreadCount(user.id)
 
     return NextResponse.json({ count })
   } catch (error) {

@@ -1,21 +1,19 @@
 import { type NextRequest, NextResponse } from "next/server"
-import connectDB from "@/lib/db"
+import {connectDB} from "@/lib/db"
 import Message from "@/models/Message"
 import Alias from "@/models/Alias"
 import Domain from "@/models/Domain"
-import { verifyToken } from "@/lib/auth"
+import { getServerSession } from "next-auth";
+import { authOptions } from "../../../auth/[...nextauth]/route";
+import { SessionUser } from "@/types";
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     await connectDB()
 
-    const token = request.headers.get("authorization")?.replace("Bearer ", "")
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const decoded = verifyToken(token)
-    if (!decoded) {
+  const session = await getServerSession(authOptions);
+  const user = session?.user as SessionUser | undefined;
+    if (!user) {
       return NextResponse.json({ message: "Invalid token" }, { status: 401 })
     }
 
@@ -26,7 +24,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check if user belongs to the same organization as the domain
-    if (domain.organizationId.toString() !== decoded.organizationId) {
+    if (domain.organizationId.toString() !== user.org_id) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 })
     }
 
@@ -43,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       // Count aliases for this domain
       Alias.countDocuments({
         domain: domain.domain,
-        organizationId: decoded.organizationId,
+        organizationId: user.org_id,
       }),
 
       // Calculate storage used
