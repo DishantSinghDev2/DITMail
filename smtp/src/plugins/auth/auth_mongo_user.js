@@ -42,11 +42,11 @@ exports.load_mongo_config = function () {
     });
 
     plugin.cfg = {
-        uri: config.main.uri || 'mongodb://127.0.0.1:27017/ditmail',
+        uri: process.env.MONGO_URI + '/ditmail' || 'mongodb://127.0.0.1:27017/ditmail',
         userCollection: config.main.collection || 'users',
         appPasswordCollection: config.main.app_password_collection || 'apppasswords',
         domainCollection: 'domains',
-        encryption_key: config.main.encryption_key || '', // Load the key from config
+        encryption_key: process.env.APP_ENCRYPTION_KEY || '', // Load the key from config
         require_tls: config.main.require_tls !== false,
     };
 
