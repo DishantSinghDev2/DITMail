@@ -124,6 +124,8 @@ exports.intercept_for_worker = async function (next, connection) {
             toAddrs = transaction.rcpt_to.map(r => r.address || r);
         }
 
+        plugin.loginfo(`passed email parsing: ${toAddrs} parsed: ${parsed}`)
+
         const message = {
             from: user.email,
             to: toAddrs,
