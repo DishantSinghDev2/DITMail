@@ -113,8 +113,10 @@ exports.intercept_for_worker = async function (next, connection) {
         // --- parse the message safely ---
         // OPTION A (small emails): buffer + simpleParser
         const emailBuffer = await streamToBuffer(transaction.message_stream);
+        plugin.loginfo(`passed emailBuffer`)
         // MAILPARSER: simpleParser buffers whole message (suitable for small mails only)
         const parsed = await simpleParser(emailBuffer);
+        plugin.loginfo(`passed parsed`)
 
         // safe recipients: fallback to transaction.rcpt_to if parsed.to missing
         let toAddrs = [];
