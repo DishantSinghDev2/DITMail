@@ -50,8 +50,9 @@ const mailProcessor = async (job: Job) => { // <-- Add type 'Job' here
     if (!domain || !domain.dkim_private_key) {
       throw new Error(`Domain ${fromDomain} not verified or DKIM key missing.`);
     }
-
-    let rawEmail = `From: ${message.from}\r\n`;
+    
+    let rawEmail = `X-Internal-Message-ID: ${message._id.toString()}\r\n`; 
+rawEmail = `From: ${message.from}\r\n`;
     rawEmail += `To: ${message.to.join(", ")}\r\n`;
     if (message.cc?.length) rawEmail += `Cc: ${message.cc.join(", ")}\r\n`;
     rawEmail += `Subject: ${message.subject}\r\n`;

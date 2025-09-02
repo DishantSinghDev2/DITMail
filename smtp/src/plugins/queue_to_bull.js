@@ -31,7 +31,7 @@ exports.register = function () {
     const mongoURL = process.env.MONGO_URI || 'mongodb://localhost:27017';
     const dbName = 'ditmail';
     mongoClient = new MongoClient(mongoURL, { useUnifiedTopology: true });
-    
+
     mongoClient.connect()
         .then(() => plugin.loginfo('queue_to_bull: MongoDB connection successful.'))
         .catch(err => plugin.logerror(`queue_to_bull: MongoDB connection failed: ${err}`));
@@ -54,12 +54,12 @@ exports.intercept_for_worker = async function (next, connection) {
     if (WORKER_IPS.includes(connection.remote.ip)) {
         plugin.loginfo(`Connection from trusted worker IP ${connection.remote.ip}. Bypassing interception.`);
         // Continue to the next plugin, allowing Haraka's default outbound delivery.
-        return next(); 
+        return next();
     }
     // --- END OF LOOP PREVENTION ---
 
     if (!connection.relaying) {
-        return next(); 
+        return next();
     }
 
     plugin.loginfo(`Intercepting outbound mail from ${transaction.mail_from} for worker processing.`);
@@ -74,17 +74,20 @@ exports.intercept_for_worker = async function (next, connection) {
             plugin.logerror("Cannot find authenticated user on the connection. Aborting.");
             return next(DENY, "Authentication credentials not found.");
         }
-        
+
         const user = await usersCollection.findOne({ email: authUserEmail.toLowerCase() });
         if (!user) {
             plugin.logerror(`Authenticated user ${authUserEmail} not found in database.`);
             return next(DENY, "Authenticated user does not exist.");
         }
-        
+
         const emailBuffer = await streamToBuffer(transaction.message_stream);
         const parsed = await simpleParser(emailBuffer);
 
         const message = {
+            // ** ADD THIS LINE **
+            haraka_uuid: transaction.uuid, // This creates the link!
+            message_id: new ObjectId(),
             from: user.email,
             to: parsed.to.value.map(addr => addr.address),
             cc: parsed.cc ? parsed.cc.value.map(addr => addr.address) : [],
@@ -106,9 +109,9 @@ exports.intercept_for_worker = async function (next, connection) {
         const messageId = result.insertedId;
 
         await mailQueue.add("send-email-job", { messageId: messageId.toString() });
-        
+
         plugin.loginfo(`Successfully queued message ${messageId} for user ${user.email}.`);
-        
+
         return next(OK, "Message accepted and queued for signing.");
 
     } catch (err) {
