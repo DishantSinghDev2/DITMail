@@ -124,6 +124,8 @@ exports.intercept_for_worker = async function (next, connection) {
         // Get a new, readable stream for the body using the correct Haraka API.
         const body_stream = transaction.message_stream;
 
+        plugin.loginfo(`message stream: ${body_stream}`)
+
         // Now, use our original streamToBuffer function on this new, correct stream.
         const emailBuffer = await streamToBuffer(body_stream);
         plugin.loginfo(`Successfully buffered email body using get_data_stream().`);
