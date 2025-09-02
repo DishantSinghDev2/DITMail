@@ -37,8 +37,7 @@ exports.register = function () {
         .catch(err => plugin.logerror(`queue_to_bull: MongoDB connection failed: ${err}`));
 
     const redisConnection = {
-        host: process.env.REDIS_HOST || '127.0.0.1',
-        port: parseInt(process.env.REDIS_PORT || '6379', 10),
+        url: process.env.REDIS_URL
     };
 
     mailQueue = new Queue('mail-delivery-queue', { connection: redisConnection });
@@ -69,7 +68,11 @@ exports.intercept_for_worker = async function (next, connection) {
         const usersCollection = db.collection('users');
         const messagesCollection = db.collection('messages');
 
-        const authUserEmail = connection.auth_results?.user;
+        // --- THE FIX IS HERE ---
+        // Use connection.get() to retrieve the username stored by the auth plugin.
+        const authUserEmail = connection.get('auth_user');
+        // --- END OF FIX ---
+
         if (!authUserEmail) {
             plugin.logerror("Cannot find authenticated user on the connection. Aborting.");
             return next(DENY, "Authentication credentials not found.");
