@@ -104,25 +104,41 @@ exports.intercept_for_worker = async function (next, connection) {
         }
 
         const parsed = await simpleParser(rawEmail);
-
         const message = {
-            message_id: new ObjectId(),
-
-            from: user.email,
-            to: parsed.to?.value.map(addr => addr.address) || [],
+            _id: new ObjectId(), // your own DB id
+            message_id: parsed.messageId || new ObjectId().toString(),
+            references: parsed.references || [],
+            from: parsed.from?.value[0]?.address || user.email,
+            to: parsed.to ? parsed.to.value.map(addr => addr.address) : [],
             cc: parsed.cc ? parsed.cc.value.map(addr => addr.address) : [],
             bcc: parsed.bcc ? parsed.bcc.value.map(addr => addr.address) : [],
             subject: parsed.subject || "",
             html: parsed.html || parsed.textAsHtml || "",
             text: parsed.text || "",
+            attachments: parsed.attachments?.map(a => ({
+                filename: a.filename,
+                contentType: a.contentType,
+                size: a.size,
+                cid: a.cid,
+            })) || [],
             status: "queued",
             folder: "sent",
-            direction: "outbound",
             org_id: user.org_id,
             user_id: user._id,
+            read: true,
+            starred: false,
+            important: false,
+            direction: "outbound",
             thread_id: `${Date.now()}_${user._id}`,
-            sent_at: new Date(),
+            labels: [], // default empty
+            size: rawEmail.length,
+            spam_score: 0,
+            encryption_status: "none",
+            sent_at: now,
+            created_at: now,
+            search_text: `${parsed.subject || ""} ${parsed.from?.text || ""} ${parsed.to?.text || ""}`,
         };
+
 
         const result = await messagesCollection.insertOne(message);
         const messageId = result.insertedId;
