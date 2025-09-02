@@ -25,7 +25,6 @@ relay
 track.status
 
 # QUEUE
-queue/lmtp
 queue.redis.mongo
 
 # LOGGING / METRICS
