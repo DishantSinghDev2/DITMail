@@ -110,13 +110,16 @@ exports.intercept_for_worker = async function (next, connection) {
             return next(DENY, "Authenticated user does not exist.");
         }
 
-        // --- parse the message safely ---
-        // OPTION A (small emails): buffer + simpleParser
+        // --- FIX 2: RESUME THE STREAM ---
+        // Before trying to read from the stream, ensure it's flowing.
+        transaction.message_stream.resume();
+        // --- END OF FIX ---
+
         const emailBuffer = await streamToBuffer(transaction.message_stream);
-        plugin.loginfo(`passed emailBuffer`)
-        // MAILPARSER: simpleParser buffers whole message (suitable for small mails only)
+        plugin.loginfo(`Successfully buffered email body.`);
+
         const parsed = await simpleParser(emailBuffer);
-        plugin.loginfo(`passed parsed`)
+        plugin.loginfo(`Successfully parsed email body.`);
 
         // safe recipients: fallback to transaction.rcpt_to if parsed.to missing
         let toAddrs = [];
