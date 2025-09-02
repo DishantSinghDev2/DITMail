@@ -67,119 +67,77 @@ exports.register = function () {
     })();
 };
 
+
 exports.intercept_for_worker = async function (next, connection) {
     const plugin = this;
     const transaction = connection.transaction;
 
-    // ensure plugin is fully ready
-    if (!ready || !mongoClient || !mailQueue) {
-        plugin.logerror("queue_to_bull: not ready (mongo/redis). Deferring.");
+    if (!mongoClient || !mailQueue) {
+        plugin.logerror("queue_to_bull: Mongo/Redis not ready. Deferring mail.");
         return next(DENYSOFT, "Server temporarily unavailable.");
     }
 
-    // avoid worker loopback
     if (WORKER_IPS.includes(connection.remote.ip)) {
-        plugin.loginfo(`Connection from trusted worker IP ${connection.remote.ip}. Bypassing interception.`);
+        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip}`);
         return next();
     }
 
-    if (!connection.relaying) return next(); // only intercept relaying/outbound
-
-    plugin.loginfo(`Intercepting outbound mail from ${transaction.mail_from && transaction.mail_from.address()}`);
+    if (!connection.relaying) return next();
 
     try {
-        // robustly find authenticated user (depends on your auth plugin)
-        const authUserEmail =
-            (connection.notes && connection.notes.auth_user) ||
-            connection.get('auth_user') || // Most reliable way
-            null;
+        const db = mongoClient.db("ditmail");
+        const usersCollection = db.collection("users");
+        const messagesCollection = db.collection("messages");
 
-        plugin.loginfo(`passed authUserEmail ${authUserEmail}`)
-
+        const authUserEmail = connection.get("auth_user");
         if (!authUserEmail) {
-            plugin.logerror("queue_to_bull: auth user not found on connection. Debugging object logged.");
-            plugin.logdebug(JSON.stringify({
-                conn_notes: connection.notes,
-                txn_notes: connection.transaction && connection.transaction.notes,
-                conn_keys: Object.keys(connection).slice(0, 20)
-            }, null, 2));
-            return next(DENY, "Authentication credentials not found.");
+            plugin.logerror("queue_to_bull: No authenticated user on connection.");
+            return next(DENY, "Authentication required.");
         }
 
-        const db = mongoClient.db('ditmail');
-        const usersCollection = db.collection('users');
-        const messagesCollection = db.collection('messages');
-
         const user = await usersCollection.findOne({ email: authUserEmail.toLowerCase() });
-        // --- THIS IS THE CRITICAL LOGGING LINE ---
-        // It MUST print the full user object, not '[object Object]'
-        plugin.loginfo(`User details from db: ${JSON.stringify(user, null, 2)}`);
-
         if (!user) {
-            plugin.logerror(`Authenticated user ${authUserEmail} not in DB.`);
+            plugin.logerror(`queue_to_bull: Authenticated user ${authUserEmail} not found in DB.`);
             return next(DENY, "Authenticated user does not exist.");
         }
 
-        // --- THE ACTUAL FINAL FIX ---
-        // Get the entire email body, which Haraka has already buffered for us.
-        // transaction.body is a Haraka Body object, and its 'bodytext' property
-        // gives us the full raw content.
-        const emailBuffer = transaction.body.bodytext;
-        
-        if (!emailBuffer) {
-            plugin.logerror("Could not retrieve email body from transaction.body.bodytext.");
+        // ✅ Directly get full message body (no streaming)
+        const rawEmail = transaction.message_stream.get_data();
+        if (!rawEmail) {
+            plugin.logerror("queue_to_bull: Could not retrieve email body from transaction.message_stream.");
             return next(DENYSOFT, "Server error: Failed to process email body.");
         }
 
-        plugin.loginfo(`Successfully retrieved ${emailBuffer.length} bytes of email body.`);
-        // --- END OF FIX ---
-
-        const parsed = await simpleParser(emailBuffer);
-        plugin.loginfo(`Successfully parsed email body.`);
-
-        let toAddrs = [];
-        if (parsed?.to?.value?.length) {
-            toAddrs = parsed.to.value.map(a => a.address);
-        } else if (transaction.rcpt_to?.length) {
-            toAddrs = transaction.rcpt_to.map(r => r.address || r);
-        }
-
-        plugin.loginfo(`passed email parsing: ${toAddrs} parsed: ${parsed}`)
+        const parsed = await simpleParser(rawEmail);
 
         const message = {
             from: user.email,
-            to: toAddrs,
-            cc: parsed.cc ? parsed.cc.value.map(a => a.address) : [],
-            bcc: parsed.bcc ? parsed.bcc.value.map(a => a.address) : [],
-            subject: parsed.subject || '',
-            html: parsed.html || parsed.textAsHtml || '',
-            text: parsed.text || '',
+            to: parsed.to?.value.map(addr => addr.address) || [],
+            cc: parsed.cc ? parsed.cc.value.map(addr => addr.address) : [],
+            bcc: parsed.bcc ? parsed.bcc.value.map(addr => addr.address) : [],
+            subject: parsed.subject || "",
+            html: parsed.html || parsed.textAsHtml || "",
+            text: parsed.text || "",
             status: "queued",
             folder: "sent",
             direction: "outbound",
-            org_id: user.org_id || null,
+            org_id: user.org_id,
             user_id: user._id,
             thread_id: `${Date.now()}_${user._id}`,
             sent_at: new Date(),
-            // optionally add metadata/headers or attachments references
         };
 
         const result = await messagesCollection.insertOne(message);
         const messageId = result.insertedId;
 
-        // ensure queue is ready (defensive)
-        if (typeof mailQueue.isReady === 'function') {
-            await mailQueue.isReady();
-        }
-
         await mailQueue.add("send-email-job", { messageId: messageId.toString() });
 
-        plugin.loginfo(`Queued message ${messageId} for user ${user.email}.`);
-        return next(OK, "Message accepted and queued for signing.");
+        plugin.loginfo(`queue_to_bull: Queued message ${messageId} for ${user.email}`);
+        return next(OK, "Message accepted and queued.");
 
     } catch (err) {
         plugin.logerror(`queue_to_bull: error: ${err.stack || err}`);
-        return next(DENYSOFT, "Internal server error — try again later.");
+        return next(DENYSOFT, "Server error: Failed to process email body.");
     }
 };
 
