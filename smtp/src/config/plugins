@@ -26,7 +26,6 @@ track.status
 # QUEUE
 queue/lmtp
 queue.redis.mongo
-rcpt_to.routes
 
 # LOGGING / METRICS
 stats.redis
