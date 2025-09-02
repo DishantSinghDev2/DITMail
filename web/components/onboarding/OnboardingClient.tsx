@@ -1,7 +1,7 @@
 // /components/onboarding/OnboardingClient.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -35,8 +35,10 @@ export function OnboardingClient() {
   const [steps, setSteps] = useState(baseSteps);
   const [currentStep, setCurrentStep] = useState(0);
   const [onboardingData, setOnboardingData] = useState<any>({});
+  const [isCompleting, setIsCompleting] = useState(false); // <-- 1. Add this state guard
 
-  const handleNext = (data?: any) => {
+
+  const handleNext = useCallback((data?: any) => {
     let newOnboardingData = onboardingData;
     if (data) {
       newOnboardingData = { ...onboardingData, ...data };
@@ -79,20 +81,19 @@ export function OnboardingClient() {
       // If we are at the last step after filtering, complete the process
       handleComplete(newOnboardingData);
     }
-  };
+  }, [currentStep, onboardingData, steps]); // Add dependencies
 
-  const handlePrevious = () => {
+  const handlePrevious = useCallback(() => {
     if (currentStep > 0) {
       setCurrentStep(currentStep - 1);
     }
-  };
+  }, [currentStep]);
 
-  const [isCompleting, setIsCompleting] = useState(false); // <-- Add this state
+  const handleComplete = useCallback(async (finalData?: any) => {
+    // ▼▼▼ THE FIX IS HERE ▼▼▼
+    if (isCompleting) return; // <-- 2. If already running, do nothing.
 
-  const handleComplete = async (finalData?: any) => {
-    if (isCompleting) return; // <-- Add this guard clause
-
-    setIsCompleting(true); // <-- Set to true immediately
+    setIsCompleting(true); // <-- 3. Set the guard to true immediately.
 
     try {
       if (finalData?.userEmail) {
@@ -101,8 +102,8 @@ export function OnboardingClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
         });
-        // It's better to combine session updates if possible, but if not, this guard will still work.
         if (res.ok) {
+          // You can combine session updates to reduce re-renders
           await update({ email: finalData?.userEmail, mailboxAccess: true });
         } else {
           setIsCompleting(false); // Reset on failure
@@ -115,6 +116,7 @@ export function OnboardingClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ completed: true }),
       });
+
       if (!response.ok) throw new Error("Server failed to finalize onboarding.");
 
       await update({ onboarding: { completed: true } });
@@ -128,9 +130,10 @@ export function OnboardingClient() {
         description: "We couldn't save your final step. Please try again.",
         variant: "destructive",
       });
-      setIsCompleting(false); // <-- Reset on error
+      setIsCompleting(false); // <-- 4. Reset the guard on error.
     }
-  };
+  }, [isCompleting, router, session?.user?.name, update]); // Add dependencies for useCallback
+
 
   if (status === "loading" || !session?.user) {
     return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
