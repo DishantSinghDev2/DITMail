@@ -134,11 +134,6 @@ export function OnboardingClient() {
     }
   }, [isCompleting, router, session?.user?.name, update]); // Add dependencies for useCallback
 
-
-  if (status === "loading" || !session?.user) {
-    return <div className="min-h-screen flex items-center justify-center"><LoadingSpinner /></div>;
-  }
-
   const CurrentStepComponent = steps[currentStep].component;
 
   const variants = {
@@ -184,7 +179,7 @@ export function OnboardingClient() {
                 onPrevious={handlePrevious}
                 onComplete={handleComplete}
                 data={onboardingData}
-                user={session.user as SessionUser}
+                user={session?.user as SessionUser}
               />
             </motion.div>
           </AnimatePresence>

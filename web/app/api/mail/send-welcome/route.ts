@@ -7,6 +7,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route"; // Ensure this path is correct
 import { SessionUser } from "@/types";
 import jwt from "jsonwebtoken";
+import { redis } from '@/lib/redis';
 
 const INTERNAL_SECRET = process.env.INTERNAL_JWT_SECRET as string;
 
@@ -86,6 +87,23 @@ export async function POST(request: Request) {
     });
 
     await welcomeEmail.save();
+
+    // This is a "catch-all" to ensure any folder view is refreshed.
+        try {
+          const pattern = `cache:msg:${user.id}:*`;
+          console.log(`Invalidating Redis cache with pattern: ${pattern}`);
+          const keys = await redis.keys(pattern);
+          if (keys.length > 0) {
+            await redis.del(keys);
+            console.log(`- Deleted ${keys.length} Redis cache keys.`);
+          } else {
+            console.log(`- No Redis keys found for pattern.`);
+          }
+        } catch (error) {
+          // Log the error but don't fail the request, as the main DB operation succeeded.
+          console.error("Redis cache invalidation error:", error);
+        }
+    
 
     return NextResponse.json({ success: true, message: 'Welcome email created and access granted.' });
   } catch (error) {
