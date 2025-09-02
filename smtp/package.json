@@ -7,12 +7,13 @@
     "start": "node_modules/.bin/haraka -c src",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Dishant Singh <dishant@singh.email>",
+  "author": "DishIs Technologies <admin@dishis.tech>",
   "repository": {},
   "license": "ISC",
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "big-integer": "^1.6.52",
+    "bullmq": "^5.58.4",
     "date-fns": "^4.1.0",
     "dateformat": "^5.0.3",
     "express": "^4.17.1",
@@ -20,7 +21,6 @@
     "Haraka": "^3.1.1",
     "haraka-plugin-dkim": "^1.0.11",
     "haraka-plugin-mail_from.is_resolvable": "^1.1.0",
-    "haraka-plugin-recipient-routes": "^1.3.1",
     "haraka-plugin-relay": "^1.0.1",
     "mailparser": "^3.7.3",
     "maxmind": "^4.3.27",
