@@ -112,58 +112,59 @@ exports.intercept_for_worker = async function (next, connection) {
             plugin.logerror(`Authenticated user ${authUserEmail} not in DB.`);
             return next(DENY, "Authenticated user does not exist.");
         }
-        // --- THE FINAL FIX: Use transaction.get_data() ---
-        // This is Haraka's built-in, reliable method for getting the email body.
-        // It replaces the streamToBuffer function and the resume() call.
-        transaction.get_data(async (data) => {
-            try {
-                const emailBuffer = data; // 'data' is already a Buffer
-                plugin.loginfo(`Successfully buffered email body using get_data().`);
 
-                const parsed = await simpleParser(emailBuffer);
-                plugin.loginfo(`Successfully parsed email body.`);
-
-                let toAddrs = [];
-                if (parsed?.to?.value?.length) {
-                    toAddrs = parsed.to.value.map(a => a.address);
-                } else if (transaction.rcpt_to?.length) {
-                    toAddrs = transaction.rcpt_to.map(r => r.address || r);
-                }
-
-                const message = {
-                    from: user.email,
-                    to: toAddrs,
-                    cc: parsed.cc ? parsed.cc.value.map(a => a.address) : [],
-                    bcc: parsed.bcc ? parsed.bcc.value.map(a => a.address) : [],
-                    subject: parsed.subject || '',
-                    html: parsed.html || parsed.textAsHtml || '',
-                    text: parsed.text || '',
-                    status: "queued",
-                    folder: "sent",
-                    direction: "outbound",
-                    org_id: user.org_id || null,
-                    user_id: user._id,
-                    thread_id: `${Date.now()}_${user._id}`,
-                    sent_at: new Date(),
-                };
-
-                const result = await messagesCollection.insertOne(message);
-                const messageId = result.insertedId;
-                plugin.loginfo(`Message saved to DB with ID: ${messageId}`);
-
-                await mailQueue.add("send-email-job", { messageId: messageId.toString() });
-
-                plugin.loginfo(`Queued message ${messageId} for user ${user.email}.`);
-                
-                // IMPORTANT: Call next() from inside the callback.
-                next(OK, "Message accepted and queued for signing.");
-
-            } catch (err) {
-                 plugin.logerror(`queue_to_bull: error inside get_data callback: ${err.stack || err}`);
-                 next(DENYSOFT, "Internal server error — try again later.");
-            }
-        });
+        // --- THE FINAL FIX (for real this time) ---
+        // Get a new, readable stream for the body using the correct Haraka API.
+        const body_stream = transaction.message_stream.get_data_stream();
+        
+        // Now, use our original streamToBuffer function on this new, correct stream.
+        const emailBuffer = await streamToBuffer(body_stream);
+        plugin.loginfo(`Successfully buffered email body using get_data_stream().`);
         // --- END OF FIX ---
+
+        const parsed = await simpleParser(emailBuffer);
+        plugin.loginfo(`Successfully parsed email body.`);
+
+        let toAddrs = [];
+        if (parsed?.to?.value?.length) {
+            toAddrs = parsed.to.value.map(a => a.address);
+        } else if (transaction.rcpt_to?.length) {
+            toAddrs = transaction.rcpt_to.map(r => r.address || r);
+        }
+
+        plugin.loginfo(`passed email parsing: ${toAddrs} parsed: ${parsed}`)
+
+        const message = {
+            from: user.email,
+            to: toAddrs,
+            cc: parsed.cc ? parsed.cc.value.map(a => a.address) : [],
+            bcc: parsed.bcc ? parsed.bcc.value.map(a => a.address) : [],
+            subject: parsed.subject || '',
+            html: parsed.html || parsed.textAsHtml || '',
+            text: parsed.text || '',
+            status: "queued",
+            folder: "sent",
+            direction: "outbound",
+            org_id: user.org_id || null,
+            user_id: user._id,
+            thread_id: `${Date.now()}_${user._id}`,
+            sent_at: new Date(),
+            // optionally add metadata/headers or attachments references
+        };
+
+        const result = await messagesCollection.insertOne(message);
+        const messageId = result.insertedId;
+
+        // ensure queue is ready (defensive)
+        if (typeof mailQueue.isReady === 'function') {
+            await mailQueue.isReady();
+        }
+
+        await mailQueue.add("send-email-job", { messageId: messageId.toString() });
+
+        plugin.loginfo(`Queued message ${messageId} for user ${user.email}.`);
+        return next(OK, "Message accepted and queued for signing.");
+
     } catch (err) {
         plugin.logerror(`queue_to_bull: error: ${err.stack || err}`);
         return next(DENYSOFT, "Internal server error — try again later.");
