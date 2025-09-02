@@ -16,11 +16,18 @@ const WORKER_IPS = ['127.0.0.1', '::1'];
 function streamToBuffer(stream) {
     return new Promise((resolve, reject) => {
         const chunks = [];
-        stream.on('data', (c) => chunks.push(c));
-        stream.on('error', reject);
-        stream.on('end', () => resolve(Buffer.concat(chunks)));
+
+        // Catch synchronous errors
+        try {
+            stream.on('data', (c) => chunks.push(c));
+            stream.on('error', (err) => reject(err));
+            stream.on('end', () => resolve(Buffer.concat(chunks)));
+        } catch (err) {
+            reject(err); // catch non-stream issues
+        }
     });
 }
+
 
 exports.register = function () {
     const plugin = this;
@@ -115,8 +122,8 @@ exports.intercept_for_worker = async function (next, connection) {
 
         // --- THE FINAL FIX (for real this time) ---
         // Get a new, readable stream for the body using the correct Haraka API.
-        const body_stream = transaction.message_stream.get_data_stream();
-        
+        const body_stream = transaction.message_stream;
+
         // Now, use our original streamToBuffer function on this new, correct stream.
         const emailBuffer = await streamToBuffer(body_stream);
         plugin.loginfo(`Successfully buffered email body using get_data_stream().`);
