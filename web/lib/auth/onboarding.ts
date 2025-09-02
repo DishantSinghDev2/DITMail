@@ -3,7 +3,7 @@ import Organization from "@/models/Organization";
 import Plan from "@/models/Plan";
 import { connectDB } from "@/lib/db";
 import type { User as NextAuthUser } from "next-auth";
-import AppPassword from "@/models/AppPassword"; 
+import AppPassword from "@/models/AppPassword";
 import crypto from "crypto";
 
 /**
@@ -18,7 +18,7 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
     await connectDB();
 
     // Find the user in the database to check their status.
-    const dbUser = await User.findOne({email: user.email});
+    const dbUser = await User.findOne({ email: user.email });
 
     // Check if the user exists and does not already have an organization.
     // If they do, they are not a new user for onboarding purposes.
@@ -26,7 +26,7 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
       console.log(`User ${user.email} is not eligible for new user setup. Skipping.`);
       return;
     }
-    
+
     console.log(`Performing first-time setup for new user: ${user.email}`);
 
     // Step 1: Find or create the default "Free" plan.
@@ -66,16 +66,16 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
             startedAt: new Date(),
           },
           // By default, the owner does not have mailbox access until setup.
-          mailboxAccess: false, 
+          mailboxAccess: false,
         },
       },
       { new: true } // This option returns the updated document.
     );
 
     if (!updatedUser) {
-        // This is an edge case, but good practice to handle.
-        // It means the user was deleted between the initial find and the update.
-        throw new Error(`Failed to find and update user ${user.id} during onboarding.`);
+      // This is an edge case, but good practice to handle.
+      // It means the user was deleted between the initial find and the update.
+      throw new Error(`Failed to find and update user ${user.id} during onboarding.`);
     }
 
     console.log(`Successfully updated user ${updatedUser.email}. They are now the owner of organization ${organization._id}`);
@@ -89,9 +89,8 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
     // The worker's decryptPassword() method implies this functionality exists.
     const newAppPassword = new AppPassword({
       user_id: updatedUser._id,
-      // Give it a descriptive name so the user knows it's for system use.
       name: 'Default Sending Password',
-      password: generatedPassword, // The model's presave hook should encrypt this.
+      encrypted_password: generatedPassword, // <-- Pass the plain text to the correct field
     });
     await newAppPassword.save();
     console.log(`Default App Password created for user ${updatedUser.email}.`);
