@@ -9,6 +9,7 @@ export default function OnboardingComplete({onComplete, data}: {onComplete: (dat
   useEffect(() => {
     // We only want this to run ONCE when the component mounts.
     // The empty dependency array [] ensures this.
+    console.log('inside the onboarding welcome')
     onComplete(data);
 
     // By adding the eslint-disable comment, we acknowledge that we are
