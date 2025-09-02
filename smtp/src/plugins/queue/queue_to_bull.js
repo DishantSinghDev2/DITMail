@@ -120,15 +120,18 @@ exports.intercept_for_worker = async function (next, connection) {
             return next(DENY, "Authenticated user does not exist.");
         }
 
-        // --- THE FINAL FIX (for real this time) ---
-        // Get a new, readable stream for the body using the correct Haraka API.
-        const body_stream = transaction.message_stream;
+        // --- THE ACTUAL FINAL FIX ---
+        // Get the entire email body, which Haraka has already buffered for us.
+        // transaction.body is a Haraka Body object, and its 'bodytext' property
+        // gives us the full raw content.
+        const emailBuffer = transaction.body.bodytext;
+        
+        if (!emailBuffer) {
+            plugin.logerror("Could not retrieve email body from transaction.body.bodytext.");
+            return next(DENYSOFT, "Server error: Failed to process email body.");
+        }
 
-        plugin.loginfo(`message stream: ${JSON.stringify(body_stream, null, 2)}`)
-
-        // Now, use our original streamToBuffer function on this new, correct stream.
-        const emailBuffer = await streamToBuffer(body_stream);
-        plugin.loginfo(`Successfully buffered email body using get_data_stream().`);
+        plugin.loginfo(`Successfully retrieved ${emailBuffer.length} bytes of email body.`);
         // --- END OF FIX ---
 
         const parsed = await simpleParser(emailBuffer);
