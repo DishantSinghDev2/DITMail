@@ -103,6 +103,8 @@ const mailProcessor = async (job: Job) => {
     });
 
     await connectAsync(connection);
+    console.log("Trying login with:", user.email, plainTextPassword.slice(0,3) + "****");
+
     await loginAsync(connection, { user: user.email, pass: plainTextPassword });
 
     const recipients = [...message.to, ...message.cc, ...message.bcc];
