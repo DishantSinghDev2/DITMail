@@ -15,8 +15,9 @@ const WORKER_IPS = ['127.0.0.1', '::1'];
 
 function getRawEmail(transaction) {
     return new Promise((resolve, reject) => {
-        transaction.message_stream.get_data((err, data) => {
-            if (err) return reject(err);
+        // According to the logs, 'data' is the first argument.
+        transaction.message_stream.get_data((data) => {
+            // There is no error argument here, so we can resolve directly.
             resolve(data);
         });
     });
