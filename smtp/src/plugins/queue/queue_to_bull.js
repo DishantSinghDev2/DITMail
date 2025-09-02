@@ -104,6 +104,7 @@ exports.intercept_for_worker = async function (next, connection) {
         const messagesCollection = db.collection('messages');
 
         const user = await usersCollection.findOne({ email: authUserEmail.toLowerCase() });
+        plugin.loginfo(`user details from db: ${user}`)
         if (!user) {
             plugin.logerror(`Authenticated user ${authUserEmail} not in DB.`);
             return next(DENY, "Authenticated user does not exist.");
