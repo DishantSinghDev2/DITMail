@@ -87,7 +87,13 @@ export function OnboardingClient() {
     }
   };
 
+  const [isCompleting, setIsCompleting] = useState(false); // <-- Add this state
+
   const handleComplete = async (finalData?: any) => {
+    if (isCompleting) return; // <-- Add this guard clause
+
+    setIsCompleting(true); // <-- Set to true immediately
+
     try {
       if (finalData?.userEmail) {
         const res = await fetch('/api/mail/send-welcome', {
@@ -95,14 +101,14 @@ export function OnboardingClient() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: finalData.userEmail, name: session?.user?.name })
         });
+        // It's better to combine session updates if possible, but if not, this guard will still work.
         if (res.ok) {
-          await update({ email: finalData?.userEmail });
-          await update({ mailboxAccess: true })
+          await update({ email: finalData?.userEmail, mailboxAccess: true });
         } else {
+          setIsCompleting(false); // Reset on failure
           return;
         }
       }
-
 
       const response = await fetch("/api/onboarding", {
         method: "PATCH",
@@ -110,8 +116,8 @@ export function OnboardingClient() {
         body: JSON.stringify({ completed: true }),
       });
       if (!response.ok) throw new Error("Server failed to finalize onboarding.");
+
       await update({ onboarding: { completed: true } });
-      // Find the index of the "complete" step in the potentially modified array
 
       router.push("/mail/inbox");
 
@@ -122,6 +128,7 @@ export function OnboardingClient() {
         description: "We couldn't save your final step. Please try again.",
         variant: "destructive",
       });
+      setIsCompleting(false); // <-- Reset on error
     }
   };
 
