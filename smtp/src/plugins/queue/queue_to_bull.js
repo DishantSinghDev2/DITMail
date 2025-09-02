@@ -104,19 +104,20 @@ exports.intercept_for_worker = async function (next, connection) {
         const messagesCollection = db.collection('messages');
 
         const user = await usersCollection.findOne({ email: authUserEmail.toLowerCase() });
-        plugin.loginfo(`user details from db: ${user}`)
+        // --- THIS IS THE CRITICAL LOGGING LINE ---
+        // It MUST print the full user object, not '[object Object]'
+        plugin.loginfo(`User details from db: ${JSON.stringify(user, null, 2)}`);
+
         if (!user) {
             plugin.logerror(`Authenticated user ${authUserEmail} not in DB.`);
             return next(DENY, "Authenticated user does not exist.");
         }
 
-        // --- FIX 2: RESUME THE STREAM ---
-        // Before trying to read from the stream, ensure it's flowing.
+        // Resume the stream to ensure it flows
         transaction.message_stream.resume();
-        // --- END OF FIX ---
-
         const emailBuffer = await streamToBuffer(transaction.message_stream);
         plugin.loginfo(`Successfully buffered email body.`);
+
 
         const parsed = await simpleParser(emailBuffer);
         plugin.loginfo(`Successfully parsed email body.`);
