@@ -65,6 +65,7 @@ exports.register = function () {
 exports.intercept_for_worker = async function (next, connection) {
     const plugin = this;
     const transaction = connection.transaction;
+    const redis = connection.server.notes.redis;
 
     if (!mongoClient || !mailQueue) {
         plugin.logerror("queue_to_bull: Mongo/Redis not ready. Deferring mail.");
@@ -129,6 +130,17 @@ exports.intercept_for_worker = async function (next, connection) {
         await mailQueue.add("send-email-job", { messageId: messageId.toString() });
 
         plugin.loginfo(`queue_to_bull: Queued message ${messageId} for ${user.email}`);
+
+        try {
+            const pattern = `cache:msg:${user.id}:*`;
+            const keys = await redis.keys(pattern);
+            if (keys.length > 0) {
+                await redis.del(keys);
+            }
+        } catch (error) {
+            // Log the error but don't fail the request, as the main DB operation succeeded.
+            plugin.logerror('Redis cache invalidation error')
+        }
         return next(OK, "Message accepted and queued.");
 
     } catch (err) {
