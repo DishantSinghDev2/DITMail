@@ -3,6 +3,8 @@ import Organization from "@/models/Organization";
 import Plan from "@/models/Plan";
 import { connectDB } from "@/lib/db";
 import type { User as NextAuthUser } from "next-auth";
+import AppPassword from "@/models/AppPassword"; 
+import crypto from "crypto";
 
 /**
  * Handles the initial setup for a brand new user.
@@ -78,6 +80,22 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
 
     console.log(`Successfully updated user ${updatedUser.email}. They are now the owner of organization ${organization._id}`);
 
+    // +++ STEP 4: CREATE A DEFAULT APP PASSWORD FOR THE WORKER +++
+    console.log(`Creating default App Password for user ${updatedUser.email}`);
+    // Generate a secure, random password for the worker to use.
+    const generatedPassword = crypto.randomBytes(16).toString('hex');
+
+    // Your AppPassword model must handle the encryption of this password.
+    // The worker's decryptPassword() method implies this functionality exists.
+    const newAppPassword = new AppPassword({
+      user_id: updatedUser._id,
+      // Give it a descriptive name so the user knows it's for system use.
+      name: 'Default Sending Password',
+      password: generatedPassword, // The model's presave hook should encrypt this.
+    });
+    await newAppPassword.save();
+    console.log(`Default App Password created for user ${updatedUser.email}.`);
+    // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
   } catch (error) {
     console.error("Error during new user onboarding setup:", error);
     // In a production environment, you might want to add more robust error handling,

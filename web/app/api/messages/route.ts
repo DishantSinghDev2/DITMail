@@ -1,6 +1,6 @@
 // /home/dit/DITMail/web/app/api/messages/route.ts
 import { type NextRequest, NextResponse } from "next/server"
-import {connectDB} from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Message from "@/models/Message"
 import Draft from "@/models/Draft"
 import User from "@/models/User"
@@ -12,6 +12,7 @@ import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
 import { logAuditEvent } from "@/lib/audit"
 import "@/models/Attachment" // Ensure Attachment model is loaded
 import { ObjectId } from "mongodb"
+import { redis } from "@/lib/redis"
 
 // export async function GET(request: NextRequest) {
 //   try {
@@ -66,7 +67,7 @@ import { ObjectId } from "mongodb"
 //     ]);
 
 //     const userDetails = userDetailsAggregation[0];
-    
+
 //     // Usage is stored in KB, convert to GB
 //     const usedStorageKB = userDetails?.plan_usage?.storage || 0;
 //     const usedStorageGB = usedStorageKB / (1024 * 1024);
@@ -324,6 +325,22 @@ export async function POST(request: NextRequest) {
       });
     }
     // --- END OF REPLACEMENT ---
+
+    // This is a "catch-all" to ensure any folder view is refreshed.
+    try {
+      const pattern = `cache:msg:${user.id}:*`;
+      console.log(`Invalidating Redis cache with pattern: ${pattern}`);
+      const keys = await redis.keys(pattern);
+      if (keys.length > 0) {
+        await redis.del(keys);
+        console.log(`- Deleted ${keys.length} Redis cache keys.`);
+      } else {
+        console.log(`- No Redis keys found for pattern.`);
+      }
+    } catch (error) {
+      // Log the error but don't fail the request, as the main DB operation succeeded.
+      console.error("Redis cache invalidation error:", error);
+    }
 
     return NextResponse.json({ message });
   } catch (error: any) {
