@@ -13,21 +13,14 @@ let ready = false;
 
 const WORKER_IPS = ['127.0.0.1', '::1'];
 
-function streamToBuffer(stream) {
+function getRawEmail(transaction) {
     return new Promise((resolve, reject) => {
-        const chunks = [];
-
-        // Catch synchronous errors
-        try {
-            stream.on('data', (c) => chunks.push(c));
-            stream.on('error', (err) => reject(err));
-            stream.on('end', () => resolve(Buffer.concat(chunks)));
-        } catch (err) {
-            reject(err); // catch non-stream issues
-        }
+        transaction.message_stream.get_data((err, data) => {
+            if (err) return reject(err);
+            resolve(data);
+        });
     });
 }
-
 
 exports.register = function () {
     const plugin = this;
@@ -102,7 +95,7 @@ exports.intercept_for_worker = async function (next, connection) {
         }
 
         // ✅ Directly get full message body (no streaming)
-        const rawEmail = transaction.message_stream.get_data();
+        const rawEmail = await getRawEmail(transaction);
         if (!rawEmail) {
             plugin.logerror("queue_to_bull: Could not retrieve email body from transaction.message_stream.");
             return next(DENYSOFT, "Server error: Failed to process email body.");
