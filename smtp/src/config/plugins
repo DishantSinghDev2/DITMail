@@ -5,6 +5,7 @@ tls
 
 # AUTH
 auth/auth_mongo_user
+queue/queue_to_bull
 prevent_credential_leaks
 
 # MAIL FROM
