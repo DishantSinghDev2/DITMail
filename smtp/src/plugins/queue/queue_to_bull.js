@@ -104,6 +104,7 @@ exports.intercept_for_worker = async function (next, connection) {
         }
 
         const parsed = await simpleParser(rawEmail);
+        const now = new Date();
         const message = {
             _id: new ObjectId(), // your own DB id
             message_id: parsed.messageId || new ObjectId().toString(),
