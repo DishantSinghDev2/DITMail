@@ -1,6 +1,6 @@
 // plugins/queue_to_bull.js
 const { Queue } = require('bullmq');
-const { MongoClient } = require('mongodb');
+const { MongoClient, ObjectId } = require('mongodb');
 const { simpleParser, MailParser } = require('mailparser'); // choose parser in code paths
 const { Readable } = require('stream');
 const fs = require('fs');
@@ -105,6 +105,8 @@ exports.intercept_for_worker = async function (next, connection) {
         const parsed = await simpleParser(rawEmail);
 
         const message = {
+            message_id: new ObjectId(),
+
             from: user.email,
             to: parsed.to?.value.map(addr => addr.address) || [],
             cc: parsed.cc ? parsed.cc.value.map(addr => addr.address) : [],
