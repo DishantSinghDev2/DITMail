@@ -11,6 +11,7 @@ config({ path: ".env" });
 import Message from "../models/Message";
 import Domain from "../models/Domain";
 import AppPassword from "../models/AppPassword";
+import '../models/User'
 import { publishMailboxEvent } from "../lib/redis";
 
 // --- DATABASE AND REDIS CONNECTION ---
