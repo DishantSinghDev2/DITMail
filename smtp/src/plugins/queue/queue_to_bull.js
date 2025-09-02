@@ -48,6 +48,13 @@ exports.intercept_for_worker = async function (next, connection) {
     const plugin = this;
     const transaction = connection.transaction;
 
+    // +++ ADD THIS CHECK +++
+    if (!mongoClient.isConnected()) {
+        plugin.logerror("MongoDB is not connected. Deferring mail.");
+        // DENYSOFT tells the client to try again later. It's better than a timeout.
+        return next(DENYSOFT, "Server is temporarily unavailable, please try again later.");
+    }
+
     // --- LOOP PREVENTION LOGIC ---
     // Check if the connection is from a trusted worker IP.
     if (WORKER_IPS.includes(connection.remote.ip)) {
