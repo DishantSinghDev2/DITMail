@@ -1,10 +1,13 @@
+// models/AppPassword.ts
+
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import crypto from 'crypto';
 
 const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = Buffer.from(process.env.APP_ENCRYPTION_KEY!, 'base64'); // 32 bytes
+// Ensure this is loaded exactly the same way in your worker and Haraka plugin
+const ENCRYPTION_KEY = Buffer.from(process.env.APP_ENCRYPTION_KEY!, 'base64');
 
-// --- ENCRYPTION HELPERS ---
+// --- ENCRYPTION HELPERS (These are correct) ---
 function encrypt(text: string): string {
   const iv = crypto.randomBytes(16);
   const cipher = crypto.createCipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
@@ -15,6 +18,10 @@ function encrypt(text: string): string {
 
 function decrypt(text: string): string {
   const parts = text.split(':');
+  if (parts.length < 2) {
+      // Added a guard clause to prevent errors on invalid data
+      throw new Error("Invalid encrypted text format. Expected 'iv:encryptedText'.");
+  }
   const iv = Buffer.from(parts.shift()!, 'hex');
   const encryptedText = parts.join(':');
   const decipher = crypto.createDecipheriv(ALGORITHM, ENCRYPTION_KEY, iv);
@@ -27,7 +34,8 @@ function decrypt(text: string): string {
 export interface IAppPassword extends Document {
   user_id: mongoose.Schema.Types.ObjectId;
   name: string;
-  encrypted_password: string;
+  encrypted_password: string; // This will ONLY store encrypted data
+  password: string; // <-- VIRTUAL field for setting the plain-text password
   last_used?: Date;
   created_at: Date;
   decryptPassword(): string;
@@ -41,19 +49,25 @@ const AppPasswordSchema: Schema = new Schema({
   created_at: { type: Date, default: Date.now },
 });
 
+// --- VIRTUAL FIELD FOR SAFER PASSWORD SETTING ---
+AppPasswordSchema.virtual('password')
+  .set(function(this: IAppPassword, plainText: string) {
+    // When a user sets `doc.password = '...'`, this code runs.
+    // It encrypts the value and stores it in the REAL `encrypted_password` field.
+    this.encrypted_password = encrypt(plainText);
+  });
+
+// --- REMOVE THE FLAWED pre('save') HOOK ---
+// AppPasswordSchema.pre<IAppPassword>('save', function (next) { ... }); // DELETE THIS
+
 // Method to decrypt the password on a document instance
 AppPasswordSchema.methods.decryptPassword = function(): string {
+  // Add a check to ensure the field exists before trying to decrypt
+  if (!this.encrypted_password) {
+      return '';
+  }
   return decrypt(this.encrypted_password);
 };
-
-// Hook to encrypt password before saving
-AppPasswordSchema.pre<IAppPassword>('save', function (next) {
-  if (this.isModified('encrypted_password')) {
-    // This assumes the plain text is temporarily stored here before saving
-    this.encrypted_password = encrypt(this.encrypted_password);
-  }
-  next();
-});
 
 const AppPassword = (mongoose.models.AppPassword || mongoose.model<IAppPassword>('AppPassword', AppPasswordSchema)) as Model<IAppPassword>;
 export default AppPassword;

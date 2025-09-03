@@ -82,16 +82,19 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
 
     // +++ STEP 4: CREATE A DEFAULT APP PASSWORD FOR THE WORKER +++
     console.log(`Creating default App Password for user ${updatedUser.email}`);
-    // Generate a secure, random password for the worker to use.
+    // This generates the plain-text password
     const generatedPassword = crypto.randomBytes(16).toString('hex');
 
-    // Your AppPassword model must handle the encryption of this password.
-    // The worker's decryptPassword() method implies this functionality exists.
+    // Create a new AppPassword instance
     const newAppPassword = new AppPassword({
       user_id: updatedUser._id,
       name: 'Default Sending Password',
-      encrypted_password: generatedPassword, // <-- Pass the plain text to the correct field
+      // Use the virtual 'password' field to set the plain-text value.
+      // Mongoose will automatically call the 'set' function to encrypt it.
+      password: generatedPassword,
     });
+
+    // When you save, the encrypted version is stored in the database.
     await newAppPassword.save();
     console.log(`Default App Password created for user ${updatedUser.email}.`);
     // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
