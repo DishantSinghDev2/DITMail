@@ -1,23 +1,21 @@
-"use client"
+"use client";
 
-import { Card } from "@/components/ui/card"
-import { Attachment, EmailEditor } from "./editor/email-editor"
-import { init } from "@sentry/nextjs"
-import { initial } from "lodash"
-import { emailSchema } from "@/lib/schemas"
-import z from "zod"
+import { Card } from "@/components/ui/card";
+import { Attachment, EmailEditor } from "./editor/email-editor"; // Corrected path
+import { emailSchema } from "@/lib/schemas";
+import { z } from "zod";
 
 interface MainComposerProps {
-  isOpen: boolean
-  onClose: () => void
-  onMinimize: () => void
-  replyToMessage?: any
-  forwardMessage?: any
-  draftId?: string
-  initialData?: z.infer<typeof emailSchema> | null
-  initialAttachments?: Attachment[] // <-- ADD THIS
-  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void // <-- ADD THIS
-  onDraftCreated?: (newDraftId: string) => void; // Add the new callback prop
+  isOpen: boolean;
+  onClose: () => void;
+  onMinimize: () => void;
+  replyToMessage?: any;
+  forwardMessage?: any;
+  draftId?: string; // Correctly named prop
+  initialData?: z.infer<typeof emailSchema> | null;
+  initialAttachments?: Attachment[];
+  onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void;
+  onDraftCreated?: (newDraftId: string) => void;
 }
 
 export default function MainComposer({
@@ -26,37 +24,38 @@ export default function MainComposer({
   onMinimize,
   replyToMessage,
   forwardMessage,
-  draftId,
+  draftId, // Correctly named prop
   initialData = null,
-  initialAttachments = [], // <-- ADD THIS
-  onDataChange, // <-- ADD THIS
-  onDraftCreated
+  initialAttachments = [],
+  onDataChange,
+  onDraftCreated,
 }: MainComposerProps) {
 
   const handleSent = () => {
-    console.log("Email sent from mini composer")
-    onClose()
-  }
+    onClose();
+  };
 
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
-    <Card className="fixed top-1/2 left-1/2 transform -translate-y-1/2 -translate-x-1/2 w-[60%] overflow-hidden shadow-2xl z-50 bg-white transition-all duration-200">
-      <div className="flex flex-col h-[80vh] ">
-        <EmailEditor
-          onClose={onClose}
-          onSent={handleSent}
-          onMinimize={onMinimize}
-          replyToMessage={replyToMessage}
-          forwardMessage={forwardMessage}
-          initialDraftId={draftId}
-          isMinimized={false}
-          initialData={initialData}
-          initialAttachments={initialAttachments} // <-- PASS DOWN
-          onDataChange={onDataChange} // <-- PASS DOWN
-          onDraftCreated={onDraftCreated}
-        />
-      </div>
-    </Card>
-  )
+    // This styling creates the modal-like appearance
+    <div className="fixed inset-0 bg-black bg-opacity-30 z-40 flex items-center justify-center">
+        <Card className="w-[90%] max-w-4xl h-[85vh] flex flex-col shadow-2xl z-50 bg-white rounded-lg">
+            <EmailEditor
+              onClose={onClose}
+              onSent={handleSent}
+              onMinimize={onMinimize} // Pass the onMinimize handler
+              onMaximize={undefined} // Main composer cannot be maximized further
+              replyToMessage={replyToMessage}
+              forwardMessage={forwardMessage}
+              draftId={draftId} // <-- CRITICAL FIX: Pass the correct prop name
+              isMinimized={false} // This editor instance is never in the "minimized" state
+              initialData={initialData}
+              initialAttachments={initialAttachments}
+              onDataChange={onDataChange}
+              onDraftCreated={onDraftCreated} // Pass the callback down
+            />
+        </Card>
+    </div>
+  );
 }

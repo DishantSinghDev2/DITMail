@@ -27,7 +27,7 @@ type ComposerState = {
 
   // Actions
   openComposer: (data?: ComposerOpenData) => void;
-    reopenComposer: (data: ComposerOpenData) => void; // <--- NEW ACTION
+  reopenComposer: (data: ComposerOpenData) => void;
   closeComposer: () => void;
   toggleMaximize: () => void;
   toggleMinimize: () => void;
@@ -35,8 +35,7 @@ type ComposerState = {
   setDraftId: (draftId: string) => void;
 };
 
-export const useComposerStore = create<ComposerState>((set, get) => ({ // <-- Add `get` to access current state
-  // Initial state is simpler now
+export const useComposerStore = create<ComposerState>((set, get) => ({
   isOpen: false,
   isMaximized: false,
   draftId: undefined,
@@ -46,9 +45,7 @@ export const useComposerStore = create<ComposerState>((set, get) => ({ // <-- Ad
   composerData: null,
   composerAttachments: [],
 
-  // --- ACTIONS ---
   openComposer: (data = {}) => {
-    // If it's already open, do nothing. Let reopenComposer handle changes.
     if (get().isOpen || get().isMaximized) return;
 
     let mode: 'reply' | 'forward' | 'new' = 'new';
@@ -67,17 +64,14 @@ export const useComposerStore = create<ComposerState>((set, get) => ({ // <-- Ad
     });
   },
 
-  // --- NEW ACTION FOR RE-OPENING ---
   reopenComposer: (data) => {
     let mode: 'reply' | 'forward' | 'new' = 'new';
     if (data.replyToMessage) mode = 'reply';
     if (data.forwardMessage) mode = 'forward';
 
     set({
-      // Ensure it's in the "mini" state when reopening
       isOpen: true,
-      isMaximized: false, 
-      // Reset all data properties with the new draft's data
+      isMaximized: false,
       draftId: data.draftId,
       mode,
       replyToMessage: data.replyToMessage,
