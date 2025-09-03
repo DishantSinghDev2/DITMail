@@ -46,8 +46,8 @@ exports.load_mongo_config = function () {
     plugin.cfg = {
         uri: process.env.MONGO_URI || 'mongodb://127.0.0.1:27017',
         dbName: 'ditmail',
-        userCollection: config.main.collection || 'users',
-        appPasswordCollection: config.main.app_password_collection || 'apppasswords',
+        userCollection: 'users',
+        appPasswordCollection: 'apppasswords',
         domainCollection: 'domains',
         encryption_key: process.env.APP_ENCRYPTION_KEY || '', // Load the key from config
         require_tls: config.main.require_tls !== false,
@@ -127,7 +127,7 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
             if (userAppPasswords.length > 0) {
                 plugin.loginfo(`Encrypted string from DB: ${userAppPasswords[0].encrypted_password}`);
             } else {
-                plugin.logwarn("No App Password found in DB for this user.");
+                plugin.logwarn(`No App Password found in DB for this user: ${user._id} ${new ObjectId(user._id)}`);
             }
             // --- !! END OF LOGGING BLOCK !! ---
 
