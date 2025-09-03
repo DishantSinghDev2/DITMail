@@ -4,8 +4,8 @@ export const emailSchema = z.object({
   to: z.string().min(1, "At least one recipient is required"),
   cc: z.string().optional(),
   bcc: z.string().optional(),
-  subject: z.string().min(1, "Subject is required"),
-  content: z.string().min(1, "Message content is required"),
+  subject: z.string().optional(),
+  content: z.string().optional(),
   attachments: z.array(z.any()).optional(),
 })
 
