@@ -6,6 +6,11 @@ import { config } from 'dotenv';
 
 // Configure dotenv
 config({ path: '.env' });
+console.log('--- Worker Key Check ---');
+const workerKey = process.env.APP_ENCRYPTION_KEY || '';
+console.log(`Worker Key Length: ${Buffer.from(workerKey, 'base64').length} bytes`);
+console.log(`Worker Key Preview: ${workerKey.slice(0, 4)}...${workerKey.slice(-4)}`);
+console.log('------------------------');
 
 // Import your Mongoose models
 import Message from '../models/Message';

@@ -51,6 +51,19 @@ exports.load_mongo_config = function () {
         require_tls: config.main.require_tls !== false,
     };
 
+
+    // --- Add this logging block ---
+    plugin.loginfo('--- Haraka Key Check ---');
+    const harakaKey = plugin.cfg.encryption_key;
+    try {
+        plugin.loginfo(`Haraka Key Length: ${Buffer.from(harakaKey, 'base64').length} bytes`);
+        plugin.loginfo(`Haraka Key Preview: ${harakaKey.slice(0, 4)}...${harakaKey.slice(-4)}`);
+    } catch (e) {
+        plugin.logerror(`Haraka Key is invalid: ${e.message}`);
+    }
+    plugin.loginfo('------------------------');
+    // --- End of logging block ---
+
     // Validate the encryption key
     if (!plugin.cfg.encryption_key) {
         plugin.logcrit("encryption_key is missing in auth_mongo_user.ini. App password auth will fail.");
