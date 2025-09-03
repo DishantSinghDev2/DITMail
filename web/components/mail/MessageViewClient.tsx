@@ -369,8 +369,8 @@ export function MessageViewClient({
         {/* --- INLINE COMPOSER LOGIC --- */}
         {editorMode === "closed" && (
           <div className="flex items-center gap-3 pt-4">
-            <button onClick={() => setEditorMode("reply")} className="..."><ArrowUturnLeftIcon className="h-4 w-4" /><span>Reply</span></button>
-            <button onClick={() => setEditorMode("forward")} className="..."><ArrowUturnRightIcon className="h-4 w-4" /><span>Forward</span></button>
+            <button onClick={() => setEditorMode("reply")} className="flex items-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"><ArrowUturnLeftIcon className="h-4 w-4" /><span>Reply</span></button>
+            <button onClick={() => setEditorMode("forward")} className="flex items-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"><ArrowUturnRightIcon className="h-4 w-4" /><span>Forward</span></button>
           </div>
         )}
 

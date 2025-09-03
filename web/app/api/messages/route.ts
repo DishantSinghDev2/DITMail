@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     if (allRecipients.includes(user.email.toLowerCase())) {
         const inboxCopy = new Message({
             ...sentMessage.toObject(),
-            _id: new ObjectId(),
+            message_id: new ObjectId(),
             folder: 'inbox',
             read: false,
             status: 'received',
