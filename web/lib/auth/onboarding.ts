@@ -35,10 +35,10 @@ export async function handleNewUserOnboarding(user: NextAuthUser) {
       console.log("No 'Free' plan found. Creating a default one.");
       freePlan = new Plan({
         name: "Free",
-        limits: { users: 1, domains: 1, storage: 1 }, // in GB
+        limits: { users: 2, domains: 1, storage: 5 }, // in GB
         price: 0,
         customizable: false,
-        features: ["Basic Email", "1 Domain", "1 User"],
+        features: ["Basic Email", "1 Domain", "2 User"],
       });
       await freePlan.save();
       console.log(`Default 'Free' plan created with ID: ${freePlan._id}`);

@@ -28,12 +28,14 @@ import EmailViewer from "../messages/EmailViewer"; // Assuming path is correct
 import InlineReplyComposer from "@/components/inline-reply-composer"; // Assuming path is correct
 // --- NEW: Import the Zustand store ---
 import { useMailStore } from "@/lib/store/mail";
+import { useSession } from "next-auth/react";
+import { formatDisplayName } from "@/lib/mail-utils";
 
 
 
 // --- PROPS INTERFACE ---
 interface MessageViewClientProps {
-  threadMessages: Message[];
+  initialThreadMessages: Message[]; // Renamed for clarity
   totalMessages: number;
   currentMessage: number;
   previousMessageId?: string | null; // Add this
@@ -42,7 +44,7 @@ interface MessageViewClientProps {
 
 
 export function MessageViewClient({
-  threadMessages,
+  initialThreadMessages,
   totalMessages,
   currentMessage,
   previousMessageId, // Destructure
@@ -54,8 +56,12 @@ export function MessageViewClient({
   const params = useParams(); // Get folder from URL for navigation
 
   const { toast } = useToast();
+    const { data: session } = useSession(); // Get session data
 
-  // --- STATE ---
+
+  // --- STATE ---  
+  const [threadMessages, setThreadMessages] = useState<Message[]>(initialThreadMessages);
+
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showFullHeaders, setShowFullHeaders] = useState(false);
   const [isLoading, setIsLoading] = useState(false); // For actions like downloads
@@ -66,17 +72,22 @@ export function MessageViewClient({
 
 
   // --- DERIVED STATE ---
-  const latestMessage = threadMessages[threadMessages.length - 1];
+  const latestMessage = initialThreadMessages[initialThreadMessages.length - 1];
+  const [optimisticMessage, setOptimisticMessage] = useState<Message | null>(null);
+  const currentUserEmail = session?.user?.email;
 
-  // --- EFFECTS ---
-  // Expand the latest message in the thread by default when the component loads.
+
+  // --- EFFECTS --- 
   useEffect(() => {
-    if (threadMessages.length > 0) {
-      setExpandedMessages(new Set([latestMessage._id]));
+    setThreadMessages(initialThreadMessages);
+    setOptimisticMessage(null); // Clear optimistic message on navigation
+    if (initialThreadMessages.length > 0) {
+      setExpandedMessages(new Set([initialThreadMessages[initialThreadMessages.length - 1]._id]));
     }
-    // Close the composer if the thread changes
     setEditorMode("closed");
-  }, [threadMessages, latestMessage._id]);
+  }, [initialThreadMessages]);
+
+
 
   // --- UPDATED CORE ACTION HANDLER ---
   const handleAction = async (method: 'PATCH' | 'DELETE', body?: Record<string, any>, successMessage?: string) => {
@@ -114,6 +125,17 @@ export function MessageViewClient({
       // Remove the ID from the pending set. The list component will see this change and show the message again.
       removePendingRemovalId(messageId);
     }
+  };
+
+  const handleSent = (sentMessage: Message) => {
+    setEditorMode("closed");
+    toast({ title: "Success", description: "Your message has been sent." });
+    
+    // Optimistically add the new message to the thread
+    setOptimisticMessage(sentMessage);
+
+    // Refresh server data in the background for consistency
+    router.refresh();
   };
 
   // --- SPECIFIC ACTION HANDLERS ---
@@ -227,24 +249,26 @@ export function MessageViewClient({
     return null;
   };
 
-  const renderMessage = (msg: Message, isThread: boolean) => {
+    const renderMessage = (msg: Message, isThread: boolean) => {
     const isExpanded = expandedMessages.has(msg._id);
+    const fromName = formatDisplayName(msg.from, currentUserEmail);
+    const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail)).join(", ");
 
     return (
-      <div key={msg._id} className={`border rounded-lg ${isThread ? "mb-4" : ""}`}>
+      <div key={msg._id} className="border rounded-lg mb-4">
         <div className={`p-4 cursor-pointer hover:bg-gray-50 ${isExpanded ? "border-b" : ""}`} onClick={() => isThread && toggleMessageExpansion(msg._id)}>
-          {/* ... (Message Header JSX from your original component) ... */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">{msg.from.charAt(0).toUpperCase()}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900">{msg.from}</p>
-                <p className="text-xs text-gray-500">To: {msg.to.join(", ")}</p>
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">{fromName.charAt(0).toUpperCase()}</div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{fromName}</p>
+                <p className="text-xs text-gray-500">To: {toNames}</p>
               </div>
             </div>
             <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
           </div>
         </div>
+
 
         {isExpanded && (
           <div className="p-4">
@@ -335,16 +359,18 @@ export function MessageViewClient({
       </div>
 
       {/* Messages */}
+      
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {threadMessages.length > 1 && (
-          <div className="text-sm text-center text-gray-500 pb-2">{threadMessages.length} messages in this conversation</div>
-        )}
         {threadMessages.map((msg) => renderMessage(msg, threadMessages.length > 1))}
 
+        {/* --- OPTIMISTIC MESSAGE RENDER --- */}
+        {optimisticMessage && renderMessage(optimisticMessage, true)}
+
+        {/* --- INLINE COMPOSER LOGIC --- */}
         {editorMode === "closed" && (
           <div className="flex items-center gap-3 pt-4">
-            <button onClick={() => setEditorMode("reply")} className="flex items-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"><ArrowUturnLeftIcon className="h-4 w-4" /><span>Reply</span></button>
-            <button onClick={() => setEditorMode("forward")} className="flex items-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"><ArrowUturnRightIcon className="h-4 w-4" /><span>Forward</span></button>
+            <button onClick={() => setEditorMode("reply")} className="..."><ArrowUturnLeftIcon className="h-4 w-4" /><span>Reply</span></button>
+            <button onClick={() => setEditorMode("forward")} className="..."><ArrowUturnRightIcon className="h-4 w-4" /><span>Forward</span></button>
           </div>
         )}
 
@@ -354,7 +380,7 @@ export function MessageViewClient({
               originalMessage={latestMessage}
               composeMode={editorMode}
               onClose={() => setEditorMode("closed")}
-              onSent={() => { setEditorMode("closed"); router.refresh(); }}
+              onSent={handleSent} // <-- Use the enhanced handler
             />
           </div>
         )}

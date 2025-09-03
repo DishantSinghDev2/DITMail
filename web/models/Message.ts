@@ -13,7 +13,7 @@ export interface IMessage extends Document {
   text?: string
   attachments: mongoose.Types.ObjectId[]
   status: "sent" | "received" | "draft" | "failed" | "queued"
-  folder: "inbox" | "sent" | "trash" | "drafts" | "spam"
+  folder: "inbox" | "sent" | "trash" | "drafts" | "spam" | 'archive'
   org_id: mongoose.Types.ObjectId
   user_id: mongoose.Types.ObjectId
   read: boolean
@@ -52,7 +52,7 @@ const MessageSchema = new Schema<IMessage>({
   },
   folder: {
     type: String,
-    enum: ["inbox", "sent", "trash", "drafts", "spam", "starred"],
+    enum: ["inbox", "sent", "trash", "drafts", "spam", "starred", "archive"],
     default: "inbox",
   },
   org_id: { type: Schema.Types.ObjectId, ref: "Organization", required: true },

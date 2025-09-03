@@ -25,7 +25,7 @@ import { send } from "process"
 // (Interfaces remain the same)
 interface EmailEditorProps {
   onClose: () => void;
-  onSent: () => void;
+  onSent: (data: any) => void;
   onMinimize?: () => void;
   onMaximize?: () => void;
   replyToMessage?: any;
@@ -36,6 +36,7 @@ interface EmailEditorProps {
   initialAttachments?: Attachment[];
   onDataChange?: (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => void;
   onDraftCreated?: (newDraftId: string) => void; // This now acts as `setDraftId`
+  onPopOut?: () => void;
 }
 
 
@@ -62,7 +63,8 @@ export function EmailEditor({
   initialData = null,
   initialAttachments = [],
   onDataChange,
-  onDraftCreated
+  onDraftCreated,
+  onPopOut
 }: EmailEditorProps) {
   const { toast } = useToast()
   const [isSending, setIsSending] = useState(false)
@@ -327,6 +329,7 @@ export function EmailEditor({
         cc: values.cc?.split(",").map((e) => e.trim()).filter(Boolean) || [],
         bcc: values.bcc?.split(",").map((e) => e.trim()).filter(Boolean) || [],
         subject: values.subject,
+        draft_id_to_delete: draftId, // Tell the API which draft to clean up
         html: finalHtml,
         attachments: uploadedAttachments.map((att) => att._id),
         ...(replyToMessage && {
@@ -344,13 +347,16 @@ export function EmailEditor({
 
       if (!response.ok) throw new Error("Failed to send email.");
 
+      const { message: sentMessage } = await response.json(); // Get created message from API
+
+
       // After sending, discard the draft
       if (draftId) {
         await fetch(`/api/drafts/${draftId}`, { method: "DELETE" });
       }
 
       toast({ title: "Success", description: "Your email has been sent." });
-      onSent();
+      onSent(sentMessage); // <-- PASS THE FULL MESSAGE OBJECT
       onClose();
     } catch (error) {
       console.error("Error sending message:", error);
@@ -406,6 +412,12 @@ export function EmailEditor({
           {onMaximize && (
             <Button variant="ghost" size="sm" onClick={onMaximize} className="h-6 w-6 p-0">
               <Minimize2 className="h-3 w-3" />
+            </Button>
+          )}
+          {/* --- ADD THIS BUTTON --- */}
+          {onPopOut && (
+            <Button variant="ghost" size="sm" onClick={onPopOut} className="h-6 w-6 p-0" title="Pop out reply">
+              <ArrowUpRightFromSquare className="h-3 w-3" />
             </Button>
           )}
           {onMaximize && <Button variant="ghost" size="sm" onClick={onClose} className="h-6 w-6 p-0">

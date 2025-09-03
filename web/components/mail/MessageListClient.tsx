@@ -24,6 +24,8 @@ import { useRealtime } from "@/contexts/RealtimeContext";
 import { useMailStore } from "@/lib/store/mail";
 import { mailAppEvents } from "@/lib/events";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { formatDisplayName } from "@/lib/mail-utils";
 
 
 // Props interface remains the same
@@ -46,6 +48,9 @@ export function MessageListClient({
   const router = useRouter();
   const { toast } = useToast();
   const { newMessages, markMessagesRead } = useRealtime();
+
+  const { data: session } = useSession(); // <-- Get session data
+  const currentUserEmail = session?.user?.email;
 
   // --- USE THE GLOBAL MAIL STORE ---
   const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId, pendingRemovalIds } = useMailStore(); // <-- Get pendingRemovalIds
@@ -319,6 +324,10 @@ export function MessageListClient({
             {currentMessages.map((message) => {
               // Get the original message from props to check its true 'read' status
               const originalMessage = initialMessages.find(m => m._id === message._id)!;
+              const displayName = folder === "sent"
+                ? `To: ${message.to.map(p => formatDisplayName(p, currentUserEmail)).join(", ")}`
+                : formatDisplayName(message.from, currentUserEmail);
+
 
               // Prepare the navigation href
               const params = new URLSearchParams(window.location.search);
@@ -368,7 +377,7 @@ export function MessageListClient({
                     <div className="flex justify-between items-start">
                       <div className="text-sm truncate pr-2">
                         <span className={!message.read ? "text-gray-900" : "text-gray-600"}>
-                          {folder === "sent" ? `To: ${message.to.join(", ")}` : message.from} {message.messageCount > 1 && <span className="text-gray-500 ml-1 text-xs">({message.messageCount})</span>}
+                          {displayName} {message.messageCount > 1 && <span className="text-gray-500 ml-1 text-xs">({message.messageCount})</span>}
                         </span>
                       </div>
                       <div className="flex items-center space-x-2 flex-shrink-0">

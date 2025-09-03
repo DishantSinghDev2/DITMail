@@ -10,6 +10,8 @@ export const emailSchema = z.object({
 })
 
 export const composeEmailSchema = z.object({
+  thread_id: z.string().optional(),
+  draft_id_to_delete: z.string().optional(),
   to: z.array(z.string().email()),
   cc: z.array(z.string().email()).optional(),
   bcc: z.array(z.string().email()).optional(),
