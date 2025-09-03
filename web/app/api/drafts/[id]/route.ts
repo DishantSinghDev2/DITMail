@@ -8,6 +8,7 @@ import { SessionUser } from "@/types";
 import { asyncHandler } from "@/lib/error-handler";
 import { revalidateTag } from "next/cache";
 import '@/models/Attachment'
+import { redis } from "@/lib/redis";
 
 // GET: Retrieve a specific draft by its ID
 export const GET = asyncHandler(async (request: NextRequest, { params }: { params: { id: string } }) => {
@@ -49,9 +50,18 @@ export const PATCH = asyncHandler(async (request: NextRequest, { params }: { par
   if (!draft) {
     return NextResponse.json({ error: "Draft not found" }, { status: 404 });
   }
-  
+
   // When a draft is updated, invalidate the cache for the drafts folder.
   revalidateTag(`drafts:${user.id}`);
+  try {
+    const pattern = `cache:msg:${user.id}:*`;
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) {
+      await redis.del(keys);
+    }
+  } catch (error) {
+    console.error("Redis cache invalidation error:", error);
+  }
 
   return NextResponse.json({ draft });
 });
@@ -72,7 +82,7 @@ export const DELETE = asyncHandler(async (request: NextRequest, { params }: { pa
     // It's not necessarily an error if the draft was already gone.
     return NextResponse.json({ message: "Draft not found or already deleted." });
   }
-  
+
   // When a draft is deleted, invalidate the cache for the drafts folder.
   revalidateTag(`drafts:${user.id}`);
 
