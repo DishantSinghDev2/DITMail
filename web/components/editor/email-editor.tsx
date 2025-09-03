@@ -49,18 +49,19 @@ export interface Attachment {
 
 
 
+
 export function EmailEditor({
   onClose,
   onSent,
   onMinimize,
   onMaximize,
-  draftId, // <-- Use the prop directly
+  draftId,
   replyToMessage,
   forwardMessage,
   isMinimized = false,
   initialData = null,
-  initialAttachments = [], // <-- ADD THIS
-  onDataChange, // <-- RENAME/ADD THIS
+  initialAttachments = [],
+  onDataChange,
   onDraftCreated
 }: EmailEditorProps) {
   const { toast } = useToast()
@@ -73,7 +74,6 @@ export function EmailEditor({
   const [selectedSignature, setSelectedSignature] = useState<string | null>(null)
   const [signatureHtml, setSignatureHtml] = useState("")
   const [isToolbarVisible, setIsToolbarVisible] = useState(true)
-  // --- NEW STATE VARIABLES ---
   const [isEditingSubject, setIsEditingSubject] = useState(!!forwardMessage || !replyToMessage)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -83,8 +83,6 @@ export function EmailEditor({
   const form = useForm<z.infer<typeof emailSchema>>({
     resolver: zodResolver(emailSchema),
     mode: "onChange",
-    // Let the useEffect handle the complex initialization.
-    // Start with values from initialData if present.
     defaultValues: initialData || {
       to: "",
       cc: "",
@@ -95,212 +93,146 @@ export function EmailEditor({
     },
   });
 
-  // --- COMPLETE DATA LOADING useEffect ---
+  // --- DATA LOADING & INITIALIZATION useEffect ---
   useEffect(() => {
     const loadData = async () => {
-      // --- Priority 1: Hydrate from initialData prop ---
-      // This is the primary method used when the store already has the draft's data,
-      // for example, when switching between open drafts or maximizing the composer.
+      let dataToSet: z.infer<typeof emailSchema> | null = null;
+      let attachmentsToSet: Attachment[] = [];
+
       if (initialData) {
         console.log("Hydrating composer from initialData prop...");
-        form.reset(initialData);
-        if (initialData.cc) setShowCc(true);
-        if (initialData.bcc) setShowBcc(true);
-        setUploadedAttachments(initialAttachments);
-      }
-      // --- Priority 2: Fetch draft by ID from URL ---
-      // This runs when the page is loaded with a `?compose=[draftId]` URL.
-      else if (draftId) {
+        dataToSet = initialData;
+        attachmentsToSet = initialAttachments;
+      } else if (draftId) {
         console.log(`Fetching draft ${draftId} from API...`);
         try {
           const res = await fetch(`/api/drafts/${draftId}`);
           if (!res.ok) throw new Error("Draft not found in API");
           const { draft } = await res.json();
-
-          form.reset({
+          dataToSet = {
             to: draft.to?.join(", ") || "",
             cc: draft.cc?.join(", ") || "",
             bcc: draft.bcc?.join(", ") || "",
             subject: draft.subject || "",
             content: draft.html || "<p></p>",
-          });
-          setUploadedAttachments(draft.attachments || []);
-          if (draft.cc?.length) setShowCc(true);
-          if (draft.bcc?.length) setShowBcc(true);
+            attachments: draft.attachments?.map((a: any) => a._id) || []
+          };
+          attachmentsToSet = draft.attachments || [];
         } catch (error) {
           console.error("Failed to load draft from API:", error);
           toast({ title: "Error", description: "Could not load the requested draft.", variant: "destructive" });
-          onClose(); // Close composer to prevent a broken state
+          onClose();
+          return;
         }
-      }
-      // --- Priority 3: Set up a new composition (blank, reply, or forward) ---
-      else {
+      } else {
         console.log("Setting up a new composition...");
-        let content = "<p><br></p>"; // Start with a blank line
+        let content = "<p><br></p>";
         let subject = "";
         let to = "";
-        let attachments: Attachment[] = [];
-
-        const createQuotedBlock = (message: any) => {
-          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a");
-          const header = `<p>On ${formattedDate}, ${message.from} wrote:</p>`;
-          return `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`;
-        };
-
-        const createForwardedBlock = (message: any) => {
-          const formattedDate = format(new Date(message.created_at), "MMM d, yyyy, h:mm a");
-          const header = `<p>---------- Forwarded message ---------<br>From: ${message.from}<br>Date: ${formattedDate}<br>Subject: ${message.subject}<br>To: ${message.to?.join(", ")}</p><br>`;
-          return `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${message.html}</blockquote>`;
-        }
 
         if (replyToMessage) {
-          to = replyToMessage.from; // Reply to the sender
+          to = replyToMessage.from;
           subject = `Re: ${replyToMessage.subject}`;
-          content += createQuotedBlock(replyToMessage);
-          setIsEditingSubject(false); // By default, don't show the subject editor for replies
+          const formattedDate = format(new Date(replyToMessage.created_at), "MMM d, yyyy, h:mm a");
+          const header = `<p>On ${formattedDate}, ${replyToMessage.from} wrote:</p>`;
+          content += `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${replyToMessage.html}</blockquote>`;
+          setIsEditingSubject(false);
         } else if (forwardMessage) {
           subject = `Fwd: ${forwardMessage.subject}`;
-          content += createForwardedBlock(forwardMessage);
-          attachments = forwardMessage.attachments || []; // Carry over attachments
-          setUploadedAttachments(attachments);
-          setIsEditingSubject(true); // Always show subject for forwards
+          const formattedDate = format(new Date(forwardMessage.created_at), "MMM d, yyyy, h:mm a");
+          const header = `<p>---------- Forwarded message ---------<br>From: ${forwardMessage.from}<br>Date: ${formattedDate}<br>Subject: ${forwardMessage.subject}<br>To: ${forwardMessage.to?.join(", ")}</p><br>`;
+          content += `<br>${header}<blockquote style="margin: 0 0 0 0.8ex; border-left: 1px #ccc solid; padding-left: 1ex;">${forwardMessage.html}</blockquote>`;
+          attachmentsToSet = forwardMessage.attachments || [];
+          setIsEditingSubject(true);
         } else {
-          // It's a brand new message
           setIsEditingSubject(true);
         }
 
-        form.reset({ content, subject, to, cc: "", bcc: "" });
+        dataToSet = { content, subject, to, cc: "", bcc: "", attachments: [] };
       }
 
-      // --- Final step: Set editor content and focus ---
-      // This runs after any of the above branches complete.
-      setTimeout(() => {
-        if (editorRef.current) {
-          const editorContent = form.getValues("content");
-          editorRef.current.setContent(editorContent);
-          editorRef.current.focus(); // Focus at the start of the editor
-        }
-      }, 100); // A small delay ensures the editor is fully rendered
+      if (dataToSet) {
+        form.reset(dataToSet);
+        if (dataToSet.cc) setShowCc(true);
+        if (dataToSet.bcc) setShowBcc(true);
+        setUploadedAttachments(attachmentsToSet);
+
+        setTimeout(() => {
+          if (editorRef.current) {
+            editorRef.current.setContent(dataToSet!.content);
+            editorRef.current.focus();
+            // Mark form as initialized only after everything is loaded
+            formInitialized.current = true;
+          }
+        }, 100);
+      }
     };
 
     loadData();
-    // This effect should re-run ONLY when the composer is fundamentally changed,
-    // i.e., when a new draft is opened or a new reply/forward is initiated.
-  }, [draftId, initialData, initialAttachments, replyToMessage, forwardMessage]);
+  }, [draftId, initialData, replyToMessage, forwardMessage]); // Re-run only when the core context changes
 
-  useEffect(() => {
-    setTimeout(() => {
-      if (editorRef.current) {
-        const content = form.getValues("content");
-        // Only set content if it's not the default empty paragraph, to avoid overwriting user input
-        if (content && content !== "<p><br></p>") {
-          editorRef.current.setContent(content);
-        }
-        editorRef.current.focus();
-        formInitialized.current = true;
+  const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => {
+      const formContent = editorRef.current?.getContent() || data.content;
+
+      const hasRecipients = data.to || data.cc || data.bcc;
+      const hasSubject = data.subject;
+      const hasContent = formContent && formContent !== "<p></p>" && formContent !== "<p><br></p>";
+      const hasAttachments = attachments.length > 0;
+
+      if (!hasRecipients && !hasSubject && !hasContent && !hasAttachments) {
+          console.log("Skipping save for empty draft.");
+          return;
       }
-    }, 100); // Increased timeout slightly for stability
-  }, [form.getValues("content")]); // Run when content value changes
+      
+      setIsSaving(true);
 
-  const saveDraft = useCallback(
-  async (data: any, attachments: Attachment[]) => {
-    const formContent = editorRef.current?.getContent() || data.content;
-
-    // --- MODIFICATION START ---
-    // More robust check to see if the draft is truly empty.
-    const hasRecipients = data.to || data.cc || data.bcc;
-    const hasSubject = data.subject;
-    const hasContent =
-      formContent &&
-      formContent !== "<p></p>" &&
-      formContent !== "<p><br></p>";
-    const hasAttachments = attachments.length > 0;
-
-    // Only skip saving if the draft is completely devoid of any user input.
-    if (!hasRecipients && !hasSubject && !hasContent && !hasAttachments) {
-      return; // Skip saving for a completely empty draft
-    }
-    // --- MODIFICATION END ---
-
-    setIsSaving(true);
-
-    const payload = {
-      type: replyToMessage ? "r" : forwardMessage ? "f" : "d",
-      to: data.to
-        ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean)
-        : [],
-      cc: data.cc
-        ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean)
-        : [],
-      bcc: data.bcc
-        ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean)
-        : [],
-      subject: data.subject || "",
-      html: formContent,
-      attachments: attachments.map((att) => att._id),
-      in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
-    };
-
-    // --- THIS IS THE KEY CHANGE ---
-    // Call the callback to lift the state up to the parent component.
-    if (onDataChange) {
-      const schemaCompliantData = {
-        to: data.to || "",
-        cc: data.cc || "",
-        bcc: data.bcc || "",
-        subject: data.subject || "",
-        content: formContent,
-        attachments: attachments.map((a) => a._id),
+      const payload = {
+          to: data.to ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+          cc: data.cc ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+          bcc: data.bcc ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+          subject: data.subject || "",
+          html: formContent,
+          attachments: attachments.map((att) => att._id),
+          in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
       };
-      onDataChange(schemaCompliantData, attachments); // Send full data up
-    }
 
-    try {
-      // --- THIS IS THE CRITICAL FIX ---
-      const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
-      const method = draftId ? "PATCH" : "POST";
+      try {
+          const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
+          const method = draftId ? "PATCH" : "POST";
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+          const response = await fetch(url, {
+              method,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+          });
 
-      if (!response.ok) {
-        throw new Error(`Failed to save draft: ${response.status}`);
+          if (!response.ok) throw new Error(`Failed to save draft: ${response.statusText}`);
+          
+          const result = await response.json();
+
+          if (!draftId && onDraftCreated) {
+              onDraftCreated(result.draft._id);
+          }
+
+          setLastSaved(new Date());
+      } catch (error) {
+          console.error("Auto-save error:", error);
+      } finally {
+          setIsSaving(false);
       }
-
-      const result = await response.json();
-
-      // If it was a NEW draft (draftId was falsy), we call `onDraftCreated`
-      // which is the `setDraftId` function from the parent.
-      if (!draftId && onDraftCreated) {
-        onDraftCreated(result.draft._id);
-      }
-
-      setLastSaved(new Date());
-    } catch (error) {
-      console.error("Auto-save error:", error);
-    } finally {
-      setIsSaving(false);
-    }
-  },
-  [draftId, replyToMessage, forwardMessage, onDataChange, onDraftCreated]
-);
+  }, [draftId, replyToMessage, forwardMessage, onDraftCreated]);
 
 
-  const debouncedSave = useCallback(debounce(saveDraft, 500), [saveDraft])
+  const debouncedSave = useCallback(debounce(saveDraft, 1500), [saveDraft]);
 
   useEffect(() => {
-    const subscription = form.watch((value) => {
-      if (formInitialized.current && form.formState.isDirty) {
-        debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments)
-      }
-    })
-    return () => subscription.unsubscribe()
-  }, [form, debouncedSave, uploadedAttachments])
+      const subscription = form.watch((value, { name, type }) => {
+          if (formInitialized.current) {
+              debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments);
+          }
+      });
+      return () => subscription.unsubscribe();
+  }, [form, debouncedSave, uploadedAttachments]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
@@ -383,9 +315,11 @@ export function EmailEditor({
       let finalHtml = editorRef.current?.getContent() || values.content;
 
       if (signatureHtml) {
-        const userContent = finalHtml.split('<blockquote style=')[0] || '<p></p>'
-        const quotedBlock = finalHtml.includes('<blockquote style=') ? '<blockquote style=' + finalHtml.split('<blockquote style=')[1] : ''
-        finalHtml = `${userContent}<br>--<br>${signatureHtml}<br>${quotedBlock}`
+        // More robustly inject signature before the blockquote
+        const quoteIndex = finalHtml.indexOf('<blockquote');
+        const userContent = quoteIndex !== -1 ? finalHtml.substring(0, quoteIndex) : finalHtml;
+        const quotedBlock = quoteIndex !== -1 ? finalHtml.substring(quoteIndex) : '';
+        finalHtml = `${userContent.trim()}<br><br>--<br>${signatureHtml}<br><br>${quotedBlock}`;
       }
 
       const payload = {
@@ -399,23 +333,31 @@ export function EmailEditor({
           in_reply_to: replyToMessage.message_id,
           references: [...(replyToMessage.references || []), replyToMessage.message_id],
         }),
-      }
+      };
 
+      // We explicitly call the send endpoint here
       const response = await fetch("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-      })
+      });
 
-      if (!response.ok) throw new Error("Failed to send email.")
-      await cleanup()
-      toast({ title: "Success", description: "Your email has been sent." })
-      onSent()
-      onClose()
+      if (!response.ok) throw new Error("Failed to send email.");
+      
+      // After sending, discard the draft
+      if (draftId) {
+        await fetch(`/api/drafts/${draftId}`, { method: "DELETE" });
+      }
+
+      toast({ title: "Success", description: "Your email has been sent." });
+      onSent();
+      onClose();
     } catch (error) {
-      console.error("Error sending message:", error)
-      toast({ title: "Error", description: (error as Error).message, variant: "destructive" })
-    } finally { setIsSending(false) }
+      console.error("Error sending message:", error);
+      toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
+    } finally { 
+        setIsSending(false);
+    }
   }
 
   // (Minimized view remains the same)
@@ -608,9 +550,6 @@ export function EmailEditor({
             </div>
 
             <div className="flex items-center space-x-4">
-              <div className="text-xs text-gray-500 h-4">
-                {isSaving ? "Saving..." : lastSaved && <span>Saved {format(lastSaved, "HH:mm")}</span>}
-              </div>
               <Button type="button" variant="ghost" size="icon" onClick={handleDeleteDraft} className="text-gray-600 hover:text-red-600" aria-label="Discard draft">
                 <Trash2 className="h-5 w-5" />
               </Button>

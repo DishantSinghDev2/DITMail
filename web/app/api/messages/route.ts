@@ -1,269 +1,14 @@
-// /home/dit/DITMail/web/app/api/messages/route.ts
-import { type NextRequest, NextResponse } from "next/server"
-import { connectDB } from "@/lib/db"
-import Message from "@/models/Message"
-import Draft from "@/models/Draft"
-import User from "@/models/User"
+import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import { ObjectId } from "mongodb";
 import { authOptions } from "../auth/[...nextauth]/route";
+import { connectDB } from "@/lib/db";
+import { composeEmailSchema } from "@/lib/schemas"; // Assuming you have this schema
 import { SessionUser } from "@/types";
-import { composeEmailSchema } from "@/lib/validations"
-import { mailQueue } from "@/lib/queue"; // <--- IMPORT THE QUEUE
-import { logAuditEvent } from "@/lib/audit"
-import "@/models/Attachment" // Ensure Attachment model is loaded
-import { ObjectId } from "mongodb"
-import { redis } from "@/lib/redis"
-
-// export async function GET(request: NextRequest) {
-//   try {
-//     const user = await getAuthUser(request);
-//     if (!user) {
-//       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-//     }
-
-//     const { searchParams } = new URL(request.url);
-//     const folder = searchParams.get("folder") || "inbox";
-//     const page = Number.parseInt(searchParams.get("page") || "1");
-//     const limit = Number.parseInt(searchParams.get("limit") || "25");
-//     const search = searchParams.get("search") || "";
-//     const threadId = searchParams.get("threadId");
-//     const starred = searchParams.get("starred") === "true";
-//     const unread = searchParams.get("unread") === "true";
-//     const hasAttachments = searchParams.get("hasAttachments") === "true";
-//     const priority = searchParams.get("priority") || "";
-//     const timeRange = searchParams.get("timeRange") || "";
-//     const startDate = searchParams.get("startDate");
-//     const endDate = searchParams.get("endDate");
-//     const sender = searchParams.get("sender") || "";
-//     const recipient = searchParams.get("recipient") || "";
-//     const size = searchParams.get("size") || "";
-//     const label = searchParams.get("label") || "";
-
-//     await connectDB();
-
-//     // --- ADDED: Fetch user's storage details ---
-//     const userDetailsAggregation = await User.aggregate([
-//       { $match: { _id: user._id } },
-//       // Join with organizations
-//       {
-//         $lookup: {
-//           from: "organizations",
-//           localField: "org_id",
-//           foreignField: "_id",
-//           as: "org_data",
-//         },
-//       },
-//       { $unwind: { path: "$org_data", preserveNullAndEmptyArrays: true } },
-//       // Join with plans
-//       {
-//         $lookup: {
-//           from: "plans",
-//           localField: "org_data.plan_id",
-//           foreignField: "_id",
-//           as: "plan_data",
-//         },
-//       },
-//       { $unwind: { path: "$plan_data", preserveNullAndEmptyArrays: true } },
-//     ]);
-
-//     const userDetails = userDetailsAggregation[0];
-
-//     // Usage is stored in KB, convert to GB
-//     const usedStorageKB = userDetails?.plan_usage?.storage || 0;
-//     const usedStorageGB = usedStorageKB / (1024 * 1024);
-
-//     // Limit is stored in GB
-//     const storageLimitGB = userDetails?.plan_data?.limits?.storage || 0;
-
-//     const storageInfo = {
-//       used: usedStorageGB,
-//       limit: storageLimitGB,
-//     };
-//     // --- END of added section ---
-
-//     // Handle "drafts" folder separately by querying the Draft collection
-//     if (folder === "drafts") {
-//       const draftQuery: any = { user_id: user._id };
-
-//       if (search) {
-//         draftQuery.$or = [
-//           { subject: { $regex: search, $options: "i" } },
-//           { to: { $regex: search, $options: "i" } },
-//           { text: { $regex: search, $options: "i" } },
-//         ];
-//       }
-
-//       const drafts = await Draft.find(draftQuery)
-//         .sort({ updated_at: -1 })
-//         .skip((page - 1) * limit)
-//         .limit(limit)
-//         .populate("attachments");
-
-//       const total = await Draft.countDocuments(draftQuery);
-
-//       return NextResponse.json({
-//         messages: drafts,
-//         pagination: {
-//           page,
-//           limit,
-//           total,
-//           pages: Math.ceil(total / limit),
-//         },
-//         storage: storageInfo, // Add storage info to response
-//       });
-//     }
-
-//     const query: any = { user_id: user._id };
-
-//     if (threadId) {
-//       query.thread_id = threadId;
-//     } else if (folder === "starred") {
-//       query.starred = true;
-//     } else {
-//       query.folder = folder;
-//     }
-
-//     if (starred) query.starred = true;
-//     if (unread) query.read = false;
-//     if (hasAttachments) query.attachments = { $exists: true, $ne: [] };
-//     if (priority) query.priority = priority;
-
-//     if (timeRange) {
-//         const now = new Date();
-//         switch (timeRange) {
-//           case "today":
-//             query.created_at = {
-//               $gte: new Date(now.setHours(0, 0, 0, 0)),
-//               $lte: new Date(now.setHours(23, 59, 59, 999)),
-//             };
-//             break;
-//           case "yesterday":
-//             const yesterday = new Date(new Date().setDate(new Date().getDate() - 1));
-//             query.created_at = {
-//               $gte: new Date(yesterday.setHours(0, 0, 0, 0)),
-//               $lte: new Date(yesterday.setHours(23, 59, 59, 999)),
-//             };
-//             break;
-//           case "week":
-//             const weekStart = new Date(new Date().setDate(new Date().getDate() - new Date().getDay()));
-//             query.created_at = { $gte: new Date(weekStart.setHours(0, 0, 0, 0)) };
-//             break;
-//           case "month":
-//             query.created_at = { $gte: new Date(now.getFullYear(), now.getMonth(), 1) };
-//             break;
-//           case "3months":
-//             query.created_at = { $gte: new Date(new Date().setMonth(new Date().getMonth() - 3)) };
-//             break;
-//           case "year":
-//             query.created_at = { $gte: new Date(now.getFullYear(), 0, 1) };
-//             break;
-//           case "custom":
-//             if (startDate || endDate) {
-//               query.created_at = {
-//                 ...(startDate ? { $gte: new Date(startDate) } : {}),
-//                 ...(endDate ? { $lte: new Date(endDate) } : {}),
-//               };
-//             }
-//             break;
-//         }
-//       }
-
-//     if (sender) query.from = { $regex: sender, $options: "i" };
-//     if (recipient) query.to = { $regex: recipient, $options: "i" };
-//     if (size) {
-//       switch (size) {
-//         case "small":
-//           query.size = { $lt: 1024 * 1024 };
-//           break;
-//         case "medium":
-//           query.size = { $gte: 1024 * 1024, $lt: 10 * 1024 * 1024 };
-//           break;
-//         case "large":
-//           query.size = { $gte: 10 * 1024 * 1024, $lt: 25 * 1024 * 1024 };
-//           break;
-//         case "huge":
-//           query.size = { $gte: 25 * 1024 * 1024 };
-//           break;
-//       }
-//     }
-//     if (label) query.labels = label;
-
-//     if (search) {
-//       query.$or = [
-//         { subject: { $regex: search, $options: "i" } },
-//         { from: { $regex: search, $options: "i" } },
-//         { text: { $regex: search, $options: "i" } },
-//       ];
-//     }
-
-//     let messages;
-
-//     if (threadId) {
-//       messages = await Message.find(query)
-//         .sort({ created_at: 1 })
-//         .populate("attachments");
-//     } else {
-//       const pipeline = [
-//         { $match: query },
-//         { $sort: { created_at: -1 } },
-//         {
-//           $group: {
-//             _id: "$thread_id",
-//             latestMessage: { $first: "$$ROOT" },
-//             messageCount: { $sum: 1 },
-//             unreadCount: { $sum: { $cond: [{ $eq: ["$read", false] }, 1, 0] } },
-//           },
-//         },
-//         {
-//           $lookup: {
-//             from: "attachments",
-//             localField: "latestMessage.attachments",
-//             foreignField: "_id",
-//             as: "populatedAttachments",
-//           },
-//         },
-//         { $sort: { "latestMessage.created_at": -1 } },
-//         { $skip: (page - 1) * limit },
-//         { $limit: limit },
-//       ];
-
-//       const threads = await Message.aggregate(pipeline);
-
-//       messages = threads.map((thread) => ({
-//         ...thread.latestMessage,
-//         attachments: thread.populatedAttachments,
-//         messageCount: thread.messageCount,
-//         unreadCount: thread.unreadCount,
-//       }));
-//     }
-
-//     const total = threadId
-//       ? await Message.countDocuments(query)
-//       : await Message.aggregate([
-//           { $match: query },
-//           { $group: { _id: "$thread_id" } },
-//           { $count: "total" },
-//         ]).then((result) => result[0]?.total || 0);
-
-//     return NextResponse.json({
-//       messages,
-//       pagination: {
-//         page,
-//         limit,
-//         total,
-//         pages: Math.ceil(total / limit),
-//       },
-//       storage: storageInfo, // Add storage info to response
-//     });
-//   } catch (error) {
-//     console.error("Messages fetch error:", error);
-//     return NextResponse.json(
-//       { error: "Internal server error" },
-//       { status: 500 }
-//     );
-//   }
-// }
-
+import { logAuditEvent } from "@/lib/audit";
+import { mailQueue } from "@/lib/queue";
+import Message from "@/models/Message";
+import {redis} from "@/lib/redis";
 
 export async function POST(request: NextRequest) {
   try {
@@ -278,71 +23,79 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    // Check rate limits (this is good to keep here)
+    // Rate limiting check
     const recentMessages = await Message.countDocuments({
       user_id: user.id,
-      created_at: { $gte: new Date(Date.now() - 60 * 60 * 1000) }, // Last hour
+      created_at: { $gte: new Date(Date.now() - 60 * 60 * 1000) },
     });
     if (recentMessages >= 100) {
       return NextResponse.json({ error: "Rate limit exceeded" }, { status: 429 });
     }
 
-    const threadId = validatedData.isDraft ? `draft_${Date.now()}` : `${Date.now()}_${user.id}`;
+    const threadId = `${Date.now()}_${user.id}`;
+    const messageId = new ObjectId();
 
-    const message = new Message({
-      // All your message fields...
-      message_id: new ObjectId(),
+    // 1. Create the outgoing message for the 'sent' folder
+    const sentMessage = new Message({
+      ...validatedData,
+      message_id: messageId,
       from: user.email,
-      to: validatedData.to,
-      cc: validatedData.cc || [],
-      bcc: validatedData.bcc || [],
-      subject: validatedData.subject,
-      html: validatedData.html,
-      // ...etc
-      // The status is correctly set to 'queued' if not a draft
-      status: validatedData.isDraft ? "draft" : "queued",
-      folder: validatedData.isDraft ? "drafts" : "sent",
+      read: true,
+      status: "queued",
+      folder: "sent",
       org_id: user.org_id,
       user_id: user.id,
       thread_id: threadId,
-      sent_at: validatedData.isDraft ? undefined : new Date(),
+      sent_at: new Date(),
+      created_at: new Date(),
+      updated_at: new Date(),
     });
 
-    await message.save();
+    await sentMessage.save();
 
-    // --- REPLACEMENT LOGIC ---
-    // If it's not a draft, add a job to the queue instead of sending directly.
-    if (!validatedData.isDraft) {
-      // The job payload only needs the ID. The worker will fetch the rest.
-      await mailQueue.add("send-email-job", { messageId: message._id.toString() });
+    // 2. Add the job to the queue for sending
+    await mailQueue.add("send-email-job", { messageId: sentMessage._id.toString() });
 
-      // The audit log can stay here, logging the user's intent to send.
-      await logAuditEvent({
-        user_id: user.id.toString(),
-        action: "email_sent_queued", // Changed action name for clarity
-        details: { to: validatedData.to, subject: validatedData.subject },
-        ip: request.headers.get("x-forwarded-for") || "unknown",
-      });
+    // 3. Log the audit event
+    await logAuditEvent({
+      user_id: user.id.toString(),
+      action: "email_sent_queued",
+      details: { to: validatedData.to, subject: validatedData.subject },
+      ip: request.headers.get("x-forwarded-for") || "unknown",
+    });
+
+    // --- FIX: HANDLE SELF-ADDRESSED EMAIL ---
+    const allRecipients = [
+        ...validatedData.to,
+        ...(validatedData.cc || []),
+        ...(validatedData.bcc || []),
+    ].map(email => email.toLowerCase());
+
+    if (allRecipients.includes(user.email.toLowerCase())) {
+        console.log(`Self-addressed email detected. Creating inbox copy for ${user.email}`);
+        const inboxCopy = new Message({
+            ...sentMessage.toObject(), // Create a copy of the sent message data
+            _id: new ObjectId(),      // Give it a new unique database ID
+            folder: 'inbox',          // Place it in the inbox
+            read: false,              // Mark as unread
+            status: 'received',       // Set status to received
+        });
+        await inboxCopy.save();
     }
-    // --- END OF REPLACEMENT ---
+    // --- END OF FIX ---
 
-    // This is a "catch-all" to ensure any folder view is refreshed.
+    // 4. Invalidate Redis Cache
     try {
       const pattern = `cache:msg:${user.id}:*`;
-      console.log(`Invalidating Redis cache with pattern: ${pattern}`);
       const keys = await redis.keys(pattern);
       if (keys.length > 0) {
         await redis.del(keys);
-        console.log(`- Deleted ${keys.length} Redis cache keys.`);
-      } else {
-        console.log(`- No Redis keys found for pattern.`);
       }
     } catch (error) {
-      // Log the error but don't fail the request, as the main DB operation succeeded.
       console.error("Redis cache invalidation error:", error);
     }
 
-    return NextResponse.json({ message });
+    return NextResponse.json({ message: sentMessage });
   } catch (error: any) {
     if (error.name === "ZodError") {
       return NextResponse.json({ error: error.errors }, { status: 400 });

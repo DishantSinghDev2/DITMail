@@ -47,12 +47,10 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     ref,
   ) => {
     const editorRef = useRef<HTMLDivElement>(null)
-    const quotedRef = useRef<HTMLDivElement>(null)
     const lastContentRef = useRef<string>(""); // Keep track of the last emitted content
     const [fontSize, setFontSize] = useState("12")
     const [fontFamily, setFontFamily] = useState("Arial")
     const [quotedHtml, setQuotedHtml] = useState("")
-    const [isQuotedContentExpanded, setIsQuotedContentExpanded] = useState(mode === "forward")
 
     // --- CONTENT PROCESSING & IMPERATIVE HANDLE ---
     const processInitialContent = useCallback((content: string) => {
@@ -70,35 +68,49 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       return content
     }, [mode])
 
-    
-    // --- IMPERATIVE HANDLE ---
-    useImperativeHandle(ref, () => ({
+        useImperativeHandle(ref, () => ({
       getContent: () => editorRef.current?.innerHTML || "",
       setContent: (content: string) => {
         if (editorRef.current && editorRef.current.innerHTML !== content) {
           editorRef.current.innerHTML = content;
+          lastContentRef.current = content;
         }
       },
-      focus: () => editorRef.current?.focus(),
+      focus: () => {
+        editorRef.current?.focus();
+        // Move cursor to the end
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(editorRef.current);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      },
     }));
 
-    // --- INITIALIZATION ---
     useEffect(() => {
-      if (editorRef.current && initialContent) {
-        editorRef.current.innerHTML = initialContent;
-        lastContentRef.current = initialContent; // Initialize last content
-      }
-    }, [initialContent]); // Only run when initialContent changes
+        if (editorRef.current && initialContent) {
+            editorRef.current.innerHTML = initialContent;
+            lastContentRef.current = initialContent;
+        }
+    }, [initialContent]);
 
-    // --- CORE EDITING LOGIC ---
     const executeCommand = useCallback((command: string, value?: string) => {
       document.execCommand(command, false, value)
       editorRef.current?.focus()
-      if (onChange) {
-        const userContent = editorRef.current?.innerHTML || ""
-        onChange(userContent + quotedHtml)
-      }
-    }, [onChange, quotedHtml])
+      handleContentChange(); // Reflect changes immediately
+    }, [])
+
+    const handleContentChange = () => {
+        if (!onChange || !editorRef.current) return;
+        const currentContent = editorRef.current.innerHTML;
+        if (currentContent !== lastContentRef.current) {
+            lastContentRef.current = currentContent;
+            onChange(currentContent);
+        }
+    };
+    
+
 
     // --- ENHANCED EVENT HANDLERS ---
     const handlePaste = useCallback((e: ClipboardEvent) => {
@@ -185,33 +197,16 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
     return (
       <div className={`relative border rounded-lg bg-white overflow-hidden flex flex-col ${className}`}>
         {/* Editing Area and Quoted Content */}
-        <div className="flex-grow overflow-y-auto ditmail-scrollbar">
+        <div className="flex-grow overflow-y-auto">
           <div
             ref={editorRef}
             contentEditable
-            className="p-3 focus:outline-none w-full h-full" // Ensure it takes full space  
-            style={{
-              fontFamily: fontFamily,
-              fontSize: fontSize + "px",
-              lineHeight: "1.5",
-              minHeight: minHeight,
-            }}
+            className="p-3 focus:outline-none w-full h-full"
+            style={{ minHeight, fontFamily, fontSize: `${fontSize}px` }}
             suppressContentEditableWarning={true}
-            onInput={() => {
-              // This is the correct way to handle updates.
-              // It doesn't cause a re-render that moves the cursor.
-              if (onChange) {
-                const currentContent = editorRef.current?.innerHTML || "";
-                // Only call onChange if the content has actually changed
-                if (currentContent !== lastContentRef.current) {
-                  lastContentRef.current = currentContent;
-                  onChange(currentContent);
-                }
-              }
-            }}
+            onInput={handleContentChange} // CRITICAL FIX: Use onInput to detect changes
             data-placeholder={placeholder}
           />
-
         </div>
 
         {/* Floating Toolbar */}
