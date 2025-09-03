@@ -1,4 +1,3 @@
-// app/api/messages/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { ObjectId } from "mongodb";
@@ -36,7 +35,6 @@ export async function POST(request: NextRequest) {
         threadId = `${new ObjectId().toString()}`;
     }
 
-
     const messageId = new ObjectId();
 
     const sentMessage = new Message({
@@ -69,12 +67,20 @@ export async function POST(request: NextRequest) {
       ip: request.headers.get("x-forwarded-for") || "unknown",
     });
 
-    // Handle self-addressed email :)
+    // Handle self-addressed email
     const allRecipients = [...validatedData.to, ...(validatedData.cc || []), ...(validatedData.bcc || [])].map(email => email.toLowerCase());
     if (allRecipients.includes(user.email.toLowerCase())) {
+        
+        // Create a plain JS object from the Mongoose document
+        const messageData = sentMessage.toObject();
+
+        // --- CRITICAL FIX: Remove the original _id. Mongoose will generate a new one. ---
+        delete messageData._id;
+        
         const inboxCopy = new Message({
-            ...sentMessage.toObject(),
-            message_id: new ObjectId(),
+            ...messageData,
+            // Your schema also requires message_id to be unique, so we still need a new one here.
+            message_id: new ObjectId(), 
             folder: 'inbox',
             read: false,
             status: 'received',
@@ -91,7 +97,6 @@ export async function POST(request: NextRequest) {
       console.error("Redis cache invalidation error:", error);
     }
 
-    // Return the newly created message so the UI can optimistically update
     return NextResponse.json({ message: sentMessage });
 
   } catch (error: any) {
