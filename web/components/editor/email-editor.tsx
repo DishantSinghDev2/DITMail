@@ -172,66 +172,66 @@ export function EmailEditor({
   }, [draftId, initialData, replyToMessage, forwardMessage]); // Re-run only when the core context changes
 
   const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => {
-      const formContent = editorRef.current?.getContent() || data.content;
+    const formContent = editorRef.current?.getContent() || data.content;
 
-      const hasRecipients = data.to || data.cc || data.bcc;
-      const hasSubject = data.subject;
-      const hasContent = formContent && formContent !== "<p></p>" && formContent !== "<p><br></p>";
-      const hasAttachments = attachments.length > 0;
+    const hasRecipients = data.to || data.cc || data.bcc;
+    const hasSubject = data.subject;
+    const hasContent = formContent && formContent !== "<p></p>" && formContent !== "<p><br></p>";
+    const hasAttachments = attachments.length > 0;
 
-      if (!hasRecipients && !hasSubject && !hasContent && !hasAttachments) {
-          console.log("Skipping save for empty draft.");
-          return;
+    if (!hasRecipients && !hasSubject && !hasContent && !hasAttachments) {
+      console.log("Skipping save for empty draft.");
+      return;
+    }
+
+    setIsSaving(true);
+
+    const payload = {
+      to: data.to ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      cc: data.cc ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      bcc: data.bcc ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      subject: data.subject || "",
+      html: formContent,
+      attachments: attachments.map((att) => att._id),
+      in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
+    };
+
+    try {
+      const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
+      const method = draftId ? "PATCH" : "POST";
+
+      const response = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) throw new Error(`Failed to save draft: ${response.statusText}`);
+
+      const result = await response.json();
+
+      if (!draftId && onDraftCreated) {
+        onDraftCreated(result.draft._id);
       }
-      
-      setIsSaving(true);
 
-      const payload = {
-          to: data.to ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
-          cc: data.cc ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
-          bcc: data.bcc ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
-          subject: data.subject || "",
-          html: formContent,
-          attachments: attachments.map((att) => att._id),
-          in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
-      };
-
-      try {
-          const url = draftId ? `/api/drafts/${draftId}` : "/api/drafts";
-          const method = draftId ? "PATCH" : "POST";
-
-          const response = await fetch(url, {
-              method,
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-          });
-
-          if (!response.ok) throw new Error(`Failed to save draft: ${response.statusText}`);
-          
-          const result = await response.json();
-
-          if (!draftId && onDraftCreated) {
-              onDraftCreated(result.draft._id);
-          }
-
-          setLastSaved(new Date());
-      } catch (error) {
-          console.error("Auto-save error:", error);
-      } finally {
-          setIsSaving(false);
-      }
+      setLastSaved(new Date());
+    } catch (error) {
+      console.error("Auto-save error:", error);
+    } finally {
+      setIsSaving(false);
+    }
   }, [draftId, replyToMessage, forwardMessage, onDraftCreated]);
 
 
   const debouncedSave = useCallback(debounce(saveDraft, 1500), [saveDraft]);
 
   useEffect(() => {
-      const subscription = form.watch((value, { name, type }) => {
-          if (formInitialized.current) {
-              debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments);
-          }
-      });
-      return () => subscription.unsubscribe();
+    const subscription = form.watch((value, { name, type }) => {
+      if (formInitialized.current) {
+        debouncedSave(value as z.infer<typeof emailSchema>, uploadedAttachments);
+      }
+    });
+    return () => subscription.unsubscribe();
   }, [form, debouncedSave, uploadedAttachments]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -343,7 +343,7 @@ export function EmailEditor({
       });
 
       if (!response.ok) throw new Error("Failed to send email.");
-      
+
       // After sending, discard the draft
       if (draftId) {
         await fetch(`/api/drafts/${draftId}`, { method: "DELETE" });
@@ -355,8 +355,8 @@ export function EmailEditor({
     } catch (error) {
       console.error("Error sending message:", error);
       toast({ title: "Error", description: (error as Error).message, variant: "destructive" });
-    } finally { 
-        setIsSending(false);
+    } finally {
+      setIsSending(false);
     }
   }
 
@@ -516,10 +516,18 @@ export function EmailEditor({
             <RichTextEditor
               ref={editorRef}
               placeholder=""
-              onChange={(content) => form.setValue("content", content, { shouldDirty: true })}
+              // CRITICAL FIX: The onChange handler now only updates the form's
+              // value in the background. It does not trigger a re-render of the editor.
+              onChange={(content) => {
+                // `shouldDirty: true` is important for `form.watch` to detect the change.
+                // `shouldTouch: true` can be useful for validation.
+                form.setValue("content", content, { shouldDirty: true, shouldTouch: true });
+              }}
               className="h-full"
               minHeight="50px"
-              mode={replyToMessage ? "reply" : forwardMessage ? "forward" : "compose"}
+              // CRITICAL FIX: This prop is now only used for the *initial* render.
+              // Because RichTextEditor is memoized, it won't re-render and re-process this
+              // prop when the parent's `isSaving` state changes.
               initialContent={form.getValues("content") || "<p><br></p>"}
               isToolbarVisible={isToolbarVisible}
             />
@@ -550,6 +558,9 @@ export function EmailEditor({
             </div>
 
             <div className="flex items-center space-x-4">
+              <div className="text-xs text-gray-500 h-4 inline">
+                {isSaving ? "Saving..." : lastSaved && <span>Saved {format(lastSaved, "HH:mm")}</span>}
+              </div>
               <Button type="button" variant="ghost" size="icon" onClick={handleDeleteDraft} className="text-gray-600 hover:text-red-600" aria-label="Discard draft">
                 <Trash2 className="h-5 w-5" />
               </Button>

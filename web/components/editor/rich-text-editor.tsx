@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from "react"
+import { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle, memo } from "react"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -15,14 +15,13 @@ const FONT_FAMILIES = ["Arial", "Helvetica", "Times New Roman", "Courier New", "
 const FONT_SIZES = ["8", "9", "10", "11", "12", "14", "16", "18", "20", "22", "24", "26", "28", "36", "48", "72"]
 const COLORS = ["#000000", "#434343", "#666666", "#999999", "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef", "#f3f3f3", "#ffffff", "#980000", "#ff0000", "#ff9900", "#ffff00", "#00ff00", "#00ffff", "#4a86e8", "#0000ff", "#9900ff", "#ff00ff", "#e6b8af", "#f4cccc", "#fce5cd", "#fff2cc", "#d9ead3", "#d0e0e3", "#c9daf8", "#cfe2f3", "#d9d2e9", "#ead1dc"]
 
-// --- COMPONENT PROPS AND REF ---
+// --- COMPONENT PROPS AND REF (Remain the same) ---
 interface RichTextEditorProps {
   placeholder?: string
   className?: string
   initialContent?: string
   onChange?: (content: string) => void
   minHeight?: string
-  mode?: "compose" | "reply" | "forward"
   isToolbarVisible?: boolean
 }
 
@@ -33,7 +32,7 @@ export interface RichTextEditorRef {
 }
 
 // --- MAIN COMPONENT ---
-const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
+const RichTextEditor = memo(forwardRef<RichTextEditorRef, RichTextEditorProps>(
   (
     {
       placeholder = "",
@@ -41,34 +40,17 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       initialContent = "",
       onChange,
       minHeight = "100px",
-      mode = "compose",
       isToolbarVisible = false
     },
     ref,
   ) => {
     const editorRef = useRef<HTMLDivElement>(null)
-    const lastContentRef = useRef<string>(""); // Keep track of the last emitted content
+    const lastContentRef = useRef<string>("");
     const [fontSize, setFontSize] = useState("12")
     const [fontFamily, setFontFamily] = useState("Arial")
-    const [quotedHtml, setQuotedHtml] = useState("")
 
-    // --- CONTENT PROCESSING & IMPERATIVE HANDLE ---
-    const processInitialContent = useCallback((content: string) => {
-      if ((mode === "reply" || mode === "forward") && content.includes("<blockquote")) {
-        const parts = content.split(/<blockquote.*?>/)
-        const userContent = parts[0] || "<p><br></p>"
-        const quote = content.substring(userContent.length)
-        setQuotedHtml(quote)
-        return userContent
-      }
-      if (mode === 'forward') {
-        setQuotedHtml(content);
-        return "<p><br></p>"; // Start with a clean slate for forwarding
-      }
-      return content
-    }, [mode])
-
-        useImperativeHandle(ref, () => ({
+    useImperativeHandle(ref, () => ({
+      // This now correctly reports the full content for saving
       getContent: () => editorRef.current?.innerHTML || "",
       setContent: (content: string) => {
         if (editorRef.current && editorRef.current.innerHTML !== content) {
@@ -78,16 +60,20 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       },
       focus: () => {
         editorRef.current?.focus();
-        // Move cursor to the end
         const range = document.createRange();
         const sel = window.getSelection();
-        range.selectNodeContents(editorRef.current);
-        range.collapse(false);
-        sel?.removeAllRanges();
-        sel?.addRange(range);
+        if (sel && editorRef.current) {
+          range.selectNodeContents(editorRef.current);
+          range.collapse(false); // Go to the end
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
       },
     }));
 
+    // --- SIMPLIFIED INITIALIZATION ---
+    // This effect now runs ONLY when the initialContent prop changes,
+    // which should be only once when the component is first rendered.
     useEffect(() => {
         if (editorRef.current && initialContent) {
             editorRef.current.innerHTML = initialContent;
@@ -95,21 +81,22 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
         }
     }, [initialContent]);
 
-    const executeCommand = useCallback((command: string, value?: string) => {
-      document.execCommand(command, false, value)
-      editorRef.current?.focus()
-      handleContentChange(); // Reflect changes immediately
-    }, [])
-
     const handleContentChange = () => {
         if (!onChange || !editorRef.current) return;
         const currentContent = editorRef.current.innerHTML;
+        // Only call onChange if the content has actually changed.
+        // This prevents redundant state updates.
         if (currentContent !== lastContentRef.current) {
             lastContentRef.current = currentContent;
             onChange(currentContent);
         }
     };
-    
+
+    const executeCommand = useCallback((command: string, value?: string) => {
+      document.execCommand(command, false, value)
+      editorRef.current?.focus()
+      handleContentChange(); // Manually trigger a change check after command
+    }, [])
 
 
     // --- ENHANCED EVENT HANDLERS ---
@@ -128,9 +115,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       }
       if (onChange) {
         const userContent = editorRef.current?.innerHTML || ""
-        onChange(userContent + quotedHtml)
+        onChange(userContent)
       }
-    }, [onChange, quotedHtml])
+    }, [onChange])
 
     const handleCopy = useCallback((e: ClipboardEvent) => {
       const selection = window.getSelection()
@@ -161,13 +148,6 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       }
     }, [handlePaste, handleCopy])
 
-    // --- INITIALIZATION ---
-    useEffect(() => {
-      if (editorRef.current && initialContent) {
-        const userContent = processInitialContent(initialContent)
-        editorRef.current.innerHTML = userContent
-      }
-    }, [initialContent, processInitialContent])
 
     // --- TOOLBAR ACTIONS ---
     const changeFontSize = (size: string) => {
@@ -204,7 +184,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
             className="p-3 focus:outline-none w-full h-full"
             style={{ minHeight, fontFamily, fontSize: `${fontSize}px` }}
             suppressContentEditableWarning={true}
-            onInput={handleContentChange} // CRITICAL FIX: Use onInput to detect changes
+            onInput={handleContentChange} // This is the primary trigger for changes
             data-placeholder={placeholder}
           />
         </div>
@@ -273,7 +253,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(
       </div>
     )
   },
-)
+)) // Close the memo wrapper
 
 RichTextEditor.displayName = "RichTextEditor"
 
