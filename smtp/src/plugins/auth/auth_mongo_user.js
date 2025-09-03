@@ -5,6 +5,8 @@
 const mongodb = require('mongodb');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { MongoClient, ObjectId } = require('mongodb');
+
 
 // --- Module-level variables ---
 let db, users, domains, appPasswords;
@@ -117,7 +119,7 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         // --- AUTHENTICATION LOGIC ---
         // 1. Try App Password Authentication FIRST (for automated services)
         if (ENCRYPTION_KEY) {
-            const userAppPasswords = await appPasswords.find({ user_id: user._id }).toArray();
+            const userAppPasswords = await appPasswords.find({ user_id: new ObjectId(user._id) }).toArray();
 
             // --- !! ADD THIS LOGGING BLOCK !! ---
             plugin.loginfo("--- HARAKA AUTH DEBUG ---");
