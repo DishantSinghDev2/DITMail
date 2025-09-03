@@ -13,19 +13,19 @@ let ENCRYPTION_KEY;
 
 // --- Helper function for decryption ---
 function decrypt(text, key, plugin) {
-  try {
-    const parts = text.split(':');
-    if (parts.length < 2) throw new Error('Invalid encrypted text format.');
-    const iv = Buffer.from(parts.shift(), 'hex');
-    const encryptedText = parts.join(':');
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-    let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (e) {
-    plugin.logerror(`Decryption failed: ${e.message}`);
-    return null; // Return null on failure
-  }
+    try {
+        const parts = text.split(':');
+        if (parts.length < 2) throw new Error('Invalid encrypted text format.');
+        const iv = Buffer.from(parts.shift(), 'hex');
+        const encryptedText = parts.join(':');
+        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+        let decrypted = decipher.update(encryptedText, 'hex', 'utf8');
+        decrypted += decipher.final('utf8');
+        return decrypted;
+    } catch (e) {
+        plugin.logerror(`Decryption failed: ${e.message}`);
+        return null; // Return null on failure
+    }
 }
 
 // --- Haraka Plugin Registration ---
@@ -118,15 +118,34 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         // 1. Try App Password Authentication FIRST (for automated services)
         if (ENCRYPTION_KEY) {
             const userAppPasswords = await appPasswords.find({ user_id: user._id }).toArray();
+
+            // --- !! ADD THIS LOGGING BLOCK !! ---
+            plugin.loginfo("--- HARAKA AUTH DEBUG ---");
+            plugin.loginfo(`Password received from client: ${password}`);
+            if (userAppPasswords.length > 0) {
+                plugin.loginfo(`Encrypted string from DB: ${userAppPasswords[0].encrypted_password}`);
+            } else {
+                plugin.logwarn("No App Password found in DB for this user.");
+            }
+            // --- !! END OF LOGGING BLOCK !! ---
+
             for (const ap of userAppPasswords) {
                 const plainTextPassword = decrypt(ap.encrypted_password, ENCRYPTION_KEY, plugin);
+
+                // --- !! ADD THIS LOGGING BLOCK !! ---
+                plugin.loginfo(`Result of Haraka's decryption: ${plainTextPassword}`);
+                plugin.loginfo(`Comparing client pass to Haraka pass: ${password === plainTextPassword ? 'MATCH' : 'NO MATCH'}`);
+                plugin.loginfo("-------------------------");
+                // --- !! END OF LOGGING BLOCK !! ---
+
                 if (plainTextPassword !== null && plainTextPassword === password) {
                     plugin.loginfo(`Unified Auth: User ${username} authenticated successfully via App Password.`);
                     return plugin.on_auth_success(connection, user, cb);
                 }
             }
         }
-        
+
+
         // 2. If App Password auth fails or is not configured, fall back to user password (bcrypt)
         if (user.password_hash) {
             const match = await bcrypt.compare(password, user.password_hash);
@@ -155,12 +174,12 @@ exports.on_auth_success = async function (connection, user, cb) {
     const username = user.email;
 
     // --- Domain and Access Checks (from your original plugin) ---
-    if (!user.mailboxAccess){
+    if (!user.mailboxAccess) {
         plugin.logwarn(`AUTH failed for user: ${username} (no mailbox access)`);
         connection.notes.auth_message = "Your account does not have SMTP mailbox access.";
         return cb(false);
     }
-    
+
     const org_id = user.org_id ? user.org_id.toString() : null;
     if (!org_id) {
         plugin.logwarn(`AUTH failed for user: ${username} (no org associated)`);
@@ -179,7 +198,7 @@ exports.on_auth_success = async function (connection, user, cb) {
             connection.notes.auth_message = "Your organization does not have any verified domains.";
             return cb(false);
         }
-        
+
         const domainMatch = orgDomains.some(domain => username.toLowerCase().endsWith(`@${domain}`));
         if (!domainMatch) {
             plugin.logwarn(`AUTH failed for user: ${username} (domain mismatch)`);
@@ -187,12 +206,12 @@ exports.on_auth_success = async function (connection, user, cb) {
             return cb(false);
         }
     }
-    
+
     // --- All checks passed ---
     connection.set('auth_user', username.toLowerCase());
     connection.notes.user = user; // Store full user object
     connection.relaying = true; // Allow sending outbound mail
-    
+
     return cb(true);
 };
 
