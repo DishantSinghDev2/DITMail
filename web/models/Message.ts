@@ -8,8 +8,8 @@ export interface IMessage extends Document {
   to: string[]
   cc?: string[]
   bcc?: string[]
-  subject: string
-  html: string
+  subject?: string
+  html?: string
   text?: string
   attachments: mongoose.Types.ObjectId[]
   status: "sent" | "received" | "draft" | "failed" | "queued"
@@ -41,8 +41,8 @@ const MessageSchema = new Schema<IMessage>({
   to: [{ type: String, required: true, lowercase: true }],
   cc: [{ type: String, lowercase: true }],
   bcc: [{ type: String, lowercase: true }],
-  subject: { type: String, required: true },
-  html: { type: String, required: true },
+  subject: { type: String, required: false },
+  html: { type: String, required: false },
   text: String,
   attachments: [{ type: Schema.Types.ObjectId, ref: "Attachment" }],
   status: {
