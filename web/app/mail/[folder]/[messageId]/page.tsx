@@ -48,7 +48,7 @@ export default async function MessagePage({ params }: PageProps) {
 
     return (
         <MessageViewClient
-            threadMessages={threadMessages}
+            initialThreadMessages={threadMessages}
             totalMessages={positionData.total}
             currentMessage={positionData.index}
             previousMessageId={positionData.previousMessageId}
