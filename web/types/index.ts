@@ -32,6 +32,7 @@ export interface Message {
   subject: string;
   from: string;
   to: string[];
+  isDraft: boolean;
   cc?: string[];
   bcc?: string[];
   text: string;

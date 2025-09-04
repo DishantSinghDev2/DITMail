@@ -47,7 +47,7 @@ export default function GlobalError({
             <RotateCw className="mr-2 h-5 w-5" />
             Try Again
           </button>
-          <Link href="/" className="w-full sm:w-auto">
+          <Link href="/mail/inbox" className="w-full sm:w-auto">
             <button
               className="inline-flex w-full items-center justify-center rounded-lg border border-slate-300 bg-transparent px-6 py-3 text-base font-medium text-slate-700 shadow-sm transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700 dark:focus:ring-offset-slate-800"
             >

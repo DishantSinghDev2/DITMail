@@ -338,9 +338,9 @@ export function MessageListClient({
                       markAsReadInBackground(message._id);
                     }
                   }}
-                  className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${!isRead ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
+                  className={`flex items-start p-4 hover:bg-gray-50 cursor-pointer transition-colors relative ${(!isRead && !message.isDraft) ? "bg-blue-50/50 font-medium" : ""} ${selectedMessages.has(message._id) ? "bg-blue-100" : ""}`}
                 >
-                  <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${!isRead ? 'bg-blue-600' : 'bg-transparent'}`}></div>
+                  <div className={`absolute left-0 top-0 bottom-0 w-1 transition-colors ${(!isRead && !message.isDraft) ? 'bg-blue-600' : 'bg-transparent'}`}></div>
                   <div className="flex items-center gap-3 mr-3">
                     <input
                       type="checkbox"
