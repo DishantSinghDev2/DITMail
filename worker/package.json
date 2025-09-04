@@ -15,7 +15,6 @@
     "bcryptjs": "^3.0.2",
     "bullmq": "^5.56.1",
     "dotenv": "^17.0.1",
-    "mailcomposer": "^4.0.2",
     "mongoose": "^8.16.1",
     "node-dkim": "^0.0.3",
     "nodemailer": "^7.0.6",

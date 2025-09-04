@@ -5,7 +5,7 @@ import mongoose from 'mongoose';
 import { config } from 'dotenv';
 import { Db, GridFSBucket } from 'mongodb';
 import { Readable } from 'stream';
-import MailComposer = require('nodemailer/lib/mail-composer');
+import MailComposer from 'nodemailer/lib/mail-composer'
 
 
 // Configured dotenv
@@ -103,11 +103,10 @@ const mailProcessor = async (job: Job) => {
       throw new Error(`Domain ${fromDomain} not verified or DKIM key missing.`);
     }
 
-    const mailOptions: MailComposer.Options = {
+    const mailOptions: any = {
       from: message.from,
       to: message.to,
       subject: message.subject,
-      // --- ADDED: Ensure valid HTML and provide text fallback ---
       html: message.html || "<html><body></body></html>",
       text: message.text || "This email is in HTML format.",
     };
