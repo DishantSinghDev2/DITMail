@@ -64,6 +64,7 @@
     "framer-motion": "^12.23.12",
     "fs": "latest",
     "gcp-metadata": "latest",
+    "html-to-text": "^9.0.5",
     "input-otp": "1.4.1",
     "ioredis": "latest",
     "jsonwebtoken": "latest",
@@ -105,6 +106,7 @@
   "devDependencies": {
     "@types/cookie": "^0.6.0",
     "@types/express": "^5.0.3",
+    "@types/html-to-text": "^9.0.4",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/lodash": "^4.17.18",
     "@types/node": "^22.16.0",

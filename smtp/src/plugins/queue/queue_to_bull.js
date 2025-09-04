@@ -1,6 +1,6 @@
 // plugins/queue_to_bull.js
 const { Queue } = require('bullmq');
-const { MongoClient, ObjectId } = require('mongodb');
+const { MongoClient, ObjectId, GridFSBucket } = require('mongodb');
 const { simpleParser, MailParser } = require('mailparser'); // choose parser in code paths
 const { Readable } = require('stream');
 const fs = require('fs');
@@ -83,6 +83,8 @@ exports.intercept_for_worker = async function (next, connection) {
         const db = mongoClient.db("ditmail");
         const usersCollection = db.collection("users");
         const messagesCollection = db.collection("messages");
+        const attachmentBucket = new GridFSBucket(db, { bucketName: 'attachments' });
+
 
         const authUserEmail = connection.get("auth_user");
         if (!authUserEmail) {
@@ -105,6 +107,35 @@ exports.intercept_for_worker = async function (next, connection) {
 
         const parsed = await simpleParser(rawEmail);
         const now = new Date();
+
+        const attachmentIds = [];
+        if (parsed.attachments && parsed.attachments.length > 0) {
+            for (const att of parsed.attachments) {
+                if (att.content && att.content.length > 0) {
+                    // This function streams the buffer to GridFS and returns the ID
+                    const gridfsId = await new Promise((resolve, reject) => {
+                        const readableStream = Readable.from(att.content);
+                        const uploadStream = attachmentBucket.openUploadStream(att.filename, {
+                            contentType: att.contentType,
+                        });
+
+                        uploadStream.on('finish', () => {
+                            resolve(uploadStream.id); // The ObjectId of the stored file
+                        });
+
+                        uploadStream.on('error', (err) => {
+                            reject(err);
+                        });
+
+                        readableStream.pipe(uploadStream);
+                    });
+
+                    // We can now reference this ID
+                    attachmentIds.push(gridfsId);
+                }
+            }
+        }
+
         const message = {
             _id: new ObjectId(), // your own DB id
             message_id: parsed.messageId || new ObjectId().toString(),
@@ -114,14 +145,15 @@ exports.intercept_for_worker = async function (next, connection) {
             cc: parsed.cc ? parsed.cc.value.map(addr => addr.address) : [],
             bcc: parsed.bcc ? parsed.bcc.value.map(addr => addr.address) : [],
             subject: parsed.subject || "",
-            html: parsed.html || parsed.textAsHtml || "",
-            text: parsed.text || "",
+            html: parsed.html || parsed.textAsHtml || "<html><body><p>This email is best viewed in an HTML-compatible email client.</p></body></html>",
+            text: parsed.text || "This email requires an HTML-compatible email client.",
             attachments: parsed.attachments?.map(a => ({
                 filename: a.filename,
                 contentType: a.contentType,
                 size: a.size,
                 cid: a.cid,
             })) || [],
+            attachment_gridfs_ids: attachmentIds,
             status: "queued",
             folder: "sent",
             org_id: user.org_id,

@@ -3,30 +3,27 @@ import SMTPConnection from 'smtp-connection';
 import { DKIMSign } from 'node-dkim';
 import mongoose from 'mongoose';
 import { config } from 'dotenv';
+import { GridFSBucket } from 'mongodb';
+import { Readable } from 'stream';
+import MailComposer from 'mailcomposer';
 
-// Configure dotenv
+// Configured dotenv
 config({ path: '.env' });
-console.log('--- Worker Key Check ---');
-const workerKey = process.env.APP_ENCRYPTION_KEY || '';
-console.log(`Worker Key Length: ${Buffer.from(workerKey, 'base64').length} bytes`);
-console.log(`Worker Key Preview: ${workerKey.slice(0, 4)}...${workerKey.slice(-4)}`);
-console.log('------------------------');
 
 // Import your Mongoose models
 import Message from '../models/Message';
 import Domain from '../models/Domain';
 import '../models/User';
+import Attachment from '../models/Attachment';
 import AppPassword from '../models/AppPassword';
 import { publishMailboxEvent } from '../lib/redis';
 
-// --- DATABASE AND REDIS CONNECTION ---
 mongoose.connect(process.env.MONGO_URI!);
 
 const redisConnection = {
   url: process.env.REDIS_URL || '',
 };
 
-// --- WRAPPERS FOR SMTP-CONNECTION (PROMISIFIED) ---
 function connectAsync(connection: InstanceType<typeof SMTPConnection>): Promise<void> {
   return new Promise((resolve, reject) => {
     connection.connect((err?: Error) => {
@@ -52,13 +49,37 @@ function quitAsync(connection: InstanceType<typeof SMTPConnection>): Promise<voi
   });
 }
 
-// --- THE WORKER PROCESSOR ---
+async function downloadFromGridFS(bucket: GridFSBucket, fileId: mongoose.Types.ObjectId): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    const downloadStream = bucket.openDownloadStream(fileId);
+
+    downloadStream.on('data', (chunk) => {
+      chunks.push(chunk);
+    });
+
+    downloadStream.on('end', () => {
+      resolve(Buffer.concat(chunks));
+    });
+
+    downloadStream.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
+
+
+// --- THE Mail procc ---
 const mailProcessor = async (job: Job) => {
   const { messageId } = job.data;
   console.log(`Processing job ${job.id} for message: ${messageId}`);
 
-  // Fetch the message and populate the user_id field
-  const message = await Message.findById(messageId).populate('user_id');
+  const db = mongoose.connection.db;
+  const attachmentBucket = new GridFSBucket(db, { bucketName: 'attachments' }); 
+
+  const message = await Message.findById(messageId)
+    .populate('user_id')
+    .populate('attachments'); // This populates based on your schema
 
   if (!message || !message.user_id) {
     throw new Error(`Message or associated User not found for ID: ${messageId}`);
@@ -81,15 +102,43 @@ const mailProcessor = async (job: Job) => {
       throw new Error(`Domain ${fromDomain} not verified or DKIM key missing.`);
     }
 
-    // Construct raw email
-    let rawEmail = `X-Internal-Message-ID: ${message._id}\r\n`;
-    rawEmail += `From: ${message.from}\r\n`;
-    rawEmail += `To: ${message.to.join(', ')}\r\n`;
-    if (message.cc?.length) rawEmail += `Cc: ${message.cc.join(', ')}\r\n`;
-    rawEmail += `Subject: ${message.subject}\r\n`;
-    rawEmail += `MIME-Version: 1.0\r\n`;
-    rawEmail += `Content-Type: text/html; charset=utf-8\r\n\r\n`;
-    rawEmail += message.html;
+    const mailOptions: MailComposer.Options = {
+      from: message.from,
+      to: message.to,
+      subject: message.subject,
+      // --- ADDED: Ensure valid HTML and provide text fallback ---
+      html: message.html || "<html><body></body></html>",
+      text: message.text || "This email is in HTML format.",
+    };
+
+    if (message.cc?.length) mailOptions.cc = message.cc;
+    if (message.bcc?.length) mailOptions.bcc = message.bcc;
+
+    // --- NEW: Fetch attachment content from gridfs ---
+    if (message.attachments && message.attachments.length > 0) {
+      const attachmentPromises = message.attachments.map(async (att: any) => {
+        console.log(`Downloading attachment ${att.filename} from GridFS ID: ${att.gridfs_id}`);
+        const contentBuffer = await downloadFromGridFS(attachmentBucket, att.gridfs_id);
+        return {
+          filename: att.filename,
+          content: contentBuffer,
+          contentType: att.mimeType,
+        };
+      });
+
+      mailOptions.attachments = await Promise.all(attachmentPromises);
+    }
+
+    const mail = new MailComposer(mailOptions);
+    const rawEmailStream = mail.compile().createReadStream();
+
+    const rawEmail = await new Promise<string>((resolve, reject) => {
+      let body = '';
+      rawEmailStream.on('data', (chunk) => (body += chunk.toString()));
+      rawEmailStream.on('end', () => resolve(body));
+      rawEmailStream.on('error', reject);
+    });
+
 
     // DKIM signing
     const dkimSignature = DKIMSign(rawEmail, {
@@ -108,7 +157,7 @@ const mailProcessor = async (job: Job) => {
     });
 
     await connectAsync(connection);
-    console.log("Trying login with:", user.email, plainTextPassword.slice(0,3) + "****");
+    console.log("Trying login with:", user.email, plainTextPassword.slice(0, 3) + "****");
 
     await loginAsync(connection, { user: user.email, pass: plainTextPassword });
 

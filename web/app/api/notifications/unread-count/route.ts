@@ -6,9 +6,9 @@ import { notificationService } from "@/lib/notifications"
 
 export async function GET(request: NextRequest) {
   try {
-   
-        const session = await getServerSession(authOptions);
-        const user = session?.user as SessionUser | undefined;
+
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 })
     }

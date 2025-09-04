@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get activities with user information
+    // Get all activities with user's information
     const activities = await AuditLog.aggregate([
       { $match: query },
       { $sort: { created_at: -1 } },
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       },
       {
         $project: {
-          user: 0, // Remove the full user object
+          user: 0,
         },
       },
     ])

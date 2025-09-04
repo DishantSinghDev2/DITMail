@@ -11,6 +11,8 @@ import Message from "@/models/Message";
 import Draft from "@/models/Draft";
 import { redis } from "@/lib/redis";
 import { revalidateTag } from "next/cache";
+import { htmlToText } from 'html-to-text';
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -24,6 +26,11 @@ export async function POST(request: NextRequest) {
     const validatedData = composeEmailSchema.parse(body);
 
     await connectDB();
+
+    const textContent = validatedData.html
+      ? htmlToText(validatedData.html, { wordwrap: 130 })
+      : '';
+
 
     let threadId = validatedData.thread_id;
     if (validatedData.in_reply_to && !threadId) {
@@ -44,6 +51,7 @@ export async function POST(request: NextRequest) {
       message_id: messageId,
       from: user.email,
       read: true,
+      text: textContent,
       status: "queued",
       folder: "sent",
       org_id: user.org_id,
@@ -69,19 +77,18 @@ export async function POST(request: NextRequest) {
       ip: request.headers.get("x-forwarded-for") || "unknown",
     });
 
-    // Handle self-addressed email
+    // Handle self-addressed email like gmail does
     const allRecipients = [...validatedData.to, ...(validatedData.cc || []), ...(validatedData.bcc || [])].map(email => email.toLowerCase());
     if (allRecipients.includes(user.email.toLowerCase())) {
 
-      // Create a plain JS object from the Mongoose document
       const messageData = sentMessage.toObject();
 
-      // --- CRITICAL FIX: Remove the original _id. Mongoose will generate a new one. ---
+      // This is imp
       delete messageData._id;
 
       const inboxCopy = new Message({
         ...messageData,
-        // Your schema also requires message_id to be unique, so we still need a new one here.
+        // and this stuff too
         message_id: new ObjectId(),
         folder: 'inbox',
         read: false,
