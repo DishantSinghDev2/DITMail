@@ -236,6 +236,41 @@ export function EmailEditor({
     return () => subscription.unsubscribe();
   }, [form, debouncedSave, uploadedAttachments]);
 
+  const handleInitialSave = async (): Promise<string | null> => {
+    setIsSaving(true)
+    const data = form.getValues()
+    const payload = {
+      to: data.to ? data.to.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      cc: data.cc ? data.cc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      bcc: data.bcc ? data.bcc.split(",").map((e: string) => e.trim()).filter(Boolean) : [],
+      subject: data.subject || "",
+      html: editorRef.current?.getContent() || data.content,
+      attachments: uploadedAttachments.map(att => att._id),
+      in_reply_to_id: replyToMessage?.message_id || forwardMessage?.message_id,
+    }
+    try {
+      const response = await fetch("/api/drafts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!response.ok) throw new Error(`Failed to create draft: ${response.statusText}`)
+      const result = await response.json()
+      const newDraftId = result.draft._id
+      if (onDraftCreated) {
+        onDraftCreated(newDraftId)
+      }
+      setLastSaved(new Date())
+      return newDraftId
+    } catch (error) {
+      console.error("Initial save error:", error)
+      toast({ title: "Error", description: "Could not create a draft to save the attachment.", variant: "destructive" })
+      return null
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (!files) return
@@ -250,6 +285,15 @@ export function EmailEditor({
         toast({ title: "Invalid file type", description: `${file.name} is not a valid file type.`, variant: "destructive" })
         return
       }
+    }
+    // Ensure a draft exists before uploading.
+    let currentDraftId = draftId
+    if (!currentDraftId) {
+      const newDraftId = await handleInitialSave()
+      if (!newDraftId) {
+        return
+      }
+      currentDraftId = newDraftId
     }
 
     // Optimistic UI update
@@ -269,7 +313,7 @@ export function EmailEditor({
       const tempId = tempAttachments[i]._id
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("message_id", draftId || "new")
+      formData.append("message_id", currentDraftId)
       try {
         const response = await fetch("/api/attachments", {
           method: "POST",

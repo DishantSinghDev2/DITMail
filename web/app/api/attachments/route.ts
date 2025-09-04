@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {connectDB} from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Attachment from "@/models/Attachment"
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
@@ -10,9 +10,9 @@ import Draft from "@/models/Draft"
 
 export async function POST(request: NextRequest) {
   try {
-   
-       const session = await getServerSession(authOptions);
-       const user = session?.user as SessionUser | undefined;
+
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
