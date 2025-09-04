@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
     // This ensures the MessageViewClient gets fresh data if visited again.
     console.log(`Revalidating unstable_cache tags for ${originalMessages.length} messages.`);
     originalMessages.forEach(msg => {
-      const tag = `thread:${msg._id}`;
+      const tag = `thread:${msg.message_id}`;
       revalidateTag(tag);
       console.log(`- Revalidated tag: ${tag}`);
     });

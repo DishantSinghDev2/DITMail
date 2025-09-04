@@ -10,6 +10,7 @@ import { mailQueue } from "@/lib/queue";
 import Message from "@/models/Message";
 import Draft from "@/models/Draft";
 import { redis } from "@/lib/redis";
+import { revalidateTag } from "next/cache";
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,13 +27,14 @@ export async function POST(request: NextRequest) {
 
     let threadId = validatedData.thread_id;
     if (validatedData.in_reply_to && !threadId) {
-        const originalMessage = await Message.findOne({ message_id: validatedData.in_reply_to, user_id: user.id });
-        if (originalMessage) {
-            threadId = originalMessage.thread_id;
-        }
+      const originalMessage = await Message.findOne({ message_id: validatedData.in_reply_to, user_id: user.id });
+      if (originalMessage) {
+        threadId = originalMessage.thread_id;
+        revalidateTag(`thread:${validatedData.in_reply_to}`)
+      }
     }
     if (!threadId) {
-        threadId = `${new ObjectId().toString()}`;
+      threadId = `${new ObjectId().toString()}`;
     }
 
     const messageId = new ObjectId();
@@ -55,7 +57,7 @@ export async function POST(request: NextRequest) {
     await sentMessage.save();
 
     if (validatedData.draft_id_to_delete) {
-        await Draft.deleteOne({ _id: validatedData.draft_id_to_delete, user_id: user.id });
+      await Draft.deleteOne({ _id: validatedData.draft_id_to_delete, user_id: user.id });
     }
 
     await mailQueue.add("send-email-job", { messageId: sentMessage._id.toString() });
@@ -70,24 +72,24 @@ export async function POST(request: NextRequest) {
     // Handle self-addressed email
     const allRecipients = [...validatedData.to, ...(validatedData.cc || []), ...(validatedData.bcc || [])].map(email => email.toLowerCase());
     if (allRecipients.includes(user.email.toLowerCase())) {
-        
-        // Create a plain JS object from the Mongoose document
-        const messageData = sentMessage.toObject();
 
-        // --- CRITICAL FIX: Remove the original _id. Mongoose will generate a new one. ---
-        delete messageData._id;
-        
-        const inboxCopy = new Message({
-            ...messageData,
-            // Your schema also requires message_id to be unique, so we still need a new one here.
-            message_id: new ObjectId(), 
-            folder: 'inbox',
-            read: false,
-            status: 'received',
-        });
-        await inboxCopy.save();
+      // Create a plain JS object from the Mongoose document
+      const messageData = sentMessage.toObject();
+
+      // --- CRITICAL FIX: Remove the original _id. Mongoose will generate a new one. ---
+      delete messageData._id;
+
+      const inboxCopy = new Message({
+        ...messageData,
+        // Your schema also requires message_id to be unique, so we still need a new one here.
+        message_id: new ObjectId(),
+        folder: 'inbox',
+        read: false,
+        status: 'received',
+      });
+      await inboxCopy.save();
     }
-    
+
     // Invalidate Redis Cache
     try {
       const pattern = `cache:msg:${user.id}:*`;
@@ -96,6 +98,7 @@ export async function POST(request: NextRequest) {
     } catch (error) {
       console.error("Redis cache invalidation error:", error);
     }
+
 
     return NextResponse.json({ message: sentMessage });
 
