@@ -3,9 +3,9 @@ import SMTPConnection from 'smtp-connection';
 import { DKIMSign } from 'node-dkim';
 import mongoose from 'mongoose';
 import { config } from 'dotenv';
-import { GridFSBucket } from 'mongodb';
+import { Db, GridFSBucket } from 'mongodb';
 import { Readable } from 'stream';
-import MailComposer from 'mailcomposer';
+const MailComposer = require("mailcomposer");
 
 // Configured dotenv
 config({ path: '.env' });
@@ -75,7 +75,7 @@ const mailProcessor = async (job: Job) => {
   console.log(`Processing job ${job.id} for message: ${messageId}`);
 
   const db = mongoose.connection.db;
-  const attachmentBucket = new GridFSBucket(db, { bucketName: 'attachments' }); 
+  const attachmentBucket = new GridFSBucket(db as Db, { bucketName: 'attachments' }); 
 
   const message = await Message.findById(messageId)
     .populate('user_id')
@@ -134,7 +134,7 @@ const mailProcessor = async (job: Job) => {
 
     const rawEmail = await new Promise<string>((resolve, reject) => {
       let body = '';
-      rawEmailStream.on('data', (chunk) => (body += chunk.toString()));
+      rawEmailStream.on('data', (chunk: any) => (body += chunk.toString()));
       rawEmailStream.on('end', () => resolve(body));
       rawEmailStream.on('error', reject);
     });
