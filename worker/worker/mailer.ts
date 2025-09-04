@@ -5,7 +5,8 @@ import mongoose from 'mongoose';
 import { config } from 'dotenv';
 import { Db, GridFSBucket } from 'mongodb';
 import { Readable } from 'stream';
-const MailComposer = require("mailcomposer");
+import MailComposer = require('nodemailer/lib/mail-composer');
+
 
 // Configured dotenv
 config({ path: '.env' });
