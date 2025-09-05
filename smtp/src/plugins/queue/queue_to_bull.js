@@ -154,6 +154,8 @@ exports.intercept_for_worker = async function (next, connection) {
                 cid: a.cid,
             })) || [],
             attachment_gridfs_ids: attachmentIds,
+            size: rawEmail.length,
+            headers: Object.fromEntries(parsed.headers.entries()),
             status: "queued",
             folder: "sent",
             org_id: user.org_id,

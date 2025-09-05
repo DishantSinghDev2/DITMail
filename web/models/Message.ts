@@ -29,6 +29,7 @@ export interface IMessage extends Document {
   sent_at?: Date
   received_at?: Date
   read_at?: Date
+  error?: string;
   headers: Map<string, string>
   search_text: string // For full-text search
 }
@@ -70,6 +71,7 @@ const MessageSchema = new Schema<IMessage>({
   sent_at: Date,
   received_at: Date,
   read_at: Date,
+  error: { type: String },
   headers: { type: Map, of: String },
   search_text: { type: String, index: true },
 })

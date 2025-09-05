@@ -27,7 +27,8 @@ import InlineReplyComposer from "@/components/inline-reply-composer";
 import { useMailStore } from "@/lib/store/mail";
 import { useSession } from "next-auth/react";
 import { formatDisplayName } from "@/lib/mail-utils";
-
+import FailureBanner from "./FailureBanner";
+import MessageHeaders from "./MessageHeaders";
 
 
 // --- PROPS INTERFACE ---
@@ -223,6 +224,8 @@ export function MessageViewClient({
     const fromName = formatDisplayName(msg.from, currentUserEmail);
     const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail)).join(", ");
 
+    const mailDomain = msg.from.split('@')[1] || 'domain.com';
+
     return (
       <div key={msg._id} className="border rounded-lg mb-4">
         <div className={`p-4 cursor-pointer hover:bg-gray-50 ${isExpanded ? "border-b" : ""}`} onClick={() => isThread && toggleMessageExpansion(msg._id)}>
@@ -241,6 +244,17 @@ export function MessageViewClient({
 
         {isExpanded && (
           <div className="p-4">
+            <div className="mb-4">
+              <MessageHeaders
+                from={fromName}
+                to={msg.to.map(p => formatDisplayName(p, currentUserEmail))}
+                cc={msg.cc?.map(p => formatDisplayName(p, currentUserEmail))}
+                date={msg.created_at}
+                subject={msg.subject}
+                mailedBy={mailDomain}
+                signedBy={mailDomain}
+              />
+            </div>
             {msg.folder === "spam" && <SpamBanner onMarkNotSpam={handleUnMarkSpam} />}
             <EmailViewer html={msg.html} isSpam={msg.folder === "spam"} />
 
