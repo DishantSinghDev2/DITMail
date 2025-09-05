@@ -25,7 +25,7 @@ async function verifyAndDecodeToken(token: string): Promise<JWTPayload | null> {
     const { id, email, org_id } = decoded as Partial<JWTPayload>;
     if (!id || !email || !org_id) return null;
 
-    return decoded as JWTPayload;
+    return decoded as any;
   } catch (err) {
     console.error("Token decoding error:", err);
     return null;
