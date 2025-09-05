@@ -78,7 +78,7 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
         setFolderCounts(data.counts);
       }
     } catch (error) { console.error("Failed to fetch counts:", error); }
-  }, []); 
+  }, []);
 
   // --- Effects ---
   useEffect(() => {
@@ -264,8 +264,8 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
               )}
               {(customFolders || []).map((folder) => (
                 <div key={folder._id} className="group flex items-center justify-between text-sm pr-1">
-                  <Link 
-                    href={`/mail/folder/${folder._id}`} 
+                  <Link
+                    href={`/mail/folder/${folder._id}`}
                     scroll={false}
                     className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'folder' && selectedId === folder._id ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}
                   >
@@ -314,8 +314,8 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
               )}
               {(labels || []).map((label) => (
                 <div key={label._id} className="group flex items-center justify-between text-sm pr-1">
-                 <Link 
-                    href={`/mail/label/${label.name}`} 
+                  <Link
+                    href={`/mail/label/${label.name}`}
                     scroll={false}
                     className={`flex items-center space-x-2 flex-1 p-1 rounded-md truncate ${selectedPath === 'label' && selectedId === label.name ? 'text-blue-700 bg-blue-50' : 'hover:bg-gray-100'}`}
                   >
@@ -336,9 +336,9 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
       <div className="border-t p-4 flex-shrink-0">
         <div className={`flex items-center space-x-3 ${!isExpanded ? 'justify-center' : ''}`}>
           <Avatar className="h-8 w-8">
-                {user.email && <AvatarImage src={`https://whatsyour.info/api/v1/avatar/${user.email}`} alt={user.name} />}
-                <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-              </Avatar>
+            {user.email && <AvatarImage src={`https://whatsyour.info/api/v1/avatar/${user.email}`} alt={user.name} />}
+            <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+          </Avatar>
           {isExpanded && (
             <div className="flex-1 min-w-0 flex justify-between items-center">
               <div>

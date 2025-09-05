@@ -7,7 +7,6 @@ import { MessageListClient } from "@/components/mail/MessageListClient";
 import { notFound } from "next/navigation";
 import { SessionUser } from "@/types";
 
-// Update PageProps to accept all possible search parameters.
 interface PageProps {
   params: { folder: string };
   searchParams: {
@@ -36,10 +35,6 @@ export default async function FolderPage({ params, searchParams }: PageProps) {
 
   const folder = params.folder || "inbox";
   
-  // --- CORRECTED DATA FETCHING LOGIC ---
-  
-  // The folder from the URL is the primary folder.
-  // The options object will contain all other filters from the search params.
   const options = {
       folder: folder,
       page: Number(searchParams.page) || 1,
@@ -58,16 +53,14 @@ export default async function FolderPage({ params, searchParams }: PageProps) {
       label: searchParams.label,
   };
 
-  // Note: The separate 'getDraftsForUser' is no longer needed,
-  // as the main function now handles the 'drafts' case internally.
   const data = await getMessagesForFolder(user.id, options);
 
   return (
     <MessageListClient
       initialMessages={data.messages}
-      pagination={data.pagination} // Pass the whole pagination object
+      pagination={data.pagination} 
       folder={folder}
-      storageInfo={data.storage} // Pass the whole storage object
+      storageInfo={data.storage}
     />
   );
 }

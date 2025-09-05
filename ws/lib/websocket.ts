@@ -2,7 +2,6 @@ import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 import { decode } from "next-auth/jwt";
 
-// The secret remains the same
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 export interface JWTPayload {
@@ -14,29 +13,34 @@ export interface JWTPayload {
   org_id: string;
 }
 
-// --- NEW: A new function using next-auth's decode ---
 async function verifyAndDecodeToken(token: string): Promise<JWTPayload | null> {
   try {
-    const decodedToken = await decode({
-      token: token,
+    const decoded = await decode({
+      token,
       secret: JWT_SECRET,
     });
-    // The decode function returns null if verification fails
-    return decodedToken as JWTPayload | null;
+
+    if (!decoded) return null;
+
+    const { id, email, org_id } = decoded as Partial<JWTPayload>;
+    if (!id || !email || !org_id) return null;
+
+    return decoded as JWTPayload;
   } catch (err) {
     console.error("Token decoding error:", err);
     return null;
   }
 }
+
 let redis: Redis | null = null;
-function getRedisClient() {
+function getRedisClient(): Redis {
   if (!redis) {
     redis = new Redis(process.env.REDIS_URL || "redis://localhost:6379");
   }
   return redis;
 }
 
-let io: Server;
+let io: Server | null = null;
 
 declare module "socket.io" {
   interface Socket {
@@ -46,81 +50,85 @@ declare module "socket.io" {
   }
 }
 
-export function initializeWebSocket(server: any) {
+export function initializeWebSocket(server: any): Server {
   if (!io) {
     io = new Server(server, {
       cors: {
         origin: process.env.CLIENT_URL || "http://localhost:3000",
         methods: ["GET", "POST"],
-        credentials: true
+        credentials: true,
       },
     });
 
+    // --- Auth Middleware ---
     io.use(async (socket, next) => {
       const token = socket.handshake.auth.token;
       if (!token) {
-        return next(new Error("Authentication error: No token"));
+        return next(new Error("Auth error: No token"));
       }
-      const payload = await verifyAndDecodeToken(token);
 
+      const payload = await verifyAndDecodeToken(token);
       if (!payload) {
-        return next(new Error("Authentication error: Invalid token"));
+        return next(new Error("Auth error: Invalid token"));
       }
 
       socket.userId = payload.id;
       socket.userEmail = payload.email;
       socket.orgId = payload.org_id;
 
-      console.log(`User ${socket.userEmail} passed authentication.`);
+      console.log(`user ${socket.userEmail} authenticated`);
       next();
     });
 
-    io.on("connection", (socket) => {
-      const userId = socket.userId;
-      const userEmail = socket.userEmail;
+    io.on("connection", async (socket: Socket) => {
+      const { userId, userEmail, orgId } = socket;
 
-      console.log(`[Socket Setup] User ${userEmail} connected. Subscribing to channel: mailbox:events:${userEmail}`);
-
-      socket.join(`user:${socket.userId}`);
-      socket.join(`org:${socket.orgId}`);
+      console.log(`[Socket] User ${userEmail} connected`);
+      socket.join(`user:${userId}`);
+      socket.join(`org:${orgId}`);
 
       const subscriber = getRedisClient().duplicate();
+      await subscriber.connect();
+
       const mailChannel = `mailbox:events:${userEmail}`;
       const notificationChannel = `user-notifications:${userId}`;
 
-      subscriber.subscribe(mailChannel, notificationChannel);
-      console.log(`[Redis] Subscribed to '${mailChannel}' and '${notificationChannel}'`);
+      await subscriber.subscribe(mailChannel);
+      await subscriber.subscribe(notificationChannel);
+
+      console.log(`[Redis] Subscribed to '${mailChannel}' & '${notificationChannel}'`);
 
       subscriber.on("message", (channel, message) => {
-        console.log(`[Redis] Message on channel '${channel}'.`);
+        console.log(`[Redis] Message on ${channel}`);
         try {
           const event = JSON.parse(message);
 
-          // --- ROUTE EVENT BASED ON TYPE ---
-          if (event.type === 'delivery_failure') {
+          if (event.type === "delivery_failure") {
             socket.emit("delivery_failure_event", event);
-            console.log(`[Socket Emit] Emitted 'delivery_failure_event' to user ${userId}`);
+            console.log(`[Emit] delivery_failure_event → ${userId}`);
           } else {
-            // Assume other messages are new mail events
             socket.emit("mailbox_event", event);
-            console.log(`[Socket Emit] Emitted 'mailbox_event' to user ${userEmail}`);
+            console.log(`[Emit] mailbox_event → ${userEmail}`);
           }
-
-        } catch (e) {
-          console.error("[Redis] Error parsing JSON:", e);
+        } catch (err) {
+          console.error("[Redis] Failed to parse message:", err);
         }
       });
 
       subscriber.on("error", (err) => {
-        console.error(`[Redis Subscriber Error] An error occurred with the Redis subscriber for ${userEmail}:`, err);
+        console.error(`[Redis Error] Subscriber for ${userEmail}:`, err);
       });
 
-      socket.on("disconnect", () => {
-        console.log(`[Socket Teardown] User ${userEmail} disconnected.`);
-        subscriber.unsubscribe();
-        subscriber.quit();
+      socket.on("disconnect", async () => {
+        console.log(`[Socket] ${userEmail} disconnected`);
+        try {
+          await subscriber.unsubscribe(mailChannel);
+          await subscriber.unsubscribe(notificationChannel);
+        } catch (e) {
+          console.error("[Redis] Error unsubscribing:", e);
+        }
+        await subscriber.quit();
       });
-
     });
   }
   return io;
