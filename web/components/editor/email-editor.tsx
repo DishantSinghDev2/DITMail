@@ -97,35 +97,13 @@ export function EmailEditor({
 
   // --- DATA LOADING & INITIALIZATION useEffect ---
   useEffect(() => {
-    const loadData = async () => {
-      let dataToSet: z.infer<typeof emailSchema> | null = null;
-      let attachmentsToSet: Attachment[] = [];
+    const loadData = () => {
+      let dataToSet: z.infer<typeof emailSchema>;
+      let attachmentsToSet: Attachment[] = initialAttachments || [];
 
       if (initialData) {
         console.log("Hydrating composer from initialData prop...");
         dataToSet = initialData;
-        attachmentsToSet = initialAttachments;
-      } else if (draftId) {
-        console.log(`Fetching draft ${draftId} from API...`);
-        try {
-          const res = await fetch(`/api/drafts/${draftId}`);
-          if (!res.ok) throw new Error("Draft not found in API");
-          const { draft } = await res.json();
-          dataToSet = {
-            to: draft.to?.join(", ") || "",
-            cc: draft.cc?.join(", ") || "",
-            bcc: draft.bcc?.join(", ") || "",
-            subject: draft.subject || "",
-            content: draft.html || "<p></p>",
-            attachments: draft.attachments?.map((a: any) => a._id) || []
-          };
-          attachmentsToSet = draft.attachments || [];
-        } catch (error) {
-          console.error("Failed to load draft from API:", error);
-          toast({ title: "Error", description: "Could not load the requested draft.", variant: "destructive" });
-          onClose();
-          return;
-        }
       } else {
         console.log("Setting up a new composition...");
         let content = "<p><br></p>";
@@ -153,25 +131,24 @@ export function EmailEditor({
         dataToSet = { content, subject, to, cc: "", bcc: "", attachments: [] };
       }
 
-      if (dataToSet) {
-        form.reset(dataToSet);
-        if (dataToSet.cc) setShowCc(true);
-        if (dataToSet.bcc) setShowBcc(true);
-        setUploadedAttachments(attachmentsToSet);
+      form.reset(dataToSet);
+      if (dataToSet.cc) setShowCc(true);
+      if (dataToSet.bcc) setShowBcc(true);
 
-        setTimeout(() => {
-          if (editorRef.current) {
-            editorRef.current.setContent(dataToSet!.content);
-            editorRef.current.focus();
-            // Mark form as initialized only after everything is loaded
-            formInitialized.current = true;
-          }
-        }, 100);
-      }
+      setUploadedAttachments(attachmentsToSet);
+
+      setTimeout(() => {
+        if (editorRef.current) {
+          editorRef.current.setContent(dataToSet.content);
+          editorRef.current.focus();
+          formInitialized.current = true;
+        }
+      }, 100);
     };
 
     loadData();
-  }, [draftId, initialData, replyToMessage, forwardMessage]); // Re-run only when the core context changes
+  }, [draftId, initialData, initialAttachments, replyToMessage, forwardMessage]);
+
 
   const saveDraft = useCallback(async (data: z.infer<typeof emailSchema>, attachments: Attachment[]) => {
     const formContent = editorRef.current?.getContent() || data.content;

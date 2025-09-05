@@ -1,3 +1,4 @@
+// /home/dit/DITMail/web/app/api/attachments/[id]/route.ts
 import { type NextRequest, NextResponse } from "next/server"
 import {connectDB} from "@/lib/db"
 import Attachment from "@/models/Attachment"
