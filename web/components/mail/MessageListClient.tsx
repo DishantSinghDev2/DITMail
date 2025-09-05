@@ -306,6 +306,7 @@ export function MessageListClient({
                     selectionActions.canStar && { label: "Star", onClick: () => handleBulkAction('star'), icon: StarIconSolid },
                     selectionActions.canUnstar && { label: "Unstar", onClick: () => handleBulkAction('unstar'), icon: StarIcon },
                   ].filter(Boolean) as any}
+                  align="left"
                 />
               </div>
             ) : (
