@@ -1,16 +1,17 @@
 // /lib/store/mail.ts
 import { create } from 'zustand';
 
-// Keep your existing state
 interface MailState {
   optimisticallyReadIds: Set<string>;
   addOptimisticallyReadId: (id: string) => void;
   revertOptimisticallyReadId: (id: string) => void;
 
-  // --- NEW STATE for Optimistic UI ---
-  pendingRemovalIds: Set<string>; // IDs of messages we've acted on but are waiting for API confirmation
-  addPendingRemovalId: (id: string) => void; // Add an ID to the set
-  removePendingRemovalId: (id: string) => void; // Remove an ID (on success or failure)
+  // --- States for Optimistic UI ---
+  pendingRemovalIds: Set<string>;
+  addPendingRemovalId: (id: string) => void;
+  removePendingRemovalId: (id: string) => void;
+  failedMessages: Map<string, string>;
+  addFailedMessage: (messageId: string, reason: string) => void;
 }
 
 export const useMailStore = create<MailState>((set) => ({
@@ -22,7 +23,6 @@ export const useMailStore = create<MailState>((set) => ({
     return { optimisticallyReadIds: newSet };
   }),
 
-  // --- NEW ACTIONS ---
   pendingRemovalIds: new Set(),
   addPendingRemovalId: (id) => set((state) => ({
     pendingRemovalIds: new Set(state.pendingRemovalIds).add(id)
@@ -31,5 +31,9 @@ export const useMailStore = create<MailState>((set) => ({
     const newSet = new Set(state.pendingRemovalIds);
     newSet.delete(id);
     return { pendingRemovalIds: newSet };
-  }),
+  }),  failedMessages: new Map(),
+  addFailedMessage: (messageId, reason) =>
+    set((state) => ({
+      failedMessages: new Map(state.failedMessages).set(messageId, reason),
+    })),
 }));

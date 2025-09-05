@@ -1,16 +1,10 @@
-import { Server, Socket } from "socket.io"; // Make sure Socket is imported
-import jwt from "jsonwebtoken";
+import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
-// --- NEW: Import decode from next-auth/jwt ---
 import { decode } from "next-auth/jwt";
-// --- REMOVE: The old jwt import ---
-// import jwt from "jsonwebtoken";
 
 // The secret remains the same
 const JWT_SECRET = process.env.JWT_SECRET!;
 
-// Your JWTPayload interface from [...nextauth].ts is a good reference here.
-// It should match the structure of the token object from your NextAuth jwt callback.
 export interface JWTPayload {
   id: string;
   name: string;
@@ -18,7 +12,6 @@ export interface JWTPayload {
   email: string;
   role: string;
   org_id: string;
-  // ... and any other fields you added
 }
 
 // --- NEW: A new function using next-auth's decode ---
@@ -45,7 +38,6 @@ function getRedisClient() {
 
 let io: Server;
 
-// This TypeScript declaration tells the compiler that our custom properties exist on socket
 declare module "socket.io" {
   interface Socket {
       userId: string;
@@ -75,7 +67,6 @@ export function initializeWebSocket(server: any) {
         return next(new Error("Authentication error: Invalid token"));
       }
       
-      // FIX: Attach all custom data to socket
       socket.userId = payload.id;
       socket.userEmail = payload.email;
       socket.orgId = payload.org_id;
@@ -85,7 +76,7 @@ export function initializeWebSocket(server: any) {
     });
 
     io.on("connection", (socket) => {
-      // FIX: Read all custom data from socket
+      const userId = socket.userId;
       const userEmail = socket.userEmail;
 
       console.log(`[Socket Setup] User ${userEmail} connected. Subscribing to channel: mailbox:events:${userEmail}`);
@@ -94,16 +85,29 @@ export function initializeWebSocket(server: any) {
       socket.join(`org:${socket.orgId}`);
 
       const subscriber = getRedisClient().duplicate();
-      subscriber.subscribe(`mailbox:events:${userEmail}`);
+            const mailChannel = `mailbox:events:${userEmail}`;
+      const notificationChannel = `user-notifications:${userId}`;
+
+      subscriber.subscribe(mailChannel, notificationChannel);
+      console.log(`[Redis] Subscribed to '${mailChannel}' and '${notificationChannel}'`);
 
       subscriber.on("message", (channel, message) => {
-        console.log(`[Redis Message] SUCCESS: Received message on channel '${channel}'. Emitting 'mailbox_event' to user ${userEmail}.`);
+        console.log(`[Redis] Message on channel '${channel}'.`);
         try {
           const event = JSON.parse(message);
-          socket.emit("mailbox_event", event);
-          console.log(`[Socket Emit] Successfully emitted event to socket for user ${userEmail}.`);
+
+          // --- ROUTE EVENT BASED ON TYPE ---
+          if (event.type === 'delivery_failure') {
+            socket.emit("delivery_failure_event", event);
+            console.log(`[Socket Emit] Emitted 'delivery_failure_event' to user ${userId}`);
+          } else {
+            // Assume other messages are new mail events
+            socket.emit("mailbox_event", event);
+            console.log(`[Socket Emit] Emitted 'mailbox_event' to user ${userEmail}`);
+          }
+
         } catch (e) {
-          console.error("[Redis Message] Error parsing JSON from Redis:", e);
+          console.error("[Redis] Error parsing JSON:", e);
         }
       });
 
@@ -112,10 +116,11 @@ export function initializeWebSocket(server: any) {
       });
 
       socket.on("disconnect", () => {
-        console.log(`[Socket Teardown] User ${userEmail} disconnected. Unsubscribing and quitting Redis subscriber.`);
+        console.log(`[Socket Teardown] User ${userEmail} disconnected.`);
         subscriber.unsubscribe();
         subscriber.quit();
       });
+
     });
   }
   return io;

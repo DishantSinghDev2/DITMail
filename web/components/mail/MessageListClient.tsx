@@ -20,6 +20,7 @@ import Dropdown from "../ui/Dropdown";
 import { MailMinus, MailOpen, OctagonAlert, ChevronDown } from "lucide-react";
 import { useRealtime } from "@/contexts/RealtimeContext";
 import { useMailStore } from "@/lib/store/mail";
+import { XCircleIcon } from "@heroicons/react/24/solid";
 import { mailAppEvents } from "@/lib/events";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
@@ -47,7 +48,7 @@ export function MessageListClient({
   const { data: session } = useSession();
   const currentUserEmail = session?.user?.email;
   const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId, pendingRemovalIds } = useMailStore();
-
+  const { failedMessages } = useMailStore();
   const [messages, setMessages] = useState<MessageThread[]>(initialMessages);
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
@@ -353,6 +354,7 @@ export function MessageListClient({
                 const queryString = params.toString();
                 href = `/mail/${folder}/${message._id}${queryString ? `?${queryString}` : ''}`;
               }
+              const failureReason = failedMessages.get(message._id);
 
               return (
                 <Link
@@ -391,6 +393,11 @@ export function MessageListClient({
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start">
                       <div className="text-sm truncate pr-2">
+                        {failureReason && (
+                          <div className="mr-2 flex-shrink-0" title={`Delivery Failed: ${failureReason}`}>
+                            <XCircleIcon className="h-4 w-4 text-red-500" />
+                          </div>
+                        )}
                         <span className={!isRead ? "text-gray-900" : "text-gray-600"}>
                           {displayName} {message.messageCount > 1 && <span className="text-gray-500 ml-1 text-xs">({message.messageCount})</span>}
                         </span>

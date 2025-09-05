@@ -20,13 +20,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
 import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react";
-
-// --- Component Imports ---
-import Dropdown from "../ui/Dropdown"; // Assuming path is correct
-import SpamBanner from "../messages/SpamBanner"; // Assuming path is correct
-import EmailViewer from "../messages/EmailViewer"; // Assuming path is correct
-import InlineReplyComposer from "@/components/inline-reply-composer"; // Assuming path is correct
-// --- NEW: Import the Zustand store ---
+import Dropdown from "../ui/Dropdown";
+import SpamBanner from "../messages/SpamBanner";
+import EmailViewer from "../messages/EmailViewer";
+import InlineReplyComposer from "@/components/inline-reply-composer";
 import { useMailStore } from "@/lib/store/mail";
 import { useSession } from "next-auth/react";
 import { formatDisplayName } from "@/lib/mail-utils";
@@ -35,11 +32,11 @@ import { formatDisplayName } from "@/lib/mail-utils";
 
 // --- PROPS INTERFACE ---
 interface MessageViewClientProps {
-  initialThreadMessages: Message[]; // Renamed for clarity
+  initialThreadMessages: Message[];
   totalMessages: number;
   currentMessage: number;
-  previousMessageId?: string | null; // Add this
-  nextMessageId?: string | null;   // Add this
+  previousMessageId?: string | null;
+  nextMessageId?: string | null;
 }
 
 
@@ -47,40 +44,34 @@ export function MessageViewClient({
   initialThreadMessages,
   totalMessages,
   currentMessage,
-  previousMessageId, // Destructure
-  nextMessageId,   // Destructure
+  previousMessageId,
+  nextMessageId,
 }: MessageViewClientProps) {
 
-  // --- HOOKS ---
   const router = useRouter();
-  const params = useParams(); // Get folder from URL for navigation
+  const params = useParams();
 
   const { toast } = useToast();
-    const { data: session } = useSession(); // Get session data
+  const { data: session } = useSession();
 
-
-  // --- STATE ---  
   const [threadMessages, setThreadMessages] = useState<Message[]>(initialThreadMessages);
 
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
   const [showFullHeaders, setShowFullHeaders] = useState(false);
-  const [isLoading, setIsLoading] = useState(false); // For actions like downloads
+  const [isLoading, setIsLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<"closed" | "reply" | "forward">("closed");
 
-  // --- NEW: Get actions from the Zustand store ---
   const { addPendingRemovalId, removePendingRemovalId } = useMailStore();
 
 
-  // --- DERIVED STATE ---
   const latestMessage = initialThreadMessages[initialThreadMessages.length - 1];
   const [optimisticMessage, setOptimisticMessage] = useState<Message | null>(null);
   const currentUserEmail = session?.user?.email;
 
 
-  // --- EFFECTS --- 
   useEffect(() => {
     setThreadMessages(initialThreadMessages);
-    setOptimisticMessage(null); // Clear optimistic message on navigation
+    setOptimisticMessage(null);
     if (initialThreadMessages.length > 0) {
       setExpandedMessages(new Set([initialThreadMessages[initialThreadMessages.length - 1]._id]));
     }
@@ -88,17 +79,12 @@ export function MessageViewClient({
   }, [initialThreadMessages]);
 
 
-
-  // --- UPDATED CORE ACTION HANDLER ---
   const handleAction = async (method: 'PATCH' | 'DELETE', body?: Record<string, any>, successMessage?: string) => {
     const messageId = latestMessage._id;
     const isRemovalAction = body?.folder === 'archive' || body?.folder === 'spam' || body?.folder === 'trash' || method === 'DELETE';
 
-    // --- OPTIMISTIC UI LOGIC ---
     if (isRemovalAction) {
-      // 1. Instantly update the global state.
       addPendingRemovalId(messageId);
-      // 2. Immediately navigate back to the list. The list component will see the pending ID and hide the message.
       onBack();
     }
 
@@ -111,18 +97,14 @@ export function MessageViewClient({
 
       if (!response.ok) throw new Error("API request failed");
 
-      // 3. On API SUCCESS:
       toast({ title: "Success", description: successMessage || "Action completed." });
 
-      // Trigger a server data refresh to ensure consistency.
       router.refresh();
 
     } catch (error) {
       console.error("Action error:", error);
       toast({ title: "Error", description: "The requested action failed. Reverting.", variant: "destructive" });
 
-      // 4. On API FAILURE (Rollback):
-      // Remove the ID from the pending set. The list component will see this change and show the message again.
       removePendingRemovalId(messageId);
     }
   };
@@ -130,15 +112,12 @@ export function MessageViewClient({
   const handleSent = (sentMessage: Message) => {
     setEditorMode("closed");
     toast({ title: "Success", description: "Your message has been sent." });
-    
-    // Optimistically add the new message to the thread
+
     setOptimisticMessage(sentMessage);
 
-    // Refresh server data in the background for consistency
     router.refresh();
   };
 
-  // --- SPECIFIC ACTION HANDLERS ---
   const onBack = () => {
     router.push(`/mail/${params.folder}`);
   }
@@ -147,14 +126,13 @@ export function MessageViewClient({
   const markAsSpam = () => handleAction('PATCH', { folder: 'spam' }, "Message marked as spam.");
   const onDelete = () => handleAction('PATCH', { folder: 'trash' }, "Message moved to trash.");
   const markAsUnRead = async () => {
-    // This is not a removal action, so we can handle it without optimistic navigation
     try {
       await fetch(`/api/messages/${latestMessage._id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ read: false }),
       });
       toast({ title: "Success", description: "Message marked as unread." });
-      onBack(); // Navigate back after success
+      onBack();
       router.refresh();
     } catch (error) {
       toast({ title: "Error", description: "Could not mark as unread.", variant: "destructive" });
@@ -164,11 +142,8 @@ export function MessageViewClient({
   const handleUnMarkSpam = () => handleAction('PATCH', { folder: 'inbox' }, "Message moved back to inbox.");
   const handleDeleteForever = () => handleAction('DELETE', undefined, "Message permanently deleted.");
 
-  // onNext and onPrevious require server-side logic to determine the next/prev message ID.
-  // This is a placeholder for that future implementation.
   const onNext = () => {
     if (nextMessageId) {
-      // The folder comes from the URL parameters
       router.push(`/mail/${params.folder}/${nextMessageId}`);
     }
   };
@@ -179,7 +154,7 @@ export function MessageViewClient({
     }
   };
 
-  // --- UTILITY FUNCTIONS ---
+
   const toggleMessageExpansion = (messageId: string) => {
     const newExpanded = new Set(expandedMessages);
     newExpanded.has(messageId) ? newExpanded.delete(messageId) : newExpanded.add(messageId);
@@ -193,20 +168,17 @@ export function MessageViewClient({
         description: `Downloading ${attachment.filename}...`,
       });
 
-      // Call your API route securely
       const res = await fetch(`/api/attachments/${attachment._id}`, {
         method: "GET",
-        credentials: "include", // ensures cookies/session are sent
+        credentials: "include",
       });
 
       if (!res.ok) {
         throw new Error(`Failed to download: ${res.statusText}`);
       }
 
-      // Convert response to Blob
       const blob = await res.blob();
 
-      // Create a temporary URL and trigger download
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
@@ -215,7 +187,6 @@ export function MessageViewClient({
       link.click();
       link.remove();
 
-      // Cleanup
       window.URL.revokeObjectURL(url);
 
       toast({
@@ -232,7 +203,6 @@ export function MessageViewClient({
   };
 
   const printMessage = () => {
-    // This client-side print function is acceptable
     const printContent = `<h2>${latestMessage.subject}</h2><p><strong>From:</strong> ${latestMessage.from}</p>${latestMessage.html}`;
     const printWindow = window.open("", "_blank");
     if (printWindow) {
@@ -242,14 +212,13 @@ export function MessageViewClient({
     }
   };
 
-  // --- SUB-COMPONENTS / RENDER FUNCTIONS ---
   const getPriorityBadge = (priority?: string) => {
     if (priority === 'high') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><ExclamationTriangleIcon className="h-3 w-3 mr-1" />High Priority</span>;
     if (priority === 'low') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Low Priority</span>;
     return null;
   };
 
-    const renderMessage = (msg: Message, isThread: boolean) => {
+  const renderMessage = (msg: Message, isThread: boolean) => {
     const isExpanded = expandedMessages.has(msg._id);
     const fromName = formatDisplayName(msg.from, currentUserEmail);
     const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail)).join(", ");
@@ -292,7 +261,6 @@ export function MessageViewClient({
     );
   };
 
-  // --- MAIN RENDER ---
   if (!latestMessage) {
     return <div className="flex items-center justify-center h-full text-gray-500">Loading thread...</div>;
   }
@@ -305,8 +273,6 @@ export function MessageViewClient({
           {/* Action Buttons */}
           <div className="flex items-center space-x-1 sm:space-x-2">
             <button onClick={onBack} title="Go back" className="p-2 hover:bg-gray-100 rounded-full"><ArrowLeft className="h-5 w-5 text-gray-500" /></button>
-
-            {/* Contextual Buttons */}
             {latestMessage.folder === 'inbox' && <button title="Archive" onClick={onArchive} className="p-2 hover:bg-gray-100 rounded-full"><Archive className="h-4 w-4 text-gray-500" /></button>}
             {latestMessage.folder !== 'spam' && latestMessage.folder !== 'trash' && <button title="Mark as spam" onClick={markAsSpam} className="p-2 hover:bg-gray-100 rounded-full"><OctagonAlert className="h-4 w-4 text-gray-500" /></button>}
             {latestMessage.folder !== 'trash' && <button title="Delete" onClick={onDelete} className="p-2 hover:bg-gray-100 rounded-full"><TrashIcon className="h-4 w-4 text-gray-500" /></button>}
@@ -334,7 +300,6 @@ export function MessageViewClient({
           {/* --- UPDATED PAGINATION CONTROLS --- */}
           <div className="flex items-center space-x-3">
             <span className="text-sm text-gray-600">
-              {/* Show only if there are messages to count */}
               {totalMessages > 0 ? `${currentMessage} of ${totalMessages}` : ''}
             </span>
             <button
@@ -358,15 +323,12 @@ export function MessageViewClient({
         <h2 className="text-xl font-semibold text-gray-900 truncate">{latestMessage.subject}</h2>
       </div>
 
-      {/* Messages */}
-      
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {threadMessages.map((msg) => renderMessage(msg, threadMessages.length > 1))}
 
-        {/* --- OPTIMISTIC MESSAGE RENDER --- */}
         {optimisticMessage && renderMessage(optimisticMessage, true)}
 
-        {/* --- INLINE COMPOSER LOGIC --- */}
         {editorMode === "closed" && (
           <div className="flex items-center gap-3 pt-4">
             <button onClick={() => setEditorMode("reply")} className="flex items-center space-x-2 px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"><ArrowUturnLeftIcon className="h-4 w-4" /><span>Reply</span></button>
@@ -380,7 +342,7 @@ export function MessageViewClient({
               originalMessage={latestMessage}
               composeMode={editorMode}
               onClose={() => setEditorMode("closed")}
-              onSent={handleSent} // <-- Use the enhanced handler
+              onSent={handleSent}
             />
           </div>
         )}

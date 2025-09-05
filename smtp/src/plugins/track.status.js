@@ -1,3 +1,4 @@
+// /home/dit/DITMail/smtp/src/plugins/track.status.js
 const { MongoClient, ObjectId } = require('mongodb'); // Include ObjectId
 
 exports.register = function () {
@@ -8,18 +9,12 @@ exports.register = function () {
 
 exports.update_status = async function (next, hmail, params) {
   const plugin = this;
-
-  if (!plugin.dbClient) {
-    plugin.logerror('MongoDB client not initialized. Skipping update.');
+  if (!plugin.dbClient || !plugin.redisClient) {
+    plugin.logerror('MongoDB or Redis client not initialized. Skipping update.');
     return next();
   }
 
-  if (!hmail?.todo?.headers) {
-    plugin.logdebug("Email object missing headers. Skipping status update.");
-    return next();
-  }
-
-  const messageId = hmail.todo.headers['x-internal-message-id'];
+  const messageId = hmail?.todo?.headers['x-internal-message-id'];
   if (!messageId) {
     plugin.logdebug("No X-Internal-Message-ID header. Skipping update.");
     return next();
@@ -27,12 +22,67 @@ exports.update_status = async function (next, hmail, params) {
 
   const db = plugin.dbClient.db('ditmail');
   const messages = db.collection('messages');
+  const deliveryFailures = db.collection('deliveryfailures');
   const now = new Date();
-
-  let update = {};
   const hook = this.hook;
 
-  if (hook === 'delivered') {
+  if (hook === 'bounce') {
+    let bounceError = 'Bounced';
+    if (params && params[0] instanceof Error) bounceError = params[0].message;
+    else if (Array.isArray(params)) bounceError = params.join(' ');
+
+    const statusCodeMatch = bounceError.match(/^(\d{3})/);
+    const statusCode = statusCodeMatch ? parseInt(statusCodeMatch[1], 10) : 500;
+
+    const update = {
+      $set: {
+        status: 'failed',
+        delivery_status: 'bounced',
+        bounced_at: now,
+        error: bounceError
+      }
+    };
+
+    try {
+      const originalMessage = await messages.findOne({ _id: new ObjectId(messageId) });
+      if (originalMessage) {
+        const senderId = originalMessage.user_id.toString();
+        const recipients = hmail.rcpt_to.map(r => r.address());
+
+        for (const recipient of recipients) {
+          await deliveryFailures.insertOne({
+            original_message_id: originalMessage._id,
+            user_id: originalMessage.user_id,
+            org_id: originalMessage.org_id,
+            failed_recipient: recipient,
+            status_code: statusCode,
+            diagnostic_code: bounceError,
+            reason: `Delivery to ${recipient} failed.`,
+            is_hard_bounce: statusCode >= 500,
+            created_at: now
+          });
+
+          const notificationPayload = JSON.stringify({
+            type: 'delivery_failure', // A new event type
+            userId: senderId,
+            messageId: originalMessage._id.toString(),
+            recipient: recipient,
+            reason: bounceError
+          });
+
+          const channel = `user-notifications:${senderId}`;
+          await plugin.redisClient.publish(channel, notificationPayload);
+          plugin.loginfo(`Published delivery failure to Redis channel '${channel}' for message ${messageId}`);
+        }
+      }
+    } catch (err) {
+      plugin.logerror(`Error during bounce processing for message ${messageId}: ${err.stack}`);
+    }
+
+    // Update the original message status
+    await messages.updateOne({ _id: new ObjectId(messageId) }, update);
+
+  } else if (hook === 'delivered') {
     const [host, ip, response, delay, port, mode, ok_recips, secured] = params;
     update = {
       $set: {
@@ -40,19 +90,6 @@ exports.update_status = async function (next, hmail, params) {
         delivered_at: now,
         last_smtp_response: response,
         delivery_info: { host, ip, response, delay, port, mode, ok_recips, secured }
-      }
-    };
-  } else if (hook === 'bounce') {
-    let bounceError = 'Bounced';
-    if (params && params[0] instanceof Error) bounceError = params[0].message;
-    else if (typeof params === 'string') bounceError = params;
-
-    update = {
-      $set: {
-        status: 'bounced',
-        bounced_at: now,
-        error: bounceError,
-        error_details: params
       }
     };
   } else if (hook === 'deferred') {
@@ -104,14 +141,28 @@ exports.init_mongo = async function () {
   }
 };
 
+exports.init_redis = async function() {
+    const plugin = this;
+    if (plugin.redisClient) return;
+    const uri = process.env.REDIS_URL;
+    if (!uri) {
+        plugin.logerror("REDIS_URL not set. Plugin won't work.");
+        return;
+    }
+    try {
+        plugin.redisClient = new Redis(uri);
+        plugin.loginfo('Redis client initialized in worker.');
+    } catch (err) {
+        plugin.logerror(`Redis init failed: ${err.message}`);
+    }
+}
+
 exports.hook_init_child = function (next) {
-  this.init_mongo().then(() => next());
+  Promise.all([this.init_mongo(), this.init_redis()]).then(() => next());
 };
 
 exports.hook_shutdown = function (next) {
-  if (this.dbClient) {
-    this.loginfo('Closing MongoDB connection in worker.');
-    this.dbClient.close();
-  }
+  if (this.dbClient) this.dbClient.close();
+  if (this.redisClient) this.redisClient.quit(); // <-- Close Redis connection
   return next?.();
 };

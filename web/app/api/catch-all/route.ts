@@ -7,7 +7,7 @@ import CatchAll from "@/models/CatchAll";
 import Domain from "@/models/Domain";
 import { logAuditEvent } from "@/lib/audit";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     const user = session?.user as SessionUser | undefined;

@@ -1,3 +1,5 @@
+// This api endpoint is for internal use by WYI to add users to DITMail
+
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
@@ -10,18 +12,12 @@ import jwt from "jsonwebtoken"
 const INTERNAL_SECRET = process.env.INTERNAL_JWT_SECRET as string
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || "").split(",")
 
-/**
- * Utility: Check request origin for domain restriction
- */
 function isAllowedOrigin(req: NextRequest) {
   const origin = req.headers.get("origin")
   if (!origin) return false
   return ALLOWED_ORIGINS.some((allowed) => origin.includes(allowed))
 }
 
-/**
- * Utility: Verify internal platform JWT
- */
 function verifyInternalJWT(req: NextRequest) {
   const authHeader = req.headers.get("authorization")
   if (!authHeader?.startsWith("Bearer ")) return null
@@ -36,18 +32,15 @@ function verifyInternalJWT(req: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // ✅ Step 1: Enforce domain restriction
     if (!isAllowedOrigin(request)) {
       return NextResponse.json({ error: "Forbidden - Invalid origin" }, { status: 403 })
     }
 
-    // ✅ Step 2: Verify internal JWT (for internal platforms only)
     const internalClaims = verifyInternalJWT(request)
     if (!internalClaims) {
       return NextResponse.json({ error: "Forbidden - Invalid internal token" }, { status: 403 })
     }
 
-    // ✅ Step 3: Ensure user is authenticated via NextAuth
     const session = await getServerSession(authOptions)
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -57,7 +50,6 @@ export async function POST(request: NextRequest) {
 
     const { name, email, password, orgName, joinExisting, orgId } = await request.json()
 
-    // Check if user already exists
     const existingUser = await User.findOne({ email })
     if (existingUser) {
       return NextResponse.json({ error: "User already exists" }, { status: 400 })
@@ -104,7 +96,7 @@ export async function POST(request: NextRequest) {
       name,
       email,
       mailboxAccess: false,
-      password_hash: password, // hashed in pre-save hook
+      password_hash: password,
       org_id: organization._id,
       role: userRole,
       onboarding: {

@@ -1,18 +1,15 @@
 import type { NextAuthOptions } from "next-auth"
 import NextAuth from "next-auth/next"
 import { MongoDBAdapter } from '@auth/mongodb-adapter'
-import { connectDB, getMongoClientPromise } from "@/lib/db" // Assuming connectDB is called within this
+import { connectDB, getMongoClientPromise } from "@/lib/db"
 import { JWT } from "next-auth/jwt"
-import User from "@/models/User" // Your User model
-import "@/models/Organization" // Import Organization model
-import "@/models/Plan" // Import Plan model
+import User from "@/models/User"
+import "@/models/Organization"
+import "@/models/Plan"
 import { handleNewUserOnboarding } from "@/lib/auth/onboarding"
 import Account from "@/models/Account"
-// --- NEW: IMPORT THE ENCODE FUNCTION ---
 import { encode } from "next-auth/jwt"
 
-// STEP 1: Update the type declarations to include all your custom data.
-// This provides type safety for your session and token objects.
 
 declare module "next-auth" {
     interface Session {
@@ -22,27 +19,26 @@ declare module "next-auth" {
             username: string;
             email: string;
             role: string;
-            image: string; // Keep this if your profile callback provides it
+            image: string;
             org_id: string;
             mailboxAccess: boolean;
             onboarding: {
                 completed: boolean;
             };
             plan: string;
-            nextDueDate?: string; // Optional, as it's not in the schema yet
+            nextDueDate?: string;
             accessToken?: string;
         };
     }
 }
 
 declare module "next-auth/jwt" {
-    // The JWT token now holds all the custom data
     interface JWT {
         id: string;
         name: string;
         username: string;
         email: string;
-        picture?: string; // picture is a standard JWT claim
+        picture?: string;
         role: string;
         org_id: string;
         mailboxAccess: boolean;
@@ -56,7 +52,7 @@ declare module "next-auth/jwt" {
 }
 
 
-// This function is for REFRESHING the token. Your implementation is correct.
+// This function is for REFRESHING the token, duh
 async function refreshAccessToken(token: JWT) {
     try {
         const response = await fetch("https://whatsyour.info/api/v1/oauth/token", {
@@ -66,7 +62,7 @@ async function refreshAccessToken(token: JWT) {
             },
             body: JSON.stringify({
                 client_id: process.env.WYI_CLIENT_ID,
-                client_secret: process.env.WYI_CLIENT_SECRET,
+                client_secret: process.env.WYI_CLIENT_SECRET, // keep it a secret
                 grant_type: "refresh_token",
                 refresh_token: token.refreshToken,
             }),
@@ -100,7 +96,6 @@ export const authOptions: NextAuthOptions = {
     },
     providers: [
         {
-            // ... (Your 'wyi' provider configuration remains the same)
             id: "wyi",
             name: "WhatsYourInfo",
             type: "oauth",
@@ -148,17 +143,17 @@ export const authOptions: NextAuthOptions = {
         },
     ],
 
-    // --- NEW `events` CALLBACK ---
+    // Events callbacks
     events: {
         async createUser({ user }) {
-            await connectDB(); // Ensure connection
+            await connectDB();
             await handleNewUserOnboarding(user);
         }
     },
 
 
-   callbacks: {
-    async signIn({ user, account, profile }) {
+    callbacks: {
+        async signIn({ user, account, profile }) {
             // This callback is triggered on a successful sign-in.
             await connectDB();
 
@@ -172,9 +167,6 @@ export const authOptions: NextAuthOptions = {
                 });
 
                 if (!isAccountLinked) {
-                    // If the account is not linked, this is where you can create the link.
-                    // This assumes you trust that owning the email on the new provider
-                    // means they are the same user.
                     await Account.insertOne({
                         userId: existingUser._id,
                         type: account?.type,
@@ -191,13 +183,13 @@ export const authOptions: NextAuthOptions = {
                     console.log("Successfully linked new provider to existing user.");
                 }
             }
-            return true; // Continue with the sign-in process
+            return true; // Continue with the sign-in
         },
 
         async jwt({ token, user, profile, account, trigger, session }) {
             await connectDB();
 
-            // 1. Initial sign-in: Populate token with all necessary data.
+            // 1. Initial sign-in: Populate token with all data.
             if (user && account && profile) {
                 const dbUser = await User.findById(user.id).populate({
                     path: 'org_id',
@@ -216,11 +208,11 @@ export const authOptions: NextAuthOptions = {
                 token.onboarding = { completed: dbUser.onboarding?.completed || false };
                 token.plan = dbUser.org_id?.plan_id?.name || 'none';
 
-                
+
                 return token;
             }
 
-            // 2. Session update: React to client-side `update()` calls.
+            // 2. Session update: React to client side `update()` calls.
             if (trigger === "update" && session) {
                 // If the client is updating the onboarding status
                 if (typeof session.onboarding?.completed === 'boolean') {
@@ -245,11 +237,10 @@ export const authOptions: NextAuthOptions = {
             session.user.role = token.role;
             session.user.org_id = token.org_id;
             session.user.mailboxAccess = token.mailboxAccess;
-            session.user.onboarding = token.onboarding; // Ensure onboarding status is always fresh
+            session.user.onboarding = token.onboarding;
             session.user.plan = token.plan;
             session.user.nextDueDate = token.nextDueDate;
-                        // Encode the entire token object into a secure, verifiable JWT string.
-            // Use the same secret that your WebSocket server uses!
+            // Encode the entire token object into a secure, verifiable JWT string.
             session.user.accessToken = await encode({
                 secret: process.env.NEXTAUTH_SECRET!,
                 token: token,

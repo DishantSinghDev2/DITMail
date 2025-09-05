@@ -2,9 +2,9 @@
 
 import { useSession } from "next-auth/react"
 import React, { createContext, useContext, useEffect, useState, useRef } from "react"
-// CRITICAL: This is the ONLY import from 'socket.io-client' at the top of the file.
-// It MUST be a `type` import.
+import { useMailStore } from "@/lib/store/mail"; // <-- IMPORT THE STORE
 import type { Socket } from "socket.io-client"
+import { useToast } from "@/hooks/use-toast";
 
 interface RealtimeContextType {
   newMessages: number
@@ -15,14 +15,14 @@ const RealtimeContext = createContext<RealtimeContextType | undefined>(undefined
 
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const [newMessages, setNewMessages] = useState(0)
-  const {data: session} = useSession()
+  const { data: session } = useSession()
   const user = session?.user
   const socketRef = useRef<Socket | null>(null)
+  const { addFailedMessage } = useMailStore();
+  const { toast } = useToast()
 
   useEffect(() => {
-    // 1. Exit if no user is authenticated.
     if (!user) {
-      // Clean up existing socket if the user logs out.
       if (socketRef.current) {
         console.log("User logged out, disconnecting socket.")
         socketRef.current.disconnect()
@@ -31,24 +31,19 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
-    // 2. Exit if the socket is already connected.
     if (socketRef.current) {
       return
     }
 
-    // 3. Define an async function to handle the connection.
     const connectSocket = async () => {
-      // Dynamically import the library here. This prevents it from being in the server bundle.
-      // We get the 'default' export and assign it to the 'io' variable.
       const { default: io } = await import("socket.io-client")
 
       console.log("Attempting to connect socket...")
       const token = user.accessToken
 
-      // The actual URL should come from your environment variables
       const isSecure = window.location.protocol === "https:";
       const wsProtocol = isSecure ? "wss://" : "ws://";
-      const wsHost = 'ws.ditmail.online'; // This will be your server's public IP or domain
+      const wsHost = 'ws.ditmail.online';
       const wsUrl = `${wsProtocol}${wsHost}`;
 
       console.log("Attempting to connect to WebSocket at:", wsUrl);
@@ -59,10 +54,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       });
 
 
-      // Store the connected socket in the ref
       socketRef.current = socket
 
-      // ... register event listeners
       socket.on("connect", () => {
         console.log("Socket connected successfully:", socket.id)
       })
@@ -73,21 +66,23 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
       socket.on("disconnect", (reason) => {
         console.log("Socket disconnected:", reason)
-        // Important: Nullify the ref on disconnect to allow reconnection attempts
         socketRef.current = null;
       })
 
       socket.on("mailbox_event", (data) => {
         console.log("New mail received:", data)
         setNewMessages((prev) => prev + 1)
-        // ... notification logic
       })
+      socket.on("delivery_failure_event", (data) => {
+        console.log("Delivery failure received:", data);
+        addFailedMessage(data.messageId, data.reason);
+        toast({ title: "Message Delivery Failed", description: `Could not deliver to ${data.recipient}.`, variant: "destructive" });
+      });
+
     }
 
-    // 4. Call the connection function.
     connectSocket()
 
-    // 5. The cleanup function ensures we disconnect on component unmount.
     return () => {
       if (socketRef.current) {
         console.log("Cleaning up socket connection.")
@@ -95,7 +90,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         socketRef.current = null
       }
     }
-  }, [user]) // The effect re-runs ONLY when the user object changes.
+  }, [user, addFailedMessage])
 
   const markMessagesRead = () => {
     setNewMessages(0)
