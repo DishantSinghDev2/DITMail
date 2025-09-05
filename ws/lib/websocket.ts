@@ -40,9 +40,9 @@ let io: Server;
 
 declare module "socket.io" {
   interface Socket {
-      userId: string;
-      userEmail: string;
-      orgId: string;
+    userId: string;
+    userEmail: string;
+    orgId: string;
   }
 }
 
@@ -66,11 +66,11 @@ export function initializeWebSocket(server: any) {
       if (!payload) {
         return next(new Error("Authentication error: Invalid token"));
       }
-      
+
       socket.userId = payload.id;
       socket.userEmail = payload.email;
       socket.orgId = payload.org_id;
-      
+
       console.log(`User ${socket.userEmail} passed authentication.`);
       next();
     });
@@ -85,7 +85,7 @@ export function initializeWebSocket(server: any) {
       socket.join(`org:${socket.orgId}`);
 
       const subscriber = getRedisClient().duplicate();
-            const mailChannel = `mailbox:events:${userEmail}`;
+      const mailChannel = `mailbox:events:${userEmail}`;
       const notificationChannel = `user-notifications:${userId}`;
 
       subscriber.subscribe(mailChannel, notificationChannel);

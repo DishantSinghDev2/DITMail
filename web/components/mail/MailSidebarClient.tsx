@@ -5,11 +5,10 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOut } from "next-auth/react";
 import { SessionUser } from "@/types";
 import { FolderCounts } from "@/lib/data/mail";
-// --- NEW: IMPORT EVENT EMITTER AND REALTIME CONTEXT ---
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { mailAppEvents } from "@/lib/events";
 import { useRealtime } from "@/contexts/RealtimeContext";
 
-// --- Icon Imports ---
 import {
   InboxIcon, PaperAirplaneIcon, DocumentIcon, TrashIcon, StarIcon, ArchiveBoxIcon, ExclamationTriangleIcon,
   PlusIcon, UserIcon, ArrowRightOnRectangleIcon, FolderIcon, ChevronDownIcon, ChevronRightIcon, Bars3Icon, Cog6ToothIcon
@@ -61,19 +60,16 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
   const [newFolderName, setNewFolderName] = useState("");
   const [newLabelName, setNewLabelName] = useState("");
   const [newLabelColor, setNewLabelColor] = useState(labelColors[0]);
-  const [loading, setLoading] = useState(false);
-  // --- NEW: USE REALTIME CONTEXT ---
   const { newMessages } = useRealtime();
 
 
   // --- Derived State ---
   const isExpanded = !isCollapsed || isHovering;
-  const selectedPath = pathname.split('/')[2] || 'inbox'; // e.g., 'inbox', 'folder', 'label'
-  const selectedId = pathname.split('/')[3] || selectedPath; // e.g., '[folderId]', '[labelName]'
+  const selectedPath = pathname.split('/')[2] || 'inbox';
+  const selectedId = pathname.split('/')[3] || selectedPath;
 
 
   // --- API Functions ---
-  // useCallback helps prevent re-creating this function on every render
   const fetchFolderCounts = useCallback(async () => {
     try {
       const res = await fetch('/api/messages/counts');
@@ -82,10 +78,9 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
         setFolderCounts(data.counts);
       }
     } catch (error) { console.error("Failed to fetch counts:", error); }
-  }, []); // Empty dependency array as it has no external dependencies
+  }, []); 
 
   // --- Effects ---
-  // Persist collapsed state to localStorage
   useEffect(() => {
     const storedState = localStorage.getItem("mailSidebarCollapsed");
     setIsCollapsed(storedState === "true");
@@ -95,21 +90,15 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
     localStorage.setItem("mailSidebarCollapsed", String(isCollapsed));
   }, [isCollapsed]);
 
-  // --- UPDATED: EFFECT TO LISTEN FOR EVENTS ---
   useEffect(() => {
-    // 1. Listen for our custom event
     mailAppEvents.on('countsChanged', fetchFolderCounts);
 
-    // Cleanup function to remove the listener when the component unmounts
     return () => {
       mailAppEvents.off('countsChanged', fetchFolderCounts);
     };
-  }, [fetchFolderCounts]); // Re-run effect if fetchFolderCounts changes
+  }, [fetchFolderCounts]);
 
-  // --- NEW: EFFECT TO LISTEN FOR REALTIME MESSAGES ---
   useEffect(() => {
-    // If the newMessages counter from the realtime context is > 0,
-    // it means a new message has arrived, so we should refresh the counts.
     if (newMessages > 0) {
       fetchFolderCounts();
     }
@@ -158,7 +147,6 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
           await fetchLabels();
         }
       } else {
-        // Handle error with a toast or alert
         console.error(`Failed to create ${type}`);
       }
     } catch (error) {
@@ -190,23 +178,12 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
   };
 
 
-  // --- Event Handlers ---
-  const onFolderSelect = (path: string) => router.push(`/mail/${path}`);
-
-  const handleComposeClick = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('compose', 'new');
-    router.push(`${pathname}?${params.toString()}`);
-  };
-
   // --- Render Helper Functions ---
-  // --- Render Helper Functions (THE MAIN FIX IS HERE) ---
   const renderFolderItem = (folder: { id: string, name: string, icon: React.ElementType }) => {
     const Icon = folder.icon;
     const unreadCount = folderCounts[folder.id]?.unread || 0;
     const isSelected = selectedPath === folder.id;
 
-    // --- CHANGE: Use <Link> instead of <button> ---
     return (
       <Link
         key={folder.id}
@@ -358,9 +335,10 @@ export function MailSidebarClient({ user, initialFolderCounts, initialCustomFold
       {/* User Menu */}
       <div className="border-t p-4 flex-shrink-0">
         <div className={`flex items-center space-x-3 ${!isExpanded ? 'justify-center' : ''}`}>
-          <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0" title={user.name}>
-            {user.name?.charAt(0).toUpperCase()}
-          </div>
+          <Avatar className="h-8 w-8">
+                {user.email && <AvatarImage src={`https://whatsyour.info/api/v1/avatar/${user.email}`} alt={user.name} />}
+                <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
           {isExpanded && (
             <div className="flex-1 min-w-0 flex justify-between items-center">
               <div>

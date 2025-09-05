@@ -1,12 +1,9 @@
 "use client"
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
-import { Input } from "@/components/ui/input"
-// --- MODIFICATION: Import AvatarImage ---
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { X } from "lucide-react"
 
-// --- INTERFACES & HELPERS ---
 interface Contact {
   email: string
   name?: string
@@ -28,16 +25,9 @@ const toDate = (d: unknown): Date | undefined => {
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// --- MODIFICATION START: Avatar Helper and Updated RecipientPill ---
-
-// Helper function to generate the avatar URL based on email domain
 const getAvatarUrl = (email: string): string | null => {
   const trimmedEmail = email.trim();
-  if (trimmedEmail.endsWith("@ditmail.online")) {
-    const username = trimmedEmail.split("@")[0];
-    return `https://whatsyour.info/api/v1/avatar/${username}`;
-  }
-  return null;
+  return `https://whatsyour.info/api/v1/avatar/${trimmedEmail}`;
 };
 
 const RecipientPill = ({ email, onRemove }: { email: string; onRemove: () => void }) => {
@@ -55,8 +45,7 @@ const RecipientPill = ({ email, onRemove }: { email: string; onRemove: () => voi
     </div>
   );
 };
-// --- MODIFICATION END ---
-// --- MAIN REFACTORED COMPONENT ---
+
 export default function ContactAutocomplete({ value, onChange, placeholder, className }: ContactAutocompleteProps) {
   const [inputValue, setInputValue] = useState("")
   const [pills, setPills] = useState<string[]>([])
@@ -68,8 +57,6 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // fixing: Error: value.split is not a function
-
     if (typeof value !== "string") {
       console.error("Expected value to be a string, got:", typeof value)
       return
@@ -80,7 +67,6 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
 
   useEffect(() => {
     const loadContacts = async () => {
-      // Logic to load contacts from localStorage and API remains the same
       const localContacts = localStorage.getItem("ditmail-contacts")
       if (localContacts) {
         setContacts(JSON.parse(localContacts).map((c: any) => ({ ...c, lastUsed: toDate(c.lastUsed) })))
@@ -108,20 +94,16 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
     setShowSuggestions(filtered.length > 0);
   }, [inputValue, contacts, pills])
 
-  // --- NEW: FUNCTION TO CREATE OR UPDATE CONTACTS ---
   const addOrUpdateContact = async (email: string) => {
     const existingContact = contacts.find(c => c.email.toLowerCase() === email.toLowerCase());
     let updatedContacts: Contact[];
 
     if (existingContact) {
-      // If contact exists, just update its `lastUsed` date
       updatedContacts = contacts.map(c => c.email.toLowerCase() === email.toLowerCase() ? { ...c, lastUsed: new Date() } : c);
     } else {
-      // If it's a new contact, create it and save it
       const newContact: Contact = { email, name: undefined, lastUsed: new Date() };
       updatedContacts = [...contacts, newContact];
 
-      // Persist the new contact to the server
       try {
         const token = localStorage.getItem("accessToken");
         await fetch("/api/contacts", {
@@ -130,27 +112,24 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ email: newContact.email }), // Assuming API expects {email}
+          body: JSON.stringify({ email: newContact.email }),
         });
       } catch (error) {
         console.error("Failed to save new contact to API:", error);
       }
     }
 
-    // Update state and localStorage
     setContacts(updatedContacts);
     localStorage.setItem("ditmail-contacts", JSON.stringify(updatedContacts.map(c => ({ ...c, lastUsed: c.lastUsed ? (c.lastUsed as Date).toISOString() : undefined }))));
   };
 
 
-  // --- UPDATED: ADDS A NEW PILL AND TRIGGERS CONTACT SAVE ---
   const addPill = (email: string) => {
     const trimmedEmail = email.trim();
-    // Validate email format and check for duplicates before adding
     if (trimmedEmail && emailRegex.test(trimmedEmail) && !pills.includes(trimmedEmail)) {
       const newPills = [...pills, trimmedEmail];
       onChange(newPills.join(", "));
-      addOrUpdateContact(trimmedEmail); // Use the new function to save the contact
+      addOrUpdateContact(trimmedEmail);
     }
     setInputValue("");
     setShowSuggestions(false);
@@ -170,11 +149,9 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
 
     if (e.key === "Enter" || e.key === "Tab") {
       if (showSuggestions && selectedIndex >= 0 && suggestions[selectedIndex]) {
-        // If a suggestion is selected, add it
         e.preventDefault();
         addPill(suggestions[selectedIndex].email);
       } else if (inputValue) {
-        // Otherwise, if there is input, try to add it as a new email
         e.preventDefault();
         addPill(inputValue);
       }

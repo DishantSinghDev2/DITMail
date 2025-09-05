@@ -6,7 +6,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { formatDistanceToNow } from "date-fns";
 import { Message, Attachment } from "@/types";
 
-// --- Icon Imports ---
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   StarIcon,
   TrashIcon,
@@ -60,7 +60,6 @@ export function MessageViewClient({
   const [threadMessages, setThreadMessages] = useState<Message[]>(initialThreadMessages);
 
   const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
-  const [showFullHeaders, setShowFullHeaders] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [editorMode, setEditorMode] = useState<"closed" | "reply" | "forward">("closed");
 
@@ -215,11 +214,12 @@ export function MessageViewClient({
     }
   };
 
-  const getPriorityBadge = (priority?: string) => {
-    if (priority === 'high') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><ExclamationTriangleIcon className="h-3 w-3 mr-1" />High Priority</span>;
-    if (priority === 'low') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Low Priority</span>;
-    return null;
-  };
+  // we'll use this stuff in future, maybe
+  // const getPriorityBadge = (priority?: string) => {
+  //   if (priority === 'high') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><ExclamationTriangleIcon className="h-3 w-3 mr-1" />High Priority</span>;
+  //   if (priority === 'low') return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Low Priority</span>;
+  //   return null;
+  // };
 
   const renderMessage = (msg: Message, isThread: boolean) => {
     const isExpanded = expandedMessages.has(msg._id);
@@ -227,20 +227,20 @@ export function MessageViewClient({
     const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail));
 
     const mailDomain = msg.from.split('@')[1] || 'domain.com';
+    const avatarUrl = `https://whatsyour.info/api/v1/avatar/${msg.from}`
 
     return (
       <div key={msg._id} className="border rounded-lg mb-4">
         <div className={`p-4 ${isExpanded ? "border-b" : ""}`}>
           <div className="flex items-start justify-between">
-            {/* Left side: Avatar and From/To details */}
             <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                {fromName.charAt(0).toUpperCase()}
-              </div>
+              <Avatar className="h-8 w-8">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt={fromName} />}
+                <AvatarFallback>{fromName.charAt(0).toUpperCase()}</AvatarFallback>
+              </Avatar>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 cursor-pointer" onClick={() => isThread && toggleMessageExpansion(msg._id)}>{fromName}</p>
 
-                {/* --- NEW INLINE POPOVER IMPLEMENTATION --- */}
                 <div className="flex items-center text-xs text-gray-500">
                   <span>To: {toNames.join(", ")}</span>
                   <Popover>
@@ -262,11 +262,9 @@ export function MessageViewClient({
                     </PopoverContent>
                   </Popover>
                 </div>
-                {/* --- END OF NEW IMPLEMENTATION --- */}
 
               </div>
             </div>
-            {/* Right side: Timestamp */}
             <span className="text-xs text-gray-500 flex-shrink-0 ml-4 cursor-pointer" onClick={() => isThread && toggleMessageExpansion(msg._id)}>
               {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
             </span>

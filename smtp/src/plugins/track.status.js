@@ -6,35 +6,61 @@ exports.register = function () {
     this.register_hook('delivered', 'delivered');
     this.register_hook('bounce', 'bounce');
     this.register_hook('deferred', 'deferred');
-    this.register_hook('init_child', 'hook_init_child');
-    this.register_hook('shutdown', 'hook_shutdown');
+    this.register_hook('init_child', 'init_connections');
+    this.register_hook('shutdown', 'shutdown_connections');
 };
 
-exports.hook_init_child = async function (next) {
+exports.init_connections = async function (next) {
     const plugin = this;
-    if (plugin.dbClient) return next();
 
-    const uri = process.env.MONGO_URI;
-    if (!uri) {
-        plugin.logerror("MONGO_URI not set. Plugin won't work.");
-        return next();
+    if (!plugin.dbClient) {
+        const mongoUri = process.env.MONGO_URI;
+        if (!mongoUri) {
+            plugin.logerror("MONGO_URI not set. Plugin will not work correctly.");
+        } else {
+            try {
+                plugin.dbClient = await MongoClient.connect(mongoUri, { useUnifiedTopology: true });
+                plugin.loginfo("MongoDB client initialized.");
+            } catch (err) {
+                plugin.logerror(`MongoDB init failed: ${err.stack}`);
+            }
+        }
     }
 
-    try {
-        plugin.dbClient = await MongoClient.connect(uri, {
-            useUnifiedTopology: true,
-        });
-        plugin.loginfo("MongoDB client initialized in child.");
-    } catch (err) {
-        plugin.logerror(`MongoDB init failed: ${err.stack}`);
+    if (!plugin.redisClient) {
+        const redisUrl = process.env.REDIS_URL;
+        if (!redisUrl) {
+            plugin.logerror("REDIS_URL not set. Real-time notifications will fail.");
+        } else {
+            try {
+                plugin.redisClient = new Redis(redisUrl);
+                plugin.loginfo("Dedicated Redis client initialized.");
+            } catch (err) {
+                plugin.logerror(`Redis init failed: ${err.stack}`);
+            }
+        }
     }
+
     return next();
 };
 
-exports.shutdown = function (next) {
-    if (this.dbClient) this.dbClient.close();
+exports.shutdown_connections = function (next) {
+    const plugin = this;
+
+    if (plugin.dbClient) {
+        plugin.dbClient.close();
+        plugin.dbClient = null;
+        plugin.loginfo("MongoDB connection closed.");
+    }
+    if (plugin.redisClient) {
+        plugin.redisClient.quit();
+        plugin.redisClient = null;
+        plugin.loginfo("Redis connection closed.");
+    }
+
     return next && next();
 };
+
 
 ['delivered', 'bounce', 'deferred'].forEach(hook => {
     exports[hook] = async function (next, hmail, params) {
@@ -44,7 +70,7 @@ exports.shutdown = function (next) {
 
 exports.update_status = async function (hook, next, hmail, params) {
     const plugin = this;
-    const redis = plugin.server.notes.redis;
+    const redis = plugin.redisClient;
     if (!plugin.dbClient || !redis) {
         plugin.logerror("MongoDB or Redis client unavailable. Skipping status update.");
         return next();
