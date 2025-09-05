@@ -116,7 +116,8 @@ export const getMessagesForFolder = async (userId: string, options: GetMessagesO
 
   // Handle drafts separately
   if (folder === "drafts") {
-    const draftQuery: any = { user_id: userId };
+    const draftQuery: any = { user_id: new ObjectId(userId) };
+
     if (search) {
       draftQuery.$or = [
         { subject: { $regex: search, $options: "i" } },
@@ -124,10 +125,27 @@ export const getMessagesForFolder = async (userId: string, options: GetMessagesO
         { text: { $regex: search, $options: "i" } },
       ];
     }
-    const drafts = await Draft.find(draftQuery).sort({ updated_at: -1 }).skip((page - 1) * limit).limit(limit).populate("attachments");
+
+    const drafts = await Draft.find(draftQuery)
+      .sort({ updated_at: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("attachments")
+      .lean();
+
     const total = await Draft.countDocuments(draftQuery);
+
+    const messages = drafts.map(draft => ({
+      ...draft,
+      from: userDetails.email,
+      isDraft: true,
+      read: true,
+      subject: draft.subject || '(no subject)',
+      created_at: draft.updated_at,
+    }));
+
     return {
-      messages: JSON.parse(JSON.stringify(drafts)),
+      messages: JSON.parse(JSON.stringify(messages)),
       pagination: { page, limit, total, pages: Math.ceil(total / limit) },
       storage: storageInfo,
     };
@@ -372,54 +390,54 @@ export const getDraftById = async (userId: string, draftId: string): Promise<any
 
 
 export const getMessagePositionInFolder = async (userId: string, folder: string, messageId: string): Promise<{
-    total: number;
-    index: number;
-    previousMessageId: string | null;
-    nextMessageId: string | null;
-  }> => {
-    console.log(`DATABASE QUERY: Finding position and neighbors for message ${messageId} in folder ${folder}`);
-    await connectDB();
+  total: number;
+  index: number;
+  previousMessageId: string | null;
+  nextMessageId: string | null;
+}> => {
+  console.log(`DATABASE QUERY: Finding position and neighbors for message ${messageId} in folder ${folder}`);
+  await connectDB();
 
-    const currentMessage = await Message.findOne({ _id: messageId, user_id: userId }, { thread_id: 1 }).lean();
-    if (!currentMessage) {
-      return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
-    }
-    const currentThreadId = currentMessage.thread_id;
-
-    // --- MODIFIED AGGREGATION ---
-    // We now need the ID of the latest message in each thread, not just the thread_id.
-    const threadsInFolder = await Message.aggregate([
-      { $match: { user_id: new ObjectId(userId), folder: folder } },
-      { $sort: { created_at: -1 } },
-      {
-        $group: {
-          _id: "$thread_id", // Group by thread
-          latestMessageId: { $first: "$_id" }, // Get the ID of the newest message in the thread
-          latestMessageDate: { $first: "$created_at" }
-        }
-      },
-      { $sort: { latestMessageDate: -1 } }, // Sort threads by newest message
-      { $project: { _id: 1, latestMessageId: 1 } } // Project thread_id and latestMessageId
-    ]);
-
-    const total = threadsInFolder.length;
-
-    // Find the 0-based index of the current thread in the sorted list.
-    const currentIndex = threadsInFolder.findIndex(thread => String(thread._id) === String(currentThreadId));
-
-    if (currentIndex === -1) {
-      // This can happen if the message is not in the specified folder (e.g., archived)
-      return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
-    }
-
-    // Determine the IDs for the previous and next messages
-    const previousMessageId = currentIndex > 0 ? threadsInFolder[currentIndex - 1].latestMessageId.toString() : null;
-    const nextMessageId = currentIndex < total - 1 ? threadsInFolder[currentIndex + 1].latestMessageId.toString() : null;
-
-    return {
-      total,
-      index: currentIndex + 1, // Return 1-based index for the UI
-      previousMessageId,
-      nextMessageId
-    };
+  const currentMessage = await Message.findOne({ _id: messageId, user_id: userId }, { thread_id: 1 }).lean();
+  if (!currentMessage) {
+    return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
   }
+  const currentThreadId = currentMessage.thread_id;
+
+  // --- MODIFIED AGGREGATION ---
+  // We now need the ID of the latest message in each thread, not just the thread_id.
+  const threadsInFolder = await Message.aggregate([
+    { $match: { user_id: new ObjectId(userId), folder: folder } },
+    { $sort: { created_at: -1 } },
+    {
+      $group: {
+        _id: "$thread_id", // Group by thread
+        latestMessageId: { $first: "$_id" }, // Get the ID of the newest message in the thread
+        latestMessageDate: { $first: "$created_at" }
+      }
+    },
+    { $sort: { latestMessageDate: -1 } }, // Sort threads by newest message
+    { $project: { _id: 1, latestMessageId: 1 } } // Project thread_id and latestMessageId
+  ]);
+
+  const total = threadsInFolder.length;
+
+  // Find the 0-based index of the current thread in the sorted list.
+  const currentIndex = threadsInFolder.findIndex(thread => String(thread._id) === String(currentThreadId));
+
+  if (currentIndex === -1) {
+    // This can happen if the message is not in the specified folder (e.g., archived)
+    return { total: 0, index: 0, previousMessageId: null, nextMessageId: null };
+  }
+
+  // Determine the IDs for the previous and next messages
+  const previousMessageId = currentIndex > 0 ? threadsInFolder[currentIndex - 1].latestMessageId.toString() : null;
+  const nextMessageId = currentIndex < total - 1 ? threadsInFolder[currentIndex + 1].latestMessageId.toString() : null;
+
+  return {
+    total,
+    index: currentIndex + 1, // Return 1-based index for the UI
+    previousMessageId,
+    nextMessageId
+  };
+}
