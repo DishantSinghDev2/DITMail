@@ -1,10 +1,7 @@
-"use client";
-
-import { useState } from 'react';
 import { format } from 'date-fns';
-import { ChevronDownIcon } from '@heroicons/react/24/solid';
+import { Lock, AlertTriangle } from 'lucide-react'; // Using lucide-react icons
 
-interface MessageHeadersProps {
+interface HeaderDetailsPopoverContentProps {
   from: string;
   to: string[];
   cc?: string[];
@@ -15,7 +12,8 @@ interface MessageHeadersProps {
   security?: string;
 }
 
-export default function MessageHeaders({
+// This component is styled to precisely match the Gmail popover in the image.
+export default function HeaderDetailsPopoverContent({
   from,
   to,
   cc = [],
@@ -24,8 +22,7 @@ export default function MessageHeaders({
   mailedBy,
   signedBy,
   security = "Standard encryption (TLS)",
-}: MessageHeadersProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+}: HeaderDetailsPopoverContentProps) {
 
   const formatDate = (dateString: string) => {
     try {
@@ -36,61 +33,61 @@ export default function MessageHeaders({
   };
 
   return (
-    <div className="text-sm text-gray-600 relative">
-      {!isExpanded && (
-        <button onClick={() => setIsExpanded(true)} className="absolute top-0 right-0 p-1 text-gray-400 hover:text-gray-600">
-          <ChevronDownIcon className="h-5 w-5" />
-        </button>
-      )}
-
-      {isExpanded ? (
-        <table className="w-full text-left">
-          <tbody>
-            <tr className="border-b border-gray-200">
-              <td className="py-1 pr-2 font-medium text-gray-500 align-top">from:</td>
-              <td className="py-1 text-gray-800">{from}</td>
+    <div className="text-sm text-gray-800 p-4">
+      <table className="w-full text-left">
+        <tbody>
+          <tr>
+            <td className="py-1 pr-4 font-normal text-gray-500 align-top">from:</td>
+            <td className="py-1 font-medium">{from}</td>
+          </tr>
+          <tr>
+            <td className="py-1 pr-4 font-normal text-gray-500 align-top">to:</td>
+            <td className="py-1 font-medium">{to.join(', ')}</td>
+          </tr>
+          {cc.length > 0 && (
+            <tr>
+              <td className="py-1 pr-4 font-normal text-gray-500 align-top">cc:</td>
+              <td className="py-1 font-medium">{cc.join(', ')}</td>
             </tr>
-            <tr className="border-b border-gray-200">
-              <td className="py-1 pr-2 font-medium text-gray-500 align-top">to:</td>
-              <td className="py-1 text-gray-800">{to.join(', ')}</td>
+          )}
+          <tr>
+            <td className="py-1 pr-4 font-normal text-gray-500">date:</td>
+            <td className="py-1 font-medium">{formatDate(date)}</td>
+          </tr>
+          <tr>
+            <td className="py-1 pr-4 font-normal text-gray-500">subject:</td>
+            <td className="py-1 font-medium">{subject}</td>
+          </tr>
+          {mailedBy && (
+             <tr>
+              <td className="py-1 pr-4 font-normal text-gray-500">mailed-by:</td>
+              <td className="py-1 font-medium">{mailedBy}</td>
             </tr>
-            {cc.length > 0 && (
-              <tr className="border-b border-gray-200">
-                <td className="py-1 pr-2 font-medium text-gray-500 align-top">cc:</td>
-                <td className="py-1 text-gray-800">{cc.join(', ')}</td>
-              </tr>
-            )}
-            <tr className="border-b border-gray-200">
-              <td className="py-1 pr-2 font-medium text-gray-500">date:</td>
-              <td className="py-1 text-gray-800">{formatDate(date)}</td>
+          )}
+          {signedBy && (
+             <tr>
+              <td className="py-1 pr-4 font-normal text-gray-500">signed-by:</td>
+              <td className="py-1 font-medium">{signedBy}</td>
             </tr>
-            <tr className="border-b border-gray-200">
-              <td className="py-1 pr-2 font-medium text-gray-500">subject:</td>
-              <td className="py-1 text-gray-800">{subject}</td>
+          )}
+           <tr>
+              <td className="py-1 pr-4 font-normal text-gray-500">security:</td>
+              <td className="py-1 font-medium flex items-center">
+                <Lock className="w-4 h-4 mr-2 text-gray-600" />
+                <span>{security} <a href="#" className="text-blue-600 hover:underline">Learn more</a></span>
+              </td>
             </tr>
-            {mailedBy && (
-               <tr className="border-b border-gray-200">
-                <td className="py-1 pr-2 font-medium text-gray-500">mailed-by:</td>
-                <td className="py-1 text-gray-800">{mailedBy}</td>
-              </tr>
-            )}
-            {signedBy && (
-               <tr className="border-b border-gray-200">
-                <td className="py-1 pr-2 font-medium text-gray-500">signed-by:</td>
-                <td className="py-1 text-gray-800">{signedBy}</td>
-              </tr>
-            )}
-             <tr className="border-b border-gray-200">
-                <td className="py-1 pr-2 font-medium text-gray-500">security:</td>
-                <td className="py-1 text-gray-800">{security}</td>
-              </tr>
-          </tbody>
-        </table>
-      ) : (
-        <div className="truncate pr-8">
-          <span className="font-medium text-gray-800">To: {to.join(', ')}</span>
-        </div>
-      )}
+            {/* This stuff is coming soon :) */}
+           {/* <tr>
+              <td className="py-1 pr-4 font-normal text-gray-500 align-top">
+                <AlertTriangle className="w-4 h-4 mt-0.5 text-yellow-500" />
+              </td>
+              <td className="py-1 font-medium">
+                Important according to DITMail.
+              </td>
+            </tr> */}
+        </tbody>
+      </table>
     </div>
   );
 }

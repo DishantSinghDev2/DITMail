@@ -38,6 +38,8 @@ export interface Message {
   text: string;
   html: string;
   read: boolean;
+  status: "sent" | "received" | "draft" | "failed" | "queued";
+  error?: string;
   starred: boolean;
   folder: 'inbox' | 'sent' | 'trash' | 'archive' | 'spam';
   priority?: 'high' | 'low' | 'normal';

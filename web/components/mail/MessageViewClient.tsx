@@ -19,7 +19,7 @@ import {
   ExclamationTriangleIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarIconSolid } from "@heroicons/react/24/solid";
-import { Archive, ArrowLeft, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react";
+import { Archive, ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, MailMinus, OctagonAlert } from "lucide-react";
 import Dropdown from "../ui/Dropdown";
 import SpamBanner from "../messages/SpamBanner";
 import EmailViewer from "../messages/EmailViewer";
@@ -28,7 +28,9 @@ import { useMailStore } from "@/lib/store/mail";
 import { useSession } from "next-auth/react";
 import { formatDisplayName } from "@/lib/mail-utils";
 import FailureBanner from "./FailureBanner";
-import MessageHeaders from "./MessageHeaders";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"; // <-- IMPORT POPOVER
+import HeaderDetailsPopoverContent from "./MessageHeaders";
+
 
 
 // --- PROPS INTERFACE ---
@@ -222,39 +224,58 @@ export function MessageViewClient({
   const renderMessage = (msg: Message, isThread: boolean) => {
     const isExpanded = expandedMessages.has(msg._id);
     const fromName = formatDisplayName(msg.from, currentUserEmail);
-    const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail)).join(", ");
+    const toNames = msg.to.map(p => formatDisplayName(p, currentUserEmail));
 
     const mailDomain = msg.from.split('@')[1] || 'domain.com';
 
     return (
       <div key={msg._id} className="border rounded-lg mb-4">
-        <div className={`p-4 cursor-pointer hover:bg-gray-50 ${isExpanded ? "border-b" : ""}`} onClick={() => isThread && toggleMessageExpansion(msg._id)}>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">{fromName.charAt(0).toUpperCase()}</div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{fromName}</p>
-                <p className="text-xs text-gray-500">To: {toNames}</p>
+        <div className={`p-4 ${isExpanded ? "border-b" : ""}`}>
+          <div className="flex items-start justify-between">
+            {/* Left side: Avatar and From/To details */}
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                {fromName.charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-gray-900 cursor-pointer" onClick={() => isThread && toggleMessageExpansion(msg._id)}>{fromName}</p>
+
+                {/* --- NEW INLINE POPOVER IMPLEMENTATION --- */}
+                <div className="flex items-center text-xs text-gray-500">
+                  <span>To: {toNames.join(", ")}</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="ml-1 p-0.5 rounded-full hover:bg-gray-200">
+                        <ChevronDown className="h-3 w-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <HeaderDetailsPopoverContent
+                        from={fromName}
+                        to={msg.to.map(p => formatDisplayName(p, currentUserEmail))}
+                        cc={msg.cc?.map(p => formatDisplayName(p, currentUserEmail))}
+                        date={msg.created_at}
+                        subject={msg.subject}
+                        mailedBy={mailDomain}
+                        signedBy={mailDomain}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                {/* --- END OF NEW IMPLEMENTATION --- */}
+
               </div>
             </div>
-            <span className="text-xs text-gray-500">{formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}</span>
+            {/* Right side: Timestamp */}
+            <span className="text-xs text-gray-500 flex-shrink-0 ml-4 cursor-pointer" onClick={() => isThread && toggleMessageExpansion(msg._id)}>
+              {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+            </span>
           </div>
         </div>
-
-
         {isExpanded && (
           <div className="p-4">
-            <div className="mb-4">
-              <MessageHeaders
-                from={fromName}
-                to={msg.to.map(p => formatDisplayName(p, currentUserEmail))}
-                cc={msg.cc?.map(p => formatDisplayName(p, currentUserEmail))}
-                date={msg.created_at}
-                subject={msg.subject}
-                mailedBy={mailDomain}
-                signedBy={mailDomain}
-              />
-            </div>
+            {msg.status === "failed" && msg.error && <FailureBanner reason={msg.error} />}
+
             {msg.folder === "spam" && <SpamBanner onMarkNotSpam={handleUnMarkSpam} />}
             <EmailViewer html={msg.html} isSpam={msg.folder === "spam"} />
 
