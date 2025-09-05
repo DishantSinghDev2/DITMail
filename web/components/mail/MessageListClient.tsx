@@ -26,7 +26,6 @@ import { useSession } from "next-auth/react";
 import { formatDisplayName } from "@/lib/mail-utils";
 
 
-// Props interface remains the same
 interface MessageListClientProps {
   initialMessages: MessageThread[];
   pagination: { page: number; limit: number; total: number; pages: number; };
@@ -42,14 +41,11 @@ export function MessageListClient({
   folder,
   storageInfo,
 }: MessageListClientProps) {
-  // --- HOOKS ---
   const router = useRouter();
   const { toast } = useToast();
   const { newMessages, markMessagesRead } = useRealtime();
-
   const { data: session } = useSession();
   const currentUserEmail = session?.user?.email;
-
   const { optimisticallyReadIds, addOptimisticallyReadId, revertOptimisticallyReadId, pendingRemovalIds } = useMailStore();
 
   const [messages, setMessages] = useState<MessageThread[]>(initialMessages);
@@ -57,23 +53,60 @@ export function MessageListClient({
   const [selectAll, setSelectAll] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const [selectionActions, setSelectionActions] = useState({
+    canArchive: false,
+    canMarkAsSpam: false,
+    canDelete: false,
+    canMarkAsRead: false,
+    canMarkAsUnread: false,
+    canStar: false,
+    canUnstar: false,
+  });
+
   const selectAllCheckboxRef = useRef<HTMLInputElement>(null);
   const pathname = usePathname();
 
-  // --- EFFECTS ---
   useEffect(() => {
-    // When initialMessages from the server changes, filter out any pending removals
     const visibleMessages = initialMessages.filter(msg => !pendingRemovalIds.has(msg._id));
     setMessages(visibleMessages);
     setSelectedMessages(new Set());
   }, [initialMessages, pendingRemovalIds]);
 
+  useEffect(() => {
+    if (selectedMessages.size === 0) {
+      setSelectionActions({
+        canArchive: false, canMarkAsSpam: false, canDelete: false,
+        canMarkAsRead: false, canMarkAsUnread: false,
+        canStar: false, canUnstar: false,
+      });
+      return;
+    }
+
+    const selected = messages.filter(msg => selectedMessages.has(msg._id));
+
+    const hasUnread = selected.some(msg => !msg.read);
+    const hasRead = selected.some(msg => msg.read);
+    const hasUnstarred = selected.some(msg => !msg.starred);
+    const hasStarred = selected.some(msg => msg.starred);
+
+    // Determine actions based on current folder and message state
+    setSelectionActions({
+      canMarkAsRead: hasUnread,
+      canMarkAsUnread: hasRead,
+      canStar: hasUnstarred,
+      canUnstar: hasStarred,
+      // You can't archive/spam messages from your sent or trash folders, r?
+      canArchive: folder !== 'archive' && folder !== 'sent' && folder !== 'trash',
+      canMarkAsSpam: folder !== 'spam' && folder !== 'sent' && folder !== 'trash',
+      // You can't delete messages that are already in the trash
+      canDelete: folder !== 'trash',
+    });
+
+  }, [selectedMessages, messages, folder]);
+
 
   useEffect(() => {
-    const currentMessages = messages.map(msg => ({
-      ...msg,
-      read: msg.read || optimisticallyReadIds.has(msg._id),
-    }));
+    const currentMessages = messages.map(msg => ({ ...msg, read: msg.read || optimisticallyReadIds.has(msg._id) }));
     const isAllSelected = currentMessages.length > 0 && selectedMessages.size === currentMessages.length;
     const isPartiallySelected = selectedMessages.size > 0 && selectedMessages.size < currentMessages.length;
     setSelectAll(isAllSelected);
@@ -107,22 +140,18 @@ export function MessageListClient({
     }
   };
 
-  // --- **FIXED**: CORE HANDLER WITH OPTIMISTIC UPDATES ---
   const handleBulkAction = async (action: string) => {
     if (selectedMessages.size === 0) return;
 
-    const originalMessages = [...messages]; // Save a backup for rollback
+    const originalMessages = [...messages];
     const messageIdsToUpdate = Array.from(selectedMessages);
     let newMessages;
 
-    // Actions that remove messages from the current view
     const isDestructiveAction = ['delete', 'archive', 'spam'].includes(action);
 
     if (isDestructiveAction) {
-      // Optimistically filter out the messages
       newMessages = messages.filter(msg => !messageIdsToUpdate.includes(msg._id));
     } else {
-      // Optimistically update the property of the messages
       newMessages = messages.map(msg => {
         if (messageIdsToUpdate.includes(msg._id)) {
           switch (action) {
@@ -137,11 +166,9 @@ export function MessageListClient({
       });
     }
 
-    // Instantly update the UI
     setMessages(newMessages);
     setSelectedMessages(new Set());
 
-    // Perform the API call in the background
     try {
       const response = await fetch('/api/messages/bulk-update', {
         method: 'POST',
@@ -150,27 +177,22 @@ export function MessageListClient({
       });
       if (!response.ok) throw new Error("API request failed");
 
-      mailAppEvents.emit('countsChanged'); // Update folder counts on success
-
-      // On success, we can trigger a refresh to ensure data consistency without a jarring UI change
+      mailAppEvents.emit('countsChanged');
       router.refresh();
       toast({ title: "Success", description: "Messages have been updated." });
 
     } catch (error) {
       console.error("Bulk action error:", error);
-      // **ROLLBACK**: If the API call fails, revert to the original state
       setMessages(originalMessages);
       toast({ title: "Error", description: "Could not update messages. Reverting.", variant: "destructive" });
     }
   };
 
-  // --- **FIXED**: OPTIMISTIC SINGLE STAR ---
   const handleSingleStar = async (messageId: string, newStarredState: boolean) => {
-    const originalMessages = [...messages]; // Save backup for rollback
+    const originalMessages = [...messages];
     const newMessages = messages.map(msg =>
       msg._id === messageId ? { ...msg, starred: newStarredState } : msg
     );
-    // Instantly update UI
     setMessages(newMessages);
 
     try {
@@ -185,7 +207,6 @@ export function MessageListClient({
       });
       if (!response.ok) throw new Error("Star update failed");
     } catch (error) {
-      // **ROLLBACK**: Revert UI on failure
       setMessages(originalMessages);
       toast({ title: "Error", description: "Could not update star status.", variant: "destructive" });
     }
@@ -230,13 +251,11 @@ export function MessageListClient({
     }
     setSelectedMessages(newSelectedIds);
   };
-
   const { page: currentPage, total: totalMessages } = pagination;
   const paginationStart = Math.min((currentPage - 1) * ITEMS_PER_PAGE + 1, totalMessages);
   const paginationEnd = Math.min(currentPage * ITEMS_PER_PAGE, totalMessages);
 
   const storagePercentage = storageInfo.limit > 0 ? (storageInfo.used / storageInfo.limit) * 100 : 0;
-
   return (
     <div className="flex h-full flex-col bg-white">
       {/* Header and Controls */}
@@ -265,19 +284,27 @@ export function MessageListClient({
               />
             </div>
             {selectedMessages.size > 0 ? (
+              // --- Now its smart ---
               <div className="flex items-center space-x-1">
-                <button title="Archive" onClick={() => handleBulkAction('archive')} className="p-2 hover:bg-gray-100 rounded-full"><ArchiveBoxIcon className="h-4 w-4 text-gray-500" /></button>
-                <button title="Mark as spam" onClick={() => handleBulkAction('spam')} className="p-2 hover:bg-gray-100 rounded-full"><OctagonAlert className="h-4 w-4 text-gray-500" /></button>
-                <button title="Delete" onClick={() => handleBulkAction('delete')} className="p-2 hover:bg-gray-100 rounded-full"><TrashIcon className="h-4 w-4 text-gray-500" /></button>
-                <div className="bg-gray-200 w-0.5 h-5"></div>
-                <button title="Mark as read" onClick={() => handleBulkAction('read')} className="p-2 hover:bg-gray-100 rounded-full"><MailOpen className="h-4 w-4 text-gray-500" /></button>
+                {selectionActions.canArchive && <button title="Archive" onClick={() => handleBulkAction('archive')} className="p-2 hover:bg-gray-100 rounded-full"><ArchiveBoxIcon className="h-4 w-4 text-gray-500" /></button>}
+                {selectionActions.canMarkAsSpam && <button title="Mark as spam" onClick={() => handleBulkAction('spam')} className="p-2 hover:bg-gray-100 rounded-full"><OctagonAlert className="h-4 w-4 text-gray-500" /></button>}
+                {selectionActions.canDelete && <button title="Delete" onClick={() => handleBulkAction('delete')} className="p-2 hover:bg-gray-100 rounded-full"><TrashIcon className="h-4 w-4 text-gray-500" /></button>}
+
+                {/* Separator only appears if there are actions on both sides */}
+                {(selectionActions.canArchive || selectionActions.canMarkAsSpam || selectionActions.canDelete) && (selectionActions.canMarkAsRead) && (
+                  <div className="bg-gray-200 w-0.5 h-5"></div>
+                )}
+
+                {selectionActions.canMarkAsRead && <button title="Mark as read" onClick={() => handleBulkAction('read')} className="p-2 hover:bg-gray-100 rounded-full"><MailOpen className="h-4 w-4 text-gray-500" /></button>}
+
                 <Dropdown
                   trigger={<button title="More options" className="p-2 hover:bg-gray-100 rounded-full"><EllipsisVerticalIcon className="h-4 w-4 text-gray-400" /></button>}
+                  // Dropdown items are now filtered based on available actions
                   items={[
-                    { label: "Mark as unread", onClick: () => handleBulkAction('unread'), icon: MailMinus },
-                    { label: "Star", onClick: () => handleBulkAction('star'), icon: StarIconSolid },
-                    { label: "Unstar", onClick: () => handleBulkAction('unstar'), icon: StarIcon },
-                  ]}
+                    selectionActions.canMarkAsUnread && { label: "Mark as unread", onClick: () => handleBulkAction('unread'), icon: MailMinus },
+                    selectionActions.canStar && { label: "Star", onClick: () => handleBulkAction('star'), icon: StarIconSolid },
+                    selectionActions.canUnstar && { label: "Unstar", onClick: () => handleBulkAction('unstar'), icon: StarIcon },
+                  ].filter(Boolean) as any}
                 />
               </div>
             ) : (
@@ -346,14 +373,12 @@ export function MessageListClient({
                       type="checkbox"
                       checked={selectedMessages.has(message._id)}
                       onChange={(e) => handleSelectMessage(message._id, e.target.checked)}
-                      // --- **FIX**: STOP EVENT PROPAGATION ---
                       onClick={(e) => e.stopPropagation()}
                       className="w-3.5 h-3.5 rounded border-gray-400 text-blue-600 focus:ring-blue-500"
                     />
                     <button
-                      // --- **FIX**: STOP EVENT PROPAGATION ---
                       onClick={(e) => {
-                        e.preventDefault(); // Also prevent default link behavior
+                        e.preventDefault();
                         e.stopPropagation();
                         handleSingleStar(message._id, !message.starred);
                       }}
