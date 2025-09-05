@@ -15,7 +15,7 @@ config({ path: '.env' });
 import Message from '../models/Message';
 import Domain from '../models/Domain';
 import '../models/User';
-import Attachment from '../models/Attachment';
+import '../models/Attachment';
 import AppPassword from '../models/AppPassword';
 import { publishMailboxEvent } from '../lib/redis';
 
