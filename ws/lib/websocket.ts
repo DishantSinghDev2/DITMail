@@ -88,7 +88,6 @@ export function initializeWebSocket(server: any): Server {
       socket.join(`org:${orgId}`);
 
       const subscriber = getRedisClient().duplicate();
-      await subscriber.connect();
 
       const mailChannel = `mailbox:events:${userEmail}`;
       const notificationChannel = `user-notifications:${userId}`;
