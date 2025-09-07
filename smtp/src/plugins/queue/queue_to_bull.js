@@ -56,7 +56,7 @@ exports.register = function () {
 };
 
 
-exports.intercept_for_worker = async function (next, connection) {
+exports.intercept_for_worker = async function (hmail ,next, connection) {
     const plugin = this;
     const transaction = connection.transaction;
     const redis = connection.server.notes.redis;
@@ -67,7 +67,9 @@ exports.intercept_for_worker = async function (next, connection) {
     }
 
     if (WORKER_IPS.includes(connection.remote.ip)) {
-        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip}`);
+            hmail.todo.notes.x_internal_message_id = 'hi';
+
+        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} and the hmail data: ${JSON.stringify(hmail)}`);
         return next();
     }
 
