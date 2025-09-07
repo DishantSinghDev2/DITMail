@@ -78,9 +78,9 @@ exports.update_status = async function (hook, next, hmail, params) {
         return next();
     }
 
-    const headers = hmail?.todo?.headers || {};
-    plugin.loginfo(`hmail.todo.headers: ${JSON.stringify(headers)} and hmail.todo: ${JSON.stringify(hmail.todo)}`)
-    const messageId = headers['x-internal-message-id'] || null;
+    const notes = hmail?.todo?.notes || {};
+    plugin.loginfo(`hmail.todo.headers: ${JSON.stringify(headers)}`)
+    const messageId = notes['x-internal-message-id'] || null;
 
 
     if (!messageId) {
