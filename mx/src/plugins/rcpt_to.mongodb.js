@@ -12,19 +12,18 @@ exports.register = function () {
     const mongoUrl = process.env.MONGO_URI || 'mongodb://localhost:27017';
     const dbName = 'ditmail';
 
-    // Connect to MongoDB. Note the architectural flaw below.
+    // Connect to MongoDB once at startup
     if (!mongoClient) {
         mongoClient = new MongoClient(mongoUrl);
         mongoClient.connect()
             .then(() => {
                 db = mongoClient.db(dbName);
-                plugin.loginfo('Successfully connected to MongoDB for custom domains.');
+                plugin.loginfo('Successfully connected to MongoDB for recipient validation.');
             })
             .catch(err => {
-                plugin.logcrit(`FATAL: Could not connect to MongoDB. Plugin will not work. Error: ${err}`);
+                plugin.logcrit(`FATAL: Could not connect to MongoDB. Error: ${err}`);
             });
     }
-
 
     plugin.register_hook('rcpt', 'check_rcpt_to');
 };
@@ -33,28 +32,46 @@ exports.check_rcpt_to = async function (next, connection, params) {
     const plugin = this;
     const rcpt = params[0];
     const domain = rcpt.host.toLowerCase();
+    const email = rcpt.address().toLowerCase();
 
-    // Always check if the database connection is available
     if (!db) {
-        plugin.logerror(`Database not ready, deferring mail for ${rcpt.address}`);
+        plugin.logerror(`Database not ready, deferring mail for ${email}`);
         return next(DENYSOFT, "Recipient verification is temporarily unavailable.");
     }
 
     try {
+        // --- 1. Check domain in "domains" collection ---
         plugin.logdebug(`Checking domain: ${domain}`);
 
-        // Query the 'domains' collection for an active/verified domain
-        const domainDoc = await db.collection('domains').findOne({ domain: domain, status: "verified" });
+        if (domain !== 'ditmail.online') {
+            const domainDoc = await db.collection('domains').findOne({
+                domain: domain,
+                status: "verified"
+            });
 
-        if (domainDoc) {
-            // THE FIX IS HERE: Use next(OK) to accept the recipient.
-            plugin.loginfo(`Domain ${domain} is valid, accepting recipient: ${rcpt.address}`);
-            return next(OK);
-        } else {
-            // Domain not found or not verified. Reject it permanently.
-            plugin.logwarn(`Domain ${domain} not found or not verified, rejecting recipient: ${rcpt.address}`);
-            return next(DENY, "The email account that you tried to reach does not exist. Please try double-checking the recipient's email address for typos or unnecessary spaces. For more information, go to https://pro.freecustom.email/support?code=No_Such_User.");
+            if (!domainDoc) {
+                plugin.logwarn(`Domain ${domain} not verified, rejecting recipient: ${email}`);
+                return next(DENY, "The domain does not exist or is not verified.");
+            }
         }
+
+
+        // --- 2. Check user in "users" collection ---
+        plugin.logdebug(`Checking user: ${email}`);
+
+        const userDoc = await db.collection('users').findOne({
+            email: email
+        });
+
+        if (!userDoc) {
+            plugin.logwarn(`User ${email} does not exist, rejecting.`);
+            return next(DENY, "No such user exists. Please check the email address for typos. Learn more here: https://mail.dishis.tech/support?code=no-such-user");
+        }
+
+        // ✅ Both checks passed
+        plugin.loginfo(`Recipient ${email} accepted (domain + user verified).`);
+        return next(OK);
+
     } catch (err) {
         plugin.logerror("Database error during recipient validation: " + err.message);
         return next(DENYSOFT, "A temporary error occurred during recipient validation.");

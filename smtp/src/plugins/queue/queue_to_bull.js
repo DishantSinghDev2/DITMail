@@ -67,13 +67,16 @@ exports.intercept_for_worker = async function (next, connection) {
     }
 
     if (WORKER_IPS.includes(connection.remote.ip)) {
-        const jobData = {
-            headers: connection.transaction.header_lines,
-        };
-        plugin.loginfo(`jobData: ${JSON.stringify(jobData)}`)
+        const headerLines = connection.transaction.header_lines;
+
+        const internalMsgId = headerLines.find(h =>
+            h.toLowerCase().startsWith("x-internal-message-id:")
+        );
 
 
-        transaction.notes.x_internal_message_id = 'hi';
+        transaction.notes.x_internal_message_id = internalMsgId
+            ? internalMsgId.split(":")[1].trim()
+            : null;
 
         plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} `);
         return next();
