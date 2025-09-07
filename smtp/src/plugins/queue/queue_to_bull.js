@@ -67,7 +67,15 @@ exports.intercept_for_worker = async function (next, connection) {
     }
 
     if (WORKER_IPS.includes(connection.remote.ip)) {
-        plugin.loginfo(`transaction: ${JSON.stringify(connection)}`);
+        const jobData = {
+            messageId: connection.transaction.uuid,
+            mailFrom: connection.transaction.mail_from?.address(),
+            rcptTo: connection.transaction.rcpt_to.map(r => r.address()),
+            headers: connection.transaction.header_lines,
+            body: connection.transaction.body ? connection.transaction.body.toString() : null,
+        };
+        plugin.loginfo(`jobData: ${jobData}`)
+
 
         transaction.notes.x_internal_message_id = 'hi';
 
