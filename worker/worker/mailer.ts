@@ -109,6 +109,9 @@ const mailProcessor = async (job: Job) => {
       subject: message.subject,
       html: message.html || "<html><body></body></html>",
       text: message.text || "This email is in HTML format.",
+      headers: {
+        'X-Internal-Message-ID': messageId
+      }
     };
 
     if (message.cc?.length) mailOptions.cc = message.cc;
