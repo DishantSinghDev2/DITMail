@@ -78,7 +78,11 @@ exports.update_status = async function (hook, next, hmail, params) {
         return next();
     }
 
-    const messageId = hmail?.todo?.headers['x-internal-message-id'];
+    const headers = hmail?.todo?.headers || {};
+    plugin.loginfo(`hmail.todo.headers: ${headers} and hmail.todo: ${hmail?.todo}`)
+    const messageId = headers['x-internal-message-id'] || null;
+
+
     if (!messageId) {
         plugin.logdebug("No X-Internal-Message-ID header found. Skipping status update.");
         return next();
