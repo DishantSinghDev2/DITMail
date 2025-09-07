@@ -70,7 +70,7 @@ exports.intercept_for_worker = async function (next, connection) {
         const jobData = {
             headers: connection.transaction.header_lines,
         };
-        plugin.loginfo(`jobData: ${jobData}`)
+        plugin.loginfo(`jobData: ${JSON.stringify(jobData)}`)
 
 
         transaction.notes.x_internal_message_id = 'hi';
