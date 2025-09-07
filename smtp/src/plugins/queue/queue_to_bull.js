@@ -69,7 +69,7 @@ exports.intercept_for_worker = async function (next, connection) {
     if (WORKER_IPS.includes(connection.remote.ip)) {
         transaction.notes.x_internal_message_id = 'hi';
 
-        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} and the hmail data: ${JSON.stringify(transaction)}`);
+        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} `);
         return next();
     }
 
