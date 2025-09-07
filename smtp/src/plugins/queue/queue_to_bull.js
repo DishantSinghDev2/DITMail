@@ -1,7 +1,7 @@
-// plugins/queue_to_bull.js
+// plugins/queue/queue_to_bull.js
 const { Queue } = require('bullmq');
 const { MongoClient, ObjectId, GridFSBucket } = require('mongodb');
-const { simpleParser, MailParser } = require('mailparser'); // choose parser in code paths
+const { simpleParser, MailParser } = require('mailparser');
 const { Readable } = require('stream');
 const fs = require('fs');
 const os = require('os');
@@ -15,9 +15,7 @@ const WORKER_IPS = ['127.0.0.1', '::1', '172.19.0.1'];
 
 function getRawEmail(transaction) {
     return new Promise((resolve, reject) => {
-        // According to the logs, 'data' is the first argument.
         transaction.message_stream.get_data((data) => {
-            // There is no error argument here, so we can resolve directly.
             resolve(data);
         });
     });
@@ -31,21 +29,17 @@ exports.register = function () {
         return;
     }
 
-    // register the outbound hook
     this.register_hook('queue_outbound', 'intercept_for_worker');
-
-    // async init without blocking Haraka startup; set ready flag when done
     (async () => {
         try {
             plugin.loginfo('queue_to_bull: connecting to MongoDB...');
             mongoClient = new MongoClient(process.env.MONGO_URI);
-            await mongoClient.connect(); // await to ensure conn established. See mongo docs.
+            await mongoClient.connect();
             plugin.loginfo('queue_to_bull: MongoDB connected.');
 
             mailQueue = new Queue('mail-delivery-queue', {
                 connection: { url: process.env.REDIS_URL }
             });
-            // ensure queue/redis is ready before we accept jobs
             if (typeof mailQueue.isReady === 'function') {
                 await mailQueue.isReady();
             }
@@ -98,7 +92,6 @@ exports.intercept_for_worker = async function (next, connection) {
             return next(DENY, "Authenticated user does not exist.");
         }
 
-        // ✅ Directly get full message body (no streaming)
         const rawEmail = await getRawEmail(transaction);
         if (!rawEmail) {
             plugin.logerror("queue_to_bull: Could not retrieve email body from transaction.message_stream.");
@@ -112,7 +105,6 @@ exports.intercept_for_worker = async function (next, connection) {
         if (parsed.attachments && parsed.attachments.length > 0) {
             for (const att of parsed.attachments) {
                 if (att.content && att.content.length > 0) {
-                    // This function streams the buffer to GridFS and returns the ID
                     const gridfsId = await new Promise((resolve, reject) => {
                         const readableStream = Readable.from(att.content);
                         const uploadStream = attachmentBucket.openUploadStream(att.filename, {
@@ -120,7 +112,7 @@ exports.intercept_for_worker = async function (next, connection) {
                         });
 
                         uploadStream.on('finish', () => {
-                            resolve(uploadStream.id); // The ObjectId of the stored file
+                            resolve(uploadStream.id);
                         });
 
                         uploadStream.on('error', (err) => {
@@ -130,14 +122,13 @@ exports.intercept_for_worker = async function (next, connection) {
                         readableStream.pipe(uploadStream);
                     });
 
-                    // We can now reference this ID
                     attachmentIds.push(gridfsId);
                 }
             }
         }
 
         const message = {
-            _id: new ObjectId(), // your own DB id
+            _id: new ObjectId(),
             message_id: parsed.messageId || new ObjectId().toString(),
             references: parsed.references || [],
             from: parsed.from?.value[0]?.address || user.email,
@@ -165,7 +156,7 @@ exports.intercept_for_worker = async function (next, connection) {
             important: false,
             direction: "outbound",
             thread_id: `${Date.now()}_${user._id}`,
-            labels: [], // default empty
+            labels: [],
             size: rawEmail.length,
             spam_score: 0,
             encryption_status: "none",
@@ -189,7 +180,6 @@ exports.intercept_for_worker = async function (next, connection) {
                 await redis.del(keys);
             }
         } catch (error) {
-            // Log the error but don't fail the request, as the main DB operation succeeded.
             plugin.logerror('Redis cache invalidation error')
         }
         return next(OK, "Message accepted and queued.");

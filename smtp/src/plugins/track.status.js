@@ -1,12 +1,12 @@
 // /home/dit/DITMail/smtp/src/plugins/track.status.js
-
+const Redis = require('ioredis');
 const { MongoClient, ObjectId } = require('mongodb');
 
 exports.register = function () {
+    this.register_hook('init_child', 'init_connections');
     this.register_hook('delivered', 'delivered');
     this.register_hook('bounce', 'bounce');
     this.register_hook('deferred', 'deferred');
-    this.register_hook('init_child', 'init_connections');
     this.register_hook('shutdown', 'shutdown_connections');
 };
 
@@ -19,7 +19,9 @@ exports.init_connections = async function (next) {
             plugin.logerror("MONGO_URI not set. Plugin will not work correctly.");
         } else {
             try {
-                plugin.dbClient = await MongoClient.connect(mongoUri, { useUnifiedTopology: true });
+                plugin.dbClient = new MongoClient(mongoUri, { useUnifiedTopology: true });
+                await plugin.dbClient.connect();
+
                 plugin.loginfo("MongoDB client initialized.");
             } catch (err) {
                 plugin.logerror(`MongoDB init failed: ${err.stack}`);
