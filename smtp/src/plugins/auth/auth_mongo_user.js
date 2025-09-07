@@ -1,19 +1,13 @@
-// Haraka plugin for unified user authentication against MongoDB.
-// Supports both encrypted App Passwords (for internal services)
-// and bcrypt-hashed passwords (for end-user email clients).
-
 const mongodb = require('mongodb');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { MongoClient, ObjectId } = require('mongodb');
 
 
-// --- Module-level variables ---
 let db, users, domains, appPasswords;
 const ALGORITHM = 'aes-256-cbc';
 let ENCRYPTION_KEY;
 
-// --- Helper function for decryption ---
 function decrypt(text, key, plugin) {
     try {
         const parts = text.split(':');
@@ -26,11 +20,10 @@ function decrypt(text, key, plugin) {
         return decrypted;
     } catch (e) {
         plugin.logerror(`Decryption failed: ${e.message}`);
-        return null; // Return null on failure
+        return null;
     }
 }
 
-// --- Haraka Plugin Registration ---
 exports.register = function () {
     const plugin = this;
     plugin.inherits('auth/auth_base');
@@ -49,24 +42,10 @@ exports.load_mongo_config = function () {
         userCollection: 'users',
         appPasswordCollection: 'apppasswords',
         domainCollection: 'domains',
-        encryption_key: process.env.APP_ENCRYPTION_KEY || '', // Load the key from config
+        encryption_key: process.env.APP_ENCRYPTION_KEY || '',
         require_tls: config.main.require_tls !== false,
     };
 
-
-    // --- Add this logging block ---
-    plugin.loginfo('--- Haraka Key Check ---');
-    const harakaKey = plugin.cfg.encryption_key;
-    try {
-        plugin.loginfo(`Haraka Key Length: ${Buffer.from(harakaKey, 'base64').length} bytes`);
-        plugin.loginfo(`Haraka Key Preview: ${harakaKey.slice(0, 4)}...${harakaKey.slice(-4)}`);
-    } catch (e) {
-        plugin.logerror(`Haraka Key is invalid: ${e.message}`);
-    }
-    plugin.loginfo('------------------------');
-    // --- End of logging block ---
-
-    // Validate the encryption key
     if (!plugin.cfg.encryption_key) {
         plugin.logcrit("encryption_key is missing in auth_mongo_user.ini. App password auth will fail.");
     } else {
@@ -90,7 +69,6 @@ exports.load_mongo_config = function () {
 };
 
 exports.hook_capabilities = (next, connection) => {
-    // Only offer AUTH if the connection is secure (TLS).
     if (connection.tls.enabled) {
         const methods = ['PLAIN', 'LOGIN'];
         connection.capabilities.push(`AUTH ${methods.join(' ')}`);
@@ -115,30 +93,11 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
             plugin.logwarn(`Unified Auth: User ${username} not found.`);
             return cb(false);
         }
-
-        // --- AUTHENTICATION LOGIC ---
-        // 1. Try App Password Authentication FIRST (for automated services)
         if (ENCRYPTION_KEY) {
             const userAppPasswords = await appPasswords.find({ user_id: new ObjectId(user._id) }).toArray();
 
-            // --- !! ADD THIS LOGGING BLOCK !! ---
-            plugin.loginfo("--- HARAKA AUTH DEBUG ---");
-            plugin.loginfo(`Password received from client: ${password}`);
-            if (userAppPasswords.length > 0) {
-                plugin.loginfo(`Encrypted string from DB: ${userAppPasswords[0].encrypted_password}`);
-            } else {
-                plugin.logwarn(`No App Password found in DB for this user: ${user._id} ${new ObjectId(user._id)}`);
-            }
-            // --- !! END OF LOGGING BLOCK !! ---
-
             for (const ap of userAppPasswords) {
                 const plainTextPassword = decrypt(ap.encrypted_password, ENCRYPTION_KEY, plugin);
-
-                // --- !! ADD THIS LOGGING BLOCK !! ---
-                plugin.loginfo(`Result of Haraka's decryption: ${plainTextPassword}`);
-                plugin.loginfo(`Comparing client pass to Haraka pass: ${password === plainTextPassword ? 'MATCH' : 'NO MATCH'}`);
-                plugin.loginfo("-------------------------");
-                // --- !! END OF LOGGING BLOCK !! ---
 
                 if (plainTextPassword !== null && plainTextPassword === password) {
                     plugin.loginfo(`Unified Auth: User ${username} authenticated successfully via App Password.`);
@@ -148,7 +107,6 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
         }
 
 
-        // 2. If App Password auth fails or is not configured, fall back to user password (bcrypt)
         if (user.password_hash) {
             const match = await bcrypt.compare(password, user.password_hash);
             if (match) {
@@ -157,7 +115,6 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
             }
         }
 
-        // 3. If both methods fail, deny access.
         plugin.logwarn(`Unified Auth: All authentication methods failed for user ${username}.`);
         return cb(false);
 
@@ -168,14 +125,10 @@ exports.check_plain_passwd = async function (connection, username, password, cb)
     }
 };
 
-/**
- * A helper function to run common logic on successful authentication.
- */
 exports.on_auth_success = async function (connection, user, cb) {
     const plugin = this;
     const username = user.email;
 
-    // --- Domain and Access Checks (from your original plugin) ---
     if (!user.mailboxAccess) {
         plugin.logwarn(`AUTH failed for user: ${username} (no mailbox access)`);
         connection.notes.auth_message = "Your account does not have SMTP mailbox access.";
@@ -189,11 +142,9 @@ exports.on_auth_success = async function (connection, user, cb) {
         return cb(false);
     }
 
-    // Check if the user's domain is the universal 'ditmail.online'
     const userDomain = username.substring(username.lastIndexOf('@') + 1).toLowerCase();
 
     if (userDomain !== 'ditmail.online') {
-        // --- If not a universal domain, perform the standard organization domain verification ---
         const orgDomains = await domains.find({ org_id: new mongodb.ObjectId(org_id), status: "verified" }).map(doc => doc.domain.toLowerCase()).toArray();
         if (orgDomains.length === 0) {
             plugin.logwarn(`AUTH failed for user: ${username} (no verified domains for org)`);
@@ -209,10 +160,9 @@ exports.on_auth_success = async function (connection, user, cb) {
         }
     }
 
-    // --- All checks passed ---
     connection.set('auth_user', username.toLowerCase());
-    connection.notes.user = user; // Store full user object
-    connection.relaying = true; // Allow sending outbound mail
+    connection.notes.user = user;
+    connection.relaying = true;
 
     return cb(true);
 };

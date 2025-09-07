@@ -67,7 +67,6 @@ set_plugin_redis_config() {
   else
     sed -i "/^\[redis\]/a port = $REDIS_PORT" "$file"
   fi
-
   if grep -qE "^password\s*=" "$file"; then
     sed -i "/^\[redis\]/,/^\[/ s/^password\s*=.*/password = $REDIS_PASSWORD/" "$file"
   else
@@ -89,7 +88,7 @@ done
 # Update log level
 sed -i "s/^level\s*=.*/level = $LOG_LEVEL/" "$CONFIG_DIR/log.ini"
 
-# --- Wait for TLS Certificates ---
+# --- Waiting... ---
 if [[ -z "$TLS_DOMAIN" ]]; then
   echo "[WARN] TLS_DOMAIN is not set. Skipping certificate wait."
 else

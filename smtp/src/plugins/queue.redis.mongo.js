@@ -67,7 +67,6 @@ exports.save_to_redis_and_mongo = function (next, connection) {
           body: body,
           html: parsed.html || parsed.textAsHtml || null
         };
-
         redis.lPush(key, JSON.stringify(metadata));
         redis.lPush(key + ":body", JSON.stringify(messageBody));
         redis.lTrim(key, 0, mailbox_size);
