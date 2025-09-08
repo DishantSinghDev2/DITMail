@@ -67,20 +67,24 @@ exports.intercept_for_worker = async function (next, connection) {
     }
 
     if (WORKER_IPS.includes(connection.remote.ip)) {
-        const headerLines = connection.transaction.header_lines;
-
-        const internalMsgId = headerLines.find(h =>
+        const headerLines = transaction.header_lines || [];
+        const internalMsgIdHeader = headerLines.find(h =>
             h.toLowerCase().startsWith("x-internal-message-id:")
         );
 
-
-        transaction.notes.x_internal_message_id = internalMsgId
-            ? internalMsgId.split(":")[1].trim()
+        const internalMsgId = internalMsgIdHeader
+            ? internalMsgIdHeader.split(":")[1].trim()
             : null;
 
-        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} with internal msg id: ${internalMsgId}`);
+        if (internalMsgId) {
+            transaction.notes.x_internal_message_id = internalMsgId;
+            plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} with internal msg id: ${internalMsgId}`);
+        } else {
+            plugin.logwarn(`Worker IP ${connection.remote.ip} connected without an X-Internal-Message-ID header. Status tracking for this message will fail.`);
+        }
         return next();
     }
+
 
     if (!connection.relaying) return next();
 

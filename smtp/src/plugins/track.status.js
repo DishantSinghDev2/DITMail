@@ -13,64 +13,39 @@ exports.register = function () {
 
 exports.init_connections = async function (next) {
     const plugin = this;
-
-    if (!plugin.dbClient) {
-        const mongoUri = process.env.MONGO_URI;
-        if (!mongoUri) {
-            plugin.logerror("MONGO_URI not set. Plugin will not work correctly.");
-        } else {
-            try {
-                plugin.dbClient = new MongoClient(mongoUri, { useUnifiedTopology: true });
-                await plugin.dbClient.connect();
-
-                plugin.loginfo("MongoDB client initialized.");
-            } catch (err) {
-                plugin.logerror(`MongoDB init failed: ${err.stack}`);
-            }
+    try {
+        if (!plugin.dbClient) {
+            const mongoUri = process.env.MONGO_URI;
+            if (!mongoUri) throw new Error("MONGO_URI not set.");
+            plugin.dbClient = new MongoClient(mongoUri);
+            await plugin.dbClient.connect();
+            plugin.loginfo("MongoDB client initialized.");
         }
-    }
-
-    if (!plugin.redisClient) {
-        const redisUrl = process.env.REDIS_URL;
-        if (!redisUrl) {
-            plugin.logerror("REDIS_URL not set. Real-time notifications will fail.");
-        } else {
-            try {
-                plugin.redisClient = new Redis(redisUrl);
-                plugin.loginfo("Dedicated Redis client initialized.");
-            } catch (err) {
-                plugin.logerror(`Redis init failed: ${err.stack}`);
-            }
+        if (!plugin.redisClient) {
+            const redisUrl = process.env.REDIS_URL;
+            if (!redisUrl) throw new Error("REDIS_URL not set.");
+            plugin.redisClient = new Redis(redisUrl);
+            plugin.loginfo("Dedicated Redis client initialized.");
         }
+        if (!plugin.mailQueue) {
+            plugin.mailQueue = new Queue('mail-delivery-queue', {
+                connection: { url: process.env.REDIS_URL }
+            });
+            plugin.loginfo("BullMQ queue ready in track.status");
+        }
+    } catch (err) {
+        plugin.logerror(`Initialization failed: ${err.stack}`);
     }
-
     return next();
 };
 
 exports.shutdown_connections = function (next) {
     const plugin = this;
-
-    if (plugin.dbClient) {
-        plugin.dbClient.close();
-        plugin.dbClient = null;
-        plugin.loginfo("MongoDB connection closed.");
-    }
-    if (plugin.redisClient) {
-        plugin.redisClient.quit();
-        plugin.redisClient = null;
-        plugin.loginfo("Redis connection closed.");
-    }
-    if (!plugin.redisClientQueue) {
-        plugin.redisClientQueue = new Queue('mail-delivery-queue', {
-            connection: { url: process.env.REDIS_URL }
-        });
-        plugin.loginfo("BullMQ queue ready in track.status");
-    }
-
-
+    if (plugin.dbClient) plugin.dbClient.close().then(() => plugin.loginfo("MongoDB connection closed."));
+    if (plugin.redisClient) plugin.redisClient.quit().then(() => plugin.loginfo("Redis connection closed."));
+    if (plugin.mailQueue) plugin.mailQueue.close().then(() => plugin.loginfo("BullMQ connection closed."));
     return next && next();
 };
-
 
 ['delivered', 'bounce', 'deferred'].forEach(hook => {
     exports[hook] = async function (next, hmail, params) {
@@ -80,19 +55,15 @@ exports.shutdown_connections = function (next) {
 
 exports.update_status = async function (hook, next, hmail, params) {
     const plugin = this;
-    const redis = plugin.redisClient;
-    if (!plugin.dbClient || !redis) {
-        plugin.logerror("MongoDB or Redis client unavailable. Skipping status update.");
+    if (!plugin.dbClient || !plugin.redisClient) {
+        plugin.logerror("DB or Redis client unavailable. Skipping status update.");
         return next();
     }
 
-    const notes = hmail?.todo?.notes || {};
-    plugin.loginfo(`hmail.todo.notes: ${JSON.stringify(hmail.todo)}`)
-    const messageId = notes['x-internal-message-id'] || null;
-
+    const messageId = hmail?.todo?.notes?.['x-internal-message-id'];
 
     if (!messageId) {
-        plugin.logdebug("No X-Internal-Message-ID header found. Skipping status update.");
+        plugin.logwarn("No X-Internal-Message-ID found in transaction notes. Cannot update message status.");
         return next();
     }
 
@@ -108,123 +79,72 @@ exports.update_status = async function (hook, next, hmail, params) {
     const messages = db.collection('messages');
     const deliveryFailures = db.collection('deliveryfailures');
     const now = new Date();
-
     let update = {};
 
     try {
         const originalMessage = await messages.findOne({ _id: objId });
-
         if (!originalMessage) {
-            plugin.logwarn(`Original message not found for ID ${messageId}. Skipping.`);
+            plugin.logwarn(`Message not found for ID ${messageId}. Cannot update status.`);
             return next();
         }
 
         const senderId = originalMessage.user_id.toString();
-        const recipients = hmail.rcpt_to.map(r => r.address());
 
         if (hook === 'bounce') {
             let bounceError = 'Bounced';
-            if (params && params[0] instanceof Error) bounceError = params[0].message;
+            if (params && params[0]) bounceError = params[0].message ? params[0].message : String(params[0]);
             else if (Array.isArray(params)) bounceError = params.join(' ');
 
             const statusCodeMatch = bounceError.match(/^(\d{3})/);
-            const statusCode = statusCodeMatch ? parseInt(statusCodeMatch[1], 10) : 500;
+            const statusCode = statusCodeMatch ? parseInt(statusCodeMatch[1], 10) : 550; // Default to a hard bounce code
 
-            update = {
-                $set: {
-                    status: 'failed',
-                    delivery_status: 'bounced',
-                    bounced_at: now,
-                    error: bounceError,
-                },
-            };
+            update = { $set: { status: 'failed', delivery_status: 'bounced', bounced_at: now, error: bounceError } };
 
-            for (const recipient of recipients) {
+            for (const recipient of hmail.rcpt_to) {
+                const recipientAddress = recipient.address();
                 await deliveryFailures.insertOne({
                     original_message_id: objId,
                     user_id: originalMessage.user_id,
                     org_id: originalMessage.org_id,
-                    failed_recipient: recipient,
+                    failed_recipient: recipientAddress,
                     status_code: statusCode,
                     diagnostic_code: bounceError,
-                    reason: `Delivery to ${recipient} failed.`,
+                    reason: `Delivery to ${recipientAddress} failed.`,
                     is_hard_bounce: statusCode >= 500,
                     created_at: now,
                 });
 
                 const subject = `Undeliverable: ${originalMessage.subject || "(no subject)"}`;
-                const text = `Your message wasn’t delivered to ${recipient}. Error: ${bounceError}`;
-                const html = `
-            <div style="font-family:Arial, sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;border-radius:8px;padding:20px;">
-              <div style="display:flex;align-items:center;color:#d93025;">
-                <span style="font-size:24px;margin-right:8px;">❌</span>
-                <strong>Address not found</strong>
-              </div>
-              <p>Your message wasn’t delivered to <b>${recipient}</b>.</p>
-              <blockquote style="border-left:3px solid #ccc;padding-left:10px;color:#555;">
-                ${bounceError}
-              </blockquote>
-              <hr>
-              <p style="font-size:12px;color:#999;">
-                Reporting-MTA: dns; mx.ditmail.online<br>
-                Arrival-Date: ${now.toUTCString()}<br>
-                Original-Message-ID: ${originalMessage.message_id}<br>
-                Final-Recipient: rfc822; ${recipient}<br>
-                Action: failed<br>
-                Status: ${statusCode}<br>
-                Remote-MTA: dns; mx.ditmail.online<br>
-                Diagnostic-Code: smtp; ${bounceError}<br>
-                Last-Attempt-Date: ${now.toUTCString()}
-              </p>
-            </div>
-        `;
+                const text = `Your message to ${recipientAddress} was not delivered. The server reported the following error: ${bounceError}`;
+                const html = `<div style="font-family:sans-serif;padding:20px;"><h2>Message Not Delivered</h2><p>Your message to <b>${recipientAddress}</b> could not be delivered.</p><p>The remote server responded:</p><blockquote style="border-left:4px solid #ccc;padding-left:15px;color:#555;">${bounceError}</blockquote></div>`;
 
-                await queueSystemMessage(plugin, plugin.redisClientQueue, originalMessage, recipient, subject, html, text, originalMessage.thread_id);
-
+                const newNdrMsgId = await queueSystemMessage(plugin, originalMessage, recipientAddress, subject, html, text);
+                plugin.loginfo(`Queued NDR with new message ID: ${newNdrMsgId} for original message ${objId}`);
+                
                 const notificationPayload = JSON.stringify({
                     type: 'delivery_failure',
                     userId: senderId,
                     messageId,
-                    recipient,
+                    recipient: recipientAddress,
                     reason: bounceError,
                 });
                 const channel = `user-notifications:${senderId}`;
-                redis.publish(channel, notificationPayload, (err, res) => {
-                    if (err) plugin.logerror(`Redis publish error on ${channel}: ${err.stack}`);
-                    else plugin.loginfo(`Published delivery failure to Redis channel "${channel}" for message ${messageId}`);
-                });
+                plugin.redisClient.publish(channel, notificationPayload)
+                    .catch(err => plugin.logerror(`Redis publish error on ${channel}: ${err.stack}`));
             }
-        }
-
-        else if (hook === 'delivered') {
-            const [host, ip, response, delay, port, mode, ok_recips, secured] = params;
-            update = {
-                $set: {
-                    status: 'delivered',
-                    delivered_at: now,
-                    last_smtp_response: response,
-                    delivery_info: { host, ip, response, delay, port, mode, ok_recips, secured },
-                },
-            };
-        }
-        else if (hook === 'deferred') {
+        } else if (hook === 'delivered') {
+            const [host, ip, response] = params;
+            update = { $set: { status: 'delivered', delivered_at: now, last_smtp_response: response } };
+        } else if (hook === 'deferred') {
             const errMsg = params?.err?.message || 'Temporary failure';
-            const delayVal = params?.delay || 60;
-            update = {
-                $set: {
-                    status: 'deferred',
-                    deferred_at: now,
-                    error: errMsg,
-                    retry_in: delayVal,
-                },
-            };
+            update = { $set: { status: 'deferred', deferred_at: now, error: errMsg } };
         }
 
-        const result = await messages.updateOne({ _id: objId }, update);
-        if (result.matchedCount > 0) {
-            plugin.loginfo(`Updated status for message ${messageId} → ${hook}`);
-        } else {
-            plugin.logwarn(`Message _id ${messageId} not found when updating status.`);
+        if (Object.keys(update).length > 0) {
+            const result = await messages.updateOne({ _id: objId }, update);
+            if (result.matchedCount > 0) {
+                plugin.loginfo(`Updated status for message ${messageId} to -> ${hook}`);
+            }
         }
     } catch (err) {
         plugin.logerror(`Error in update_status (${hook}) for message ${messageId}: ${err.stack}`);
@@ -233,11 +153,9 @@ exports.update_status = async function (hook, next, hmail, params) {
     return next();
 };
 
-
-async function queueSystemMessage(plugin, mailQueue, originalMessage, recipient, subject, html, text, threadId) {
+async function queueSystemMessage(plugin, originalMessage, recipient, subject, html, text) {
     const db = plugin.dbClient.db("ditmail");
     const messagesCollection = db.collection("messages");
-
     const now = new Date();
     const msgId = new ObjectId();
 
@@ -252,32 +170,20 @@ async function queueSystemMessage(plugin, mailQueue, originalMessage, recipient,
         html,
         text,
         attachments: [],
-        attachment_gridfs_ids: [],
-        size: html.length + text.length,
-        headers: {
-            "auto-submitted": "auto-replied",
-            "precedence": "bulk",
-        },
         status: "queued",
         folder: "inbox",
         org_id: originalMessage.org_id,
         user_id: originalMessage.user_id,
         read: false,
-        starred: false,
-        important: false,
-        direction: "outbound",
-        thread_id: threadId || originalMessage.thread_id,
-        labels: [],
-        spam_score: 0,
-        encryption_status: "none",
-        sent_at: now,
+        direction: "inbound",
+        thread_id: originalMessage.thread_id,
         created_at: now,
-        search_text: `${subject} ${recipient} NDR`,
         system_generated: true,
     };
 
     await messagesCollection.insertOne(messageDoc);
 
-    await mailQueue.add("send-email-job", { messageId: msgId.toString() });
-    plugin.loginfo(`Queued NDR message ${msgId} to ${originalMessage.from}`);
+    await plugin.mailQueue.add("send-email-job", { messageId: msgId.toString() });
+
+    return msgId;
 }
