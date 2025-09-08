@@ -65,6 +65,8 @@ exports.update_status = async function (hook, next, hmail, params) {
     if (!messageId) {
         plugin.logwarn("No X-Internal-Message-ID found in transaction notes. Cannot update message status.");
         return next();
+    } else{
+        plugin.loginfo('Found the internal msg id carrying on, over')
     }
 
     let objId;
@@ -154,6 +156,7 @@ exports.update_status = async function (hook, next, hmail, params) {
 };
 
 async function queueSystemMessage(plugin, originalMessage, recipient, subject, html, text) {
+
     const db = plugin.dbClient.db("ditmail");
     const messagesCollection = db.collection("messages");
     const now = new Date();
