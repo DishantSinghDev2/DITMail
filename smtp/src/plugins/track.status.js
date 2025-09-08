@@ -1,6 +1,7 @@
 // /home/dit/DITMail/smtp/src/plugins/track.status.js
 const Redis = require('ioredis');
 const { MongoClient, ObjectId } = require('mongodb');
+const { Queue } = require('bullmq');
 
 exports.register = function () {
     this.register_hook('init_child', 'init_connections');
@@ -59,6 +60,13 @@ exports.shutdown_connections = function (next) {
         plugin.redisClient = null;
         plugin.loginfo("Redis connection closed.");
     }
+    if (!plugin.redisClientQueue) {
+        plugin.redisClientQueue = new Queue('mail-delivery-queue', {
+            connection: { url: process.env.REDIS_URL }
+        });
+        plugin.loginfo("BullMQ queue ready in track.status");
+    }
+
 
     return next && next();
 };
@@ -144,6 +152,35 @@ exports.update_status = async function (hook, next, hmail, params) {
                     created_at: now,
                 });
 
+                const subject = `Undeliverable: ${originalMessage.subject || "(no subject)"}`;
+                const text = `Your message wasn’t delivered to ${recipient}. Error: ${bounceError}`;
+                const html = `
+            <div style="font-family:Arial, sans-serif;max-width:600px;margin:auto;border:1px solid #ddd;border-radius:8px;padding:20px;">
+              <div style="display:flex;align-items:center;color:#d93025;">
+                <span style="font-size:24px;margin-right:8px;">❌</span>
+                <strong>Address not found</strong>
+              </div>
+              <p>Your message wasn’t delivered to <b>${recipient}</b>.</p>
+              <blockquote style="border-left:3px solid #ccc;padding-left:10px;color:#555;">
+                ${bounceError}
+              </blockquote>
+              <hr>
+              <p style="font-size:12px;color:#999;">
+                Reporting-MTA: dns; mx.ditmail.online<br>
+                Arrival-Date: ${now.toUTCString()}<br>
+                Original-Message-ID: ${originalMessage.message_id}<br>
+                Final-Recipient: rfc822; ${recipient}<br>
+                Action: failed<br>
+                Status: ${statusCode}<br>
+                Remote-MTA: dns; mx.ditmail.online<br>
+                Diagnostic-Code: smtp; ${bounceError}<br>
+                Last-Attempt-Date: ${now.toUTCString()}
+              </p>
+            </div>
+        `;
+
+                await queueSystemMessage(plugin, plugin.redisClientQueue, originalMessage, recipient, subject, html, text, originalMessage.thread_id);
+
                 const notificationPayload = JSON.stringify({
                     type: 'delivery_failure',
                     userId: senderId,
@@ -151,7 +188,6 @@ exports.update_status = async function (hook, next, hmail, params) {
                     recipient,
                     reason: bounceError,
                 });
-
                 const channel = `user-notifications:${senderId}`;
                 redis.publish(channel, notificationPayload, (err, res) => {
                     if (err) plugin.logerror(`Redis publish error on ${channel}: ${err.stack}`);
@@ -159,6 +195,7 @@ exports.update_status = async function (hook, next, hmail, params) {
                 });
             }
         }
+
         else if (hook === 'delivered') {
             const [host, ip, response, delay, port, mode, ok_recips, secured] = params;
             update = {
@@ -195,3 +232,52 @@ exports.update_status = async function (hook, next, hmail, params) {
 
     return next();
 };
+
+
+async function queueSystemMessage(plugin, mailQueue, originalMessage, recipient, subject, html, text, threadId) {
+    const db = plugin.dbClient.db("ditmail");
+    const messagesCollection = db.collection("messages");
+
+    const now = new Date();
+    const msgId = new ObjectId();
+
+    const messageDoc = {
+        _id: msgId,
+        message_id: `<ndr-${msgId}@ditmail.online>`,
+        references: [originalMessage.message_id],
+        in_reply_to: originalMessage.message_id,
+        from: "mailer-daemon@ditmail.online",
+        to: [originalMessage.from],
+        subject,
+        html,
+        text,
+        attachments: [],
+        attachment_gridfs_ids: [],
+        size: html.length + text.length,
+        headers: {
+            "auto-submitted": "auto-replied",
+            "precedence": "bulk",
+        },
+        status: "queued",
+        folder: "inbox",
+        org_id: originalMessage.org_id,
+        user_id: originalMessage.user_id,
+        read: false,
+        starred: false,
+        important: false,
+        direction: "outbound",
+        thread_id: threadId || originalMessage.thread_id,
+        labels: [],
+        spam_score: 0,
+        encryption_status: "none",
+        sent_at: now,
+        created_at: now,
+        search_text: `${subject} ${recipient} NDR`,
+        system_generated: true,
+    };
+
+    await messagesCollection.insertOne(messageDoc);
+
+    await mailQueue.add("send-email-job", { messageId: msgId.toString() });
+    plugin.loginfo(`Queued NDR message ${msgId} to ${originalMessage.from}`);
+}
