@@ -78,7 +78,7 @@ exports.intercept_for_worker = async function (next, connection) {
             ? internalMsgId.split(":")[1].trim()
             : null;
 
-        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} `);
+        plugin.loginfo(`Bypassing interception from worker IP ${connection.remote.ip} with internal msg id: ${internalMsgId}`);
         return next();
     }
 
