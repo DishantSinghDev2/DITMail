@@ -148,6 +148,9 @@ exports.save_to_mongo = function (next, connection) {
     const spamReport = calculate_spam_score(connection, transaction, parsed, plugin.cfg);
     const spamThreshold = plugin.cfg.spam?.threshold || 15;
     const folder = spamReport.score >= spamThreshold ? 'spam' : 'inbox';
+    const fromAddress = parsed.from?.value?.[0]?.address ?? transaction.mail_from.address() ?? 'mailer-daemon@ditmail.online';
+    const toAddresses = parsed.to?.value?.map(addr => addr.address.toLowerCase()) ?? transaction.rcpt_to.map(r => r.address());
+
 
     plugin.loginfo(`Message ${transaction.uuid} from ${parsed.from.value[0].address} scored ${spamReport.score} with reasons: [${spamReport.reasons.join(', ')}]. Destination: ${folder}`);
 
@@ -246,8 +249,8 @@ exports.save_to_mongo = function (next, connection) {
         message_id: parsed.messageId || `<${shortid.generate()}@ditmail.com>`,
         in_reply_to: parsed.inReplyTo,
         references: Array.isArray(parsed.references) ? parsed.references : [parsed.references].filter(Boolean),
-        from: parsed.from.value[0].address.toLowerCase(),
-        to: parsed.to.value.map(addr => addr.address.toLowerCase()),
+        from: fromAddress.toLowerCase(),
+        to: toAddresses,
         cc: parsed.cc?.value.map(addr => addr.address.toLowerCase()) || [],
         bcc: [],
         subject: parsed.subject || '(no subject)',
