@@ -1,6 +1,6 @@
 "use client"
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, forwardRef } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { X } from "lucide-react"
 
@@ -46,24 +46,27 @@ const RecipientPill = ({ email, onRemove }: { email: string; onRemove: () => voi
   );
 };
 
-export default function ContactAutocomplete({ value, onChange, placeholder, className }: ContactAutocompleteProps) {
-  const [inputValue, setInputValue] = useState("")
-  const [pills, setPills] = useState<string[]>([])
-  const [contacts, setContacts] = useState<Contact[]>([])
-  const [suggestions, setSuggestions] = useState<Contact[]>([])
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const [selectedIndex, setSelectedIndex] = useState(-1)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+// Use forwardRef to allow parent components to get a ref to the input element
+const ContactAutocomplete = forwardRef<HTMLInputElement, ContactAutocompleteProps>(
+  ({ value, onChange, placeholder, className }, ref) => {
+    const [inputValue, setInputValue] = useState("")
+    const [pills, setPills] = useState<string[]>([])
+    const [contacts, setContacts] = useState<Contact[]>([])
+    const [suggestions, setSuggestions] = useState<Contact[]>([])
+    const [showSuggestions, setShowSuggestions] = useState(false)
+    const [selectedIndex, setSelectedIndex] = useState(-1)
+    const containerRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    if (typeof value !== "string") {
-      console.error("Expected value to be a string, got:", typeof value)
-      return
-    }
-    const emailsFromValue = value ? value.split(",").map(e => e.trim()).filter(Boolean) : []
-    setPills(emailsFromValue)
-  }, [value])
+    useEffect(() => {
+      if (typeof value !== "string") {
+        console.error("Expected value to be a string, got:", typeof value)
+        return
+      }
+      const emailsFromValue = value ? value.split(",").map(e => e.trim()).filter(Boolean) : []
+      if (JSON.stringify(emailsFromValue) !== JSON.stringify(pills)) {
+          setPills(emailsFromValue)
+      }
+    }, [value, pills])
 
   useEffect(() => {
     const loadContacts = async () => {
@@ -85,14 +88,29 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
     loadContacts()
   }, [])
 
-  useEffect(() => {
-    if (inputValue.length < 1) {
-      setShowSuggestions(false); return;
-    }
-    const filtered = contacts.filter(contact => !pills.includes(contact.email) && (contact.email.toLowerCase().includes(inputValue.toLowerCase()) || contact.name?.toLowerCase().includes(inputValue.toLowerCase()))).slice(0, 5)
-    setSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
-  }, [inputValue, contacts, pills])
+  
+    useEffect(() => {
+        // Show recent/all contacts if input is empty but focused
+        if (inputValue.length < 1) {
+            const recentContacts = contacts
+                .filter(contact => !pills.includes(contact.email))
+                .sort((a, b) => (toDate(b.lastUsed)?.getTime() || 0) - (toDate(a.lastUsed)?.getTime() || 0))
+                .slice(0, 5);
+            setSuggestions(recentContacts);
+            // Don't auto-show suggestions on empty, wait for focus.
+            return;
+        }
+
+        const filtered = contacts.filter(contact =>
+            !pills.includes(contact.email) &&
+            (contact.email.toLowerCase().includes(inputValue.toLowerCase()) ||
+             contact.name?.toLowerCase().includes(inputValue.toLowerCase()))
+        ).slice(0, 5);
+
+        setSuggestions(filtered);
+        setShowSuggestions(filtered.length > 0);
+    }, [inputValue, contacts, pills]);
+
 
   const addOrUpdateContact = async (email: string) => {
     const existingContact = contacts.find(c => c.email.toLowerCase() === email.toLowerCase());
@@ -124,93 +142,130 @@ export default function ContactAutocomplete({ value, onChange, placeholder, clas
   };
 
 
-  const addPill = (email: string) => {
-    const trimmedEmail = email.trim();
-    if (trimmedEmail && emailRegex.test(trimmedEmail) && !pills.includes(trimmedEmail)) {
-      const newPills = [...pills, trimmedEmail];
-      onChange(newPills.join(", "));
-      addOrUpdateContact(trimmedEmail);
-    }
-    setInputValue("");
-    setShowSuggestions(false);
-  };
-
-  const removePill = (emailToRemove: string) => {
-    const newPills = pills.filter(email => email !== emailToRemove)
-    onChange(newPills.join(", "))
-  }
-
-  // Handle keyboard events, now correctly adds new emails on Enter
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && inputValue === "" && pills.length > 0) {
-      removePill(pills[pills.length - 1]);
-      return;
-    }
-
-    if (e.key === "Enter" || e.key === "Tab") {
-      if (showSuggestions && selectedIndex >= 0 && suggestions[selectedIndex]) {
-        e.preventDefault();
-        addPill(suggestions[selectedIndex].email);
-      } else if (inputValue) {
-        e.preventDefault();
-        addPill(inputValue);
+ const addPill = (email: string) => {
+      const trimmedEmail = email.trim();
+      if (trimmedEmail && emailRegex.test(trimmedEmail) && !pills.includes(trimmedEmail)) {
+        const newPills = [...pills, trimmedEmail];
+        setPills(newPills); // Update local state immediately
+        onChange(newPills.join(", ")); // Propagate change to parent
+        addOrUpdateContact(trimmedEmail);
       }
-      return;
+      setInputValue("");
+      setShowSuggestions(false);
+      setSelectedIndex(-1);
+    };
+  
+    const removePill = (emailToRemove: string) => {
+      const newPills = pills.filter(email => email !== emailToRemove)
+      setPills(newPills);
+      onChange(newPills.join(", "))
     }
 
-    if (!showSuggestions) return;
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === "Backspace" && inputValue === "" && pills.length > 0) {
+        e.preventDefault();
+        removePill(pills[pills.length - 1]);
+        return;
+      }
 
-    switch (e.key) {
-      case "ArrowDown": e.preventDefault(); setSelectedIndex(p => (p < suggestions.length - 1 ? p + 1 : p)); break;
-      case "ArrowUp": e.preventDefault(); setSelectedIndex(p => (p > 0 ? p - 1 : -1)); break;
-      case "Escape": setShowSuggestions(false); break;
+      if (e.key === "Enter" || e.key === "Tab") {
+        if (showSuggestions && selectedIndex >= 0 && suggestions[selectedIndex]) {
+          e.preventDefault();
+          addPill(suggestions[selectedIndex].email);
+        } else if (inputValue) {
+          e.preventDefault();
+          addPill(inputValue); // Add the raw input value if it's valid
+        }
+        return;
+      }
+
+      if (!showSuggestions && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+          setShowSuggestions(true);
+      }
+      if (!showSuggestions) return;
+
+      switch (e.key) {
+        case "ArrowDown": e.preventDefault(); setSelectedIndex(p => (p < suggestions.length - 1 ? p + 1 : p)); break;
+        case "ArrowUp": e.preventDefault(); setSelectedIndex(p => (p > 0 ? p - 1 : 0)); break;
+        case "Escape": e.preventDefault(); setShowSuggestions(false); setSelectedIndex(-1); break;
+      }
     }
-  }
+
+    const handleFocus = () => {
+        // Show suggestions on focus if the input is empty
+        if (inputValue === "") {
+            setShowSuggestions(true);
+        }
+    }
+
+    const handleBlur = (e: React.FocusEvent<HTMLDivElement>) => {
+        // Use a small timeout to allow click events on suggestions to register
+        setTimeout(() => {
+            if (!containerRef.current?.contains(document.activeElement)) {
+                setShowSuggestions(false);
+                setSelectedIndex(-1);
+                // Also, add any pending valid email in the input as a pill
+                if(inputValue) {
+                    addPill(inputValue);
+                }
+            }
+        }, 150);
+    }
 
   // The JSX remains the same, as all changes were in the logic
-  return (
-    <div className="relative">
-      <div ref={containerRef} className={`flex items-center flex-wrap gap-1 p-1 border rounded-md ${className}`} onClick={() => inputRef.current?.focus()}>
-        {pills.map(email => (
-          <RecipientPill key={email} email={email} onRemove={() => removePill(email)} />
-        ))}
-        <input
-          ref={inputRef}
-          value={inputValue}
-          onChange={e => setInputValue(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={pills.length === 0 ? placeholder : ""}
-          className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
-          autoComplete="off"
-          autoFocus
-        />
-      </div>
-      {/* --- MODIFICATION START: Updated JSX for suggestions with avatars --- */}
-      {showSuggestions && (
-        <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
-          {suggestions.map((contact, index) => {
-            const avatarUrl = getAvatarUrl(contact.email);
-            return (
-              <div
-                key={contact.email}
-                className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-100 ${index === selectedIndex ? "bg-blue-50" : ""}`}
-                onClick={() => addPill(contact.email)}
-                onMouseEnter={() => setSelectedIndex(index)}
-              >
-                <Avatar className="h-8 w-8">
-                  {avatarUrl && <AvatarImage src={avatarUrl} alt={contact.name || contact.email} />}
-                  <AvatarFallback>{(contact.name || contact.email).charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="text-sm font-medium">{contact.name || contact.email}</div>
-                  {contact.name && <div className="text-xs text-gray-500">{contact.email}</div>}
-                </div>
-              </div>
-            );
-          })}
+   return (
+      <div className="relative" ref={containerRef} onBlur={handleBlur}>
+        <div
+          className={`flex items-center flex-wrap gap-1 p-1 border rounded-md ${className}`}
+          onClick={() => (ref as React.RefObject<HTMLInputElement>)?.current?.focus()}
+        >
+          {pills.map(email => (
+            <RecipientPill key={email} email={email} onRemove={() => removePill(email)} />
+          ))}
+          <input
+            ref={ref} // Forwarded ref is attached here
+            value={inputValue}
+            onChange={e => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            placeholder={pills.length === 0 ? placeholder : ""}
+            className="flex-1 border-none outline-0 text-sm focus:ring-0 shadow-none p-0 h-auto bg-transparent min-w-[120px]"
+            autoComplete="off"
+          />
         </div>
-      )}
-      {/* --- MODIFICATION END --- */}
-    </div>
-  )
-}
+        {showSuggestions && (
+          <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md shadow-lg">
+            {suggestions.map((contact, index) => {
+              const avatarUrl = getAvatarUrl(contact.email);
+              return (
+                <div
+                  key={contact.email}
+                  className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${index === selectedIndex ? "bg-blue-50 dark:bg-blue-900" : ""}`}
+                  // Use onMouseDown to prevent the input's blur event from hiding the suggestions before the click registers
+                  onMouseDown={(e) => {
+                      e.preventDefault();
+                      addPill(contact.email);
+                  }}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <Avatar className="h-8 w-8">
+                    <AvatarImage src={avatarUrl} alt={contact.name || contact.email} />
+                    <AvatarFallback>{(contact.name || contact.email).charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="text-sm font-medium">{contact.name || contact.email}</div>
+                    {contact.name && <div className="text-xs text-gray-500 dark:text-gray-400">{contact.email}</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+);
+
+ContactAutocomplete.displayName = 'ContactAutocomplete'; // Good practice for debugging
+
+export default ContactAutocomplete;

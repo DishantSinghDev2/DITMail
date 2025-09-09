@@ -453,6 +453,7 @@ export function EmailEditor({
                       <FormControl>
                         <ContactAutocomplete
                           value={field.value}
+                          ref={toInputRef}
                           onChange={field.onChange}
                           placeholder="Recipients"
                           className="border-0 border-b rounded-none focus-within:border-blue-500" // Add styling as needed
