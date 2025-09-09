@@ -544,8 +544,10 @@ export function EmailEditor({
               onChange={handleContentChange}
               // FIX: Pass the initial content, not a live-updated value.
               initialContent={initialData?.content || "<p><br></p>"}
-              isToolbarVisible={true}
-              minHeight="100%"
+              isToolbarVisible={isToolbarVisible}
+              
+              className="h-full"
+              minHeight="50px"
             />
           </div>
 
