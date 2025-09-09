@@ -7,18 +7,24 @@ const execAsync = promisify(exec)
 
 export async function generateDKIMKeys() {
   try {
-    // Generate RSA key pair for DKIM
-    const { stdout: privateKey } = await execAsync("openssl genrsa 2048 2>/dev/null")
+    // Try modern OpenSSL first
+    let { stdout: privateKey } = await execAsync(
+      "openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null",
+    )
+
+    // If that failed, fallback to legacy genrsa
+    if (!privateKey.trim()) {
+      const result = await execAsync("openssl genrsa 2048 2>/dev/null")
+      privateKey = result.stdout
+    }
 
     const { stdout: publicKeyRaw } = await execAsync(
       `echo "${privateKey}" | openssl rsa -pubout 2>/dev/null | grep -v "BEGIN\\|END" | tr -d "\\n"`,
     )
 
-    const publicKey = publicKeyRaw.trim()
-
     return {
       privateKey: privateKey.trim(),
-      publicKey: publicKey,
+      publicKey: publicKeyRaw.trim(),
     }
   } catch (error) {
     logError(error as Error, { context: "DKIM key generation" })
