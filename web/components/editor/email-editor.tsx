@@ -540,12 +540,9 @@ export function EmailEditor({
           <div className="flex-1 p-4 overflow-y-hidden">
             <RichTextEditor
               ref={editorRef}
-              // FIX: Use the stable callback
               onChange={handleContentChange}
-              // FIX: Pass the initial content, not a live-updated value.
               initialContent={initialData?.content || "<p><br></p>"}
               isToolbarVisible={isToolbarVisible}
-              
               className="h-full"
               minHeight="50px"
             />
