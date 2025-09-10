@@ -27,11 +27,17 @@ export async function GET(request: NextRequest) {
     const [orgData, currentUserCount, verifiedDomains] = await Promise.all([
       // Fetch the organization and populate its plan details
       Organization.findById(user.org_id).populate<{ plan_id: import("@/models/Plan").IPlan }>("plan_id"),
-      // Count the number of users in the organization
-      User.countDocuments({ org_id: user.org_id }),
+
+      // Count the number of users in the organization (exclude ditmail.online emails)
+      User.countDocuments({
+        org_id: user.org_id,
+        email: { $not: /@ditmail\.online$/i },
+      }),
+
       // Find all domains that have been successfully verified
       Domain.find({ org_id: user.org_id, ownership_verified: true }).select("domain"),
     ])
+
 
     // 3. Validate that the organization and its plan exist
     if (!orgData) {
@@ -49,7 +55,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(responsePayload)
-    
+
   } catch (error) {
     console.error("Error fetching organization details:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

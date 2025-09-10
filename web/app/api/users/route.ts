@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 
       const userCount = await User.countDocuments({
         org_id: user.org_id,
-        email: { $regex: `@(${orgDomains.join('|')})$`, $options: "i" },
+        email: { $not: /@ditmail\.online$/i },
       });
 
       if (userCount >= org.plan_id.limits.users) {
