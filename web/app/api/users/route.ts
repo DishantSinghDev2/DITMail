@@ -29,7 +29,7 @@ async function syncUserToWhatsYourInfo(userData: {
 
   try {
     // Create a short-lived token for this specific operation
-    const payload = { action: 'create', userData }
+    const payload = { action: 'create', payload: userData }
     const token = jwt.sign(payload, INTERNAL_SECRET, { expiresIn: '60s' });
 
     const response = await fetch(WYI_SYNC_URL, {
