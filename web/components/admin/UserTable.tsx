@@ -6,7 +6,7 @@ import { PencilIcon, TrashIcon } from "@heroicons/react/24/outline"
 
 interface UserTableProps {
   users: any[]
-  loading: boolean
+  loading?: boolean
   onRefresh: () => void
 }
 

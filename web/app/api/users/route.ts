@@ -29,7 +29,8 @@ async function syncUserToWhatsYourInfo(userData: {
 
   try {
     // Create a short-lived token for this specific operation
-    const token = jwt.sign(userData, INTERNAL_SECRET, { expiresIn: '60s' });
+    const payload = { action: 'create', userData }
+    const token = jwt.sign(payload, INTERNAL_SECRET, { expiresIn: '60s' });
 
     const response = await fetch(WYI_SYNC_URL, {
       method: "POST",
@@ -169,12 +170,18 @@ export async function POST(request: NextRequest) {
 
     await newUser.save()
 
+    const defaultUsername = email
+      .split("@")
+      .join(".")       // turn @ into .
+      .replace(/\./g, "") // remove other dots
+
+
     await syncUserToWhatsYourInfo({
       email: newUser.email,
       password: password, // Send the plain-text password for WYI to hash
       firstName,
       lastName,
-      username: email.split('@')[0], // Derive a default username
+      username: defaultUsername
     });
 
     await logAuditEvent({
