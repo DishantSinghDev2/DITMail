@@ -1,36 +1,38 @@
-import { exec } from "child_process"
-import { promisify } from "util"
 import dns from "dns"
 import { logInfo, logError } from "./logger"
 
-const execAsync = promisify(exec)
+import { generateKeyPairSync } from "crypto"
 
-export async function generateDKIMKeys() {
+export function generateDKIMKeys() {
   try {
-    // Try modern OpenSSL first
-    let { stdout: privateKey } = await execAsync(
-      "openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 2>/dev/null",
-    )
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      publicKeyEncoding: {
+        type: "spki",
+        format: "pem",
+      },
+      privateKeyEncoding: {
+        type: "pkcs8",
+        format: "pem",
+      },
+    })
 
-    // If that failed, fallback to legacy genrsa
-    if (!privateKey.trim()) {
-      const result = await execAsync("openssl genrsa 2048 2>/dev/null")
-      privateKey = result.stdout
-    }
-
-    const { stdout: publicKeyRaw } = await execAsync(
-      `echo "${privateKey}" | openssl rsa -pubout 2>/dev/null | grep -v "BEGIN\\|END" | tr -d "\\n"`,
-    )
+    // Format public key for DNS TXT (strip headers, newlines)
+    const publicKeyDNS = publicKey
+      .replace(/-----BEGIN PUBLIC KEY-----/, "")
+      .replace(/-----END PUBLIC KEY-----/, "")
+      .replace(/\s+/g, "")
+      .trim()
 
     return {
-      privateKey: privateKey.trim(),
-      publicKey: publicKeyRaw.trim(),
+      privateKey,
+      publicKey: publicKeyDNS,
     }
   } catch (error) {
-    logError(error as Error, { context: "DKIM key generation" })
-    throw new Error("Failed to generate DKIM keys")
+    throw new Error("Failed to generate DKIM keys: " + (error as Error).message)
   }
 }
+
 
 export async function verifyDNSRecords(domain: string, verificationCode: string) {
   const results: {
