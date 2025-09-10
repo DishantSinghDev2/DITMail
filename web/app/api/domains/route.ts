@@ -67,8 +67,10 @@ export async function POST(request: NextRequest) {
     const org = await Organization.findById(user.org_id).populate("plan_id")
     const domainCount = await Domain.countDocuments({ org_id: user.org_id, ownership_verified: true })
 
-    if (domainCount >= org.plan_id.limits.domains) {
-      return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 400 })
+    if (org.plan_id.limits.domains !== null){
+      if (domainCount >= org.plan_id.limits.domains) {
+        return NextResponse.json({ error: "Domain limit reached for your plan" }, { status: 400 })
+      }
     }
 
 

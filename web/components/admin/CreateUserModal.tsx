@@ -64,8 +64,8 @@ export default function CreateUserModal({ onClose, onSuccess }: CreateUserModalP
     }
   }
 
-  const remainingSeats = orgDetails ? orgDetails.userLimit - (orgDetails.currentUserCount + newUsers.length) : 0
-  const canAddMoreUsers = orgDetails ? orgDetails.currentUserCount + newUsers.length < orgDetails.userLimit : false
+  const remainingSeats = orgDetails ? orgDetails.userLimit !== null ? orgDetails.userLimit - (orgDetails.currentUserCount + newUsers.length) : null : 0
+  const canAddMoreUsers = orgDetails ? orgDetails.userLimit !== null ? orgDetails.currentUserCount + newUsers.length < orgDetails.userLimit : true : false
 
   // --- DATA FETCHING ---
   useEffect(() => {
@@ -292,8 +292,8 @@ export default function CreateUserModal({ onClose, onSuccess }: CreateUserModalP
           {orgDetails && (
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg text-center">
               <p className="font-semibold text-blue-800">
-                You have used {orgDetails.currentUserCount} of {orgDetails.userLimit} available user seats.
-                You can add {remainingSeats} more users.
+                You have used {orgDetails.currentUserCount} of {orgDetails.userLimit ? orgDetails.userLimit : 'unlimited'} available user seats.
+                You can add {remainingSeats ? remainingSeats : 'infinitely'} more users.
               </p>
             </div>
           )}

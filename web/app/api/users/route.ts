@@ -142,8 +142,11 @@ export async function POST(request: NextRequest) {
         email: { $not: /@ditmail\.online$/i },
       });
 
-      if (userCount >= org.plan_id.limits.users) {
-        return NextResponse.json({ error: "User limit reached for your plan" }, { status: 400 });
+
+      if (org.plan_id.limits.users !== null) {
+        if (userCount >= org.plan_id.limits.users) {
+          return NextResponse.json({ error: "User limit reached for your plan" }, { status: 400 });
+        }
       }
     } catch (error) {
       console.error(error);
