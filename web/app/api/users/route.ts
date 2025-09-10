@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {connectDB} from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import User from "@/models/User"
 import Organization from "@/models/Organization"
 import { getServerSession } from "next-auth"
@@ -10,14 +10,14 @@ import Domain from "@/models/Domain"
 
 export async function GET(request: NextRequest) {
   try {
-     const session = await getServerSession(authOptions);
-     const user = session?.user as SessionUser | undefined;
-   
-     // Use the standard, secure way to get the session.
-     if (!user) {
-       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-     }
-   
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+
+    // Use the standard, secure way to get the session.
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
 
     await connectDB()
 
@@ -57,10 +57,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-      const session = await getServerSession(authOptions);
-      const user = session?.user as SessionUser | undefined;
-    
-    
+    const session = await getServerSession(authOptions);
+    const user = session?.user as SessionUser | undefined;
+
+
     if (!user || !["owner", "admin"].includes(user.role)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
