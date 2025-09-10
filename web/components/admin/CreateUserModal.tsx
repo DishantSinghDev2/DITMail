@@ -83,7 +83,7 @@ export default function CreateUserModal({ onClose, onSuccess }: CreateUserModalP
 
         // 2. Fetch organization details (domains, plan limits) - MOCKING THIS API CALL
         // Replace with your actual API endpoint for organization data
-        const orgResponse = await fetch("/api/organization/details", {
+        const orgResponse = await fetch("/api/organizations", {
           headers: { Authorization: `Bearer ${token}` },
         })
         if (!orgResponse.ok) throw new Error("Failed to fetch organization details.")
