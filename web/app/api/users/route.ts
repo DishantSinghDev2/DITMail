@@ -9,6 +9,8 @@ import { logAuditEvent } from "@/lib/audit"
 import Domain from "@/models/Domain"
 import jwt from "jsonwebtoken" // <-- Import JWT library
 import { revalidateTag } from "next/cache"
+import AppPassword from "@/models/AppPassword"
+import crypto from 'crypto'
 
 // --- Environment variables for the internal sync ---
 const WYI_SYNC_URL = process.env.WHATS_YOUR_INFO_SYNC_URL // e.g., https://whatsyour.info/api/internal/sync-user
@@ -169,6 +171,20 @@ export async function POST(request: NextRequest) {
     })
 
     await newUser.save()
+
+    const generatedPassword = crypto.randomBytes(16).toString('hex');
+
+    // Create a new AppPassword instance
+    const newAppPassword = new AppPassword({
+      user_id: newUser._id,
+      name: 'Default Sending Password',
+      // Use the virtual 'password' field to set the plain-text value.
+      // Mongoose will automatically call the 'set' function to encrypt it.
+      password: generatedPassword,
+    });
+
+    // When you save, the encrypted version is stored in the database.
+    await newAppPassword.save();
 
     const defaultUsername = email
       .split("@")
