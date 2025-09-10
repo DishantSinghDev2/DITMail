@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
     // Check organization limits
     try {
       const org = await Organization.findById(user.org_id).populate("plan_id");
-      if (!org || !org.plan_id || !org.plan_id.limits?.users) {
+      if (!org || !org.plan_id) {
         return NextResponse.json({ error: "Invalid organization or plan data" }, { status: 400 });
       }
 
