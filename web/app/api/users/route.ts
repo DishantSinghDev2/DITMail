@@ -8,6 +8,7 @@ import { SessionUser } from "@/types"
 import { logAuditEvent } from "@/lib/audit"
 import Domain from "@/models/Domain"
 import jwt from "jsonwebtoken" // <-- Import JWT library
+import { revalidateTag } from "next/cache"
 
 // --- Environment variables for the internal sync ---
 const WYI_SYNC_URL = process.env.WHATS_YOUR_INFO_SYNC_URL // e.g., https://whatsyour.info/api/internal/sync-user
@@ -160,6 +161,10 @@ export async function POST(request: NextRequest) {
       password_hash: password,
       org_id: user.org_id,
       role: role || "user",
+      onboarding: {
+        completed: true,
+        startedAt: new Date()
+      }
     })
 
     await newUser.save()
@@ -178,6 +183,8 @@ export async function POST(request: NextRequest) {
       details: { created_user_id: newUser.id, email: newUser.email },
       ip: request.headers.get("x-forwarded-for") || "unknown",
     })
+
+    revalidateTag(`org:${user.org_id}:users`)
 
     return NextResponse.json({
       user: {

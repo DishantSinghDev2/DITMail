@@ -25,10 +25,10 @@ export interface IUser extends Document {
 
 const UserSchema = new Schema<IUser>({
   email: { type: String, required: true, unique: true, lowercase: true },
-  mailboxAccess: { type: Boolean, required: true, default: false},
+  mailboxAccess: { type: Boolean, required: true, default: false },
   name: { type: String, required: true },
-  username: { type: String, required: false },
-  password_hash: { type: String, required: false },
+  username: { type: String },
+  password_hash: { type: String },
   org_id: { type: Schema.Types.ObjectId, ref: "Organization", required: true },
   role: { type: String, enum: ["owner", "admin", "user"], default: "owner" },
   dkim_selector: { type: String, default: () => Math.random().toString(36).substring(7) },
@@ -44,9 +44,19 @@ const UserSchema = new Schema<IUser>({
   },
 })
 
+// auto-hash before saving
+UserSchema.pre("save", async function (next) {
+  if (!this.isModified("password_hash")) return next()
+  if (this.password_hash) {
+    const salt = await bcrypt.genSalt(10)
+    this.password_hash = await bcrypt.hash(this.password_hash, salt)
+  }
+  next()
+})
+
 UserSchema.methods.comparePassword = async function (password: string): Promise<boolean> {
+  if (!this.password_hash) return false
   return bcrypt.compare(password, this.password_hash)
 }
-
 
 export default mongoose.models.User || mongoose.model<IUser>("User", UserSchema)
