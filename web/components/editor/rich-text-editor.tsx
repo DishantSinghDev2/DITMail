@@ -37,7 +37,7 @@ const RichTextEditor = memo(forwardRef<RichTextEditorRef, RichTextEditorProps>(
     {
       placeholder = "",
       className = "",
-      initialContent = "", // This prop is now only for the very first render.
+      initialContent = "",
       onChange,
       minHeight = "100px",
       isToolbarVisible = false
@@ -62,26 +62,21 @@ const RichTextEditor = memo(forwardRef<RichTextEditorRef, RichTextEditorProps>(
         // Place cursor at the end
         const range = document.createRange();
         const sel = window.getSelection();
-        if (sel && editorRef.current?.childNodes.length > 0) {
-          range.setStart(editorRef.current, editorRef.current.childNodes.length);
-          range.collapse(true);
+        if (sel && editorRef.current) {
+          range.selectNodeContents(editorRef.current);
+          range.collapse(false); // false collapses to the end
           sel.removeAllRanges();
           sel.addRange(range);
-        } else if (sel) {
-          editorRef.current?.focus();
         }
       },
     }));
 
-    // FIX: This effect now only runs ONCE when the component mounts.
-    // It prevents re-renders from the parent from wiping the editor's content.
     useEffect(() => {
       if (editorRef.current && initialContent) {
         editorRef.current.innerHTML = initialContent;
         lastContentRef.current = initialContent;
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // <-- Empty dependency array is the key fix.
+    }, []); // Runs only once on mount
 
     const handleContentChange = () => {
       if (!onChange || !editorRef.current) return;
@@ -98,9 +93,31 @@ const RichTextEditor = memo(forwardRef<RichTextEditorRef, RichTextEditorProps>(
       handleContentChange();
     }, [])
 
-    // Paste/Copy handlers (Unchanged)
-    const handlePaste = useCallback((e: ClipboardEvent) => { e.preventDefault(); const text = e.clipboardData?.getData("text/plain"); document.execCommand("insertText", false, text); handleContentChange() }, []);
-    const handleCopy = useCallback((e: ClipboardEvent) => { const selection = window.getSelection()?.toString(); if (selection) { e.clipboardData?.setData("text/plain", selection); e.preventDefault(); } }, []);
+    // MODIFIED: This function now pastes HTML content if available, otherwise falls back to plain text.
+    const handlePaste = useCallback((e: ClipboardEvent) => {
+      e.preventDefault();
+      const clipboardData = e.clipboardData;
+      if (clipboardData) {
+        const pastedHTML = clipboardData.getData("text/html");
+        if (pastedHTML) {
+          document.execCommand("insertHTML", false, pastedHTML);
+        } else {
+          const pastedText = clipboardData.getData("text/plain");
+          if (pastedText) {
+            document.execCommand("insertText", false, pastedText);
+          }
+        }
+      }
+      handleContentChange();
+    }, []);
+
+    const handleCopy = useCallback((e: ClipboardEvent) => {
+      const selection = window.getSelection()?.toString();
+      if (selection) {
+        e.clipboardData?.setData("text/plain", selection);
+        e.preventDefault();
+      }
+    }, []);
 
     useEffect(() => {
       const editor = editorRef.current
