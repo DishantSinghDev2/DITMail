@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import {connectDB} from "@/lib/db"
+import { connectDB } from "@/lib/db"
 import Folder from "@/models/Folder"
 import Message from "@/models/Message"
 import { getServerSession } from "next-auth";
@@ -10,10 +10,10 @@ import { logAuditEvent } from "@/lib/audit"
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
-        const user = session?.user as SessionUser | undefined;
-        if (!user) {
-          return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-        }
+    const user = session?.user as SessionUser | undefined;
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
     await connectDB()
 

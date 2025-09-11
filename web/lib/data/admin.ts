@@ -48,7 +48,7 @@ export const getOrganizationUsers = unstable_cache(
   },
   ['org-users'],
   // ✅ THE FIX: Use a function to create dynamic tags
-  { tags: (orgId, searchQuery) => [`org:${orgId}:users`, `org:${orgId}:users:${searchQuery}`] }
+  { tags: (orgId, searchQuery) => [`org:${orgId}:users`, `org:${orgId}:users:${searchQuery}`], revalidate: 300 }
 );
 
 /**

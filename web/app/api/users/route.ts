@@ -187,9 +187,9 @@ export async function POST(request: NextRequest) {
     await newAppPassword.save();
 
     const defaultUsername = email
+      .replace(/\./g, "") // remove other dots
       .split("@")
       .join(".")       // turn @ into .
-      .replace(/\./g, "") // remove other dots
 
 
     await syncUserToWhatsYourInfo({
