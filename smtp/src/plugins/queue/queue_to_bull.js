@@ -6,12 +6,20 @@ const { Readable } = require('stream');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const os = require("os");
 
 let mongoClient = null;
 let mailQueue = null;
 let ready = false;
 
-const WORKER_IPS = ['127.0.0.1', '::1', '172.19.0.1'];
+const WORKER_IPS = [
+  "127.0.0.1",
+  "::1",
+  ...Object.values(os.networkInterfaces())
+    .flat()
+    .map(n => n.address)
+];
+
 
 function getRawEmail(transaction) {
     return new Promise((resolve, reject) => {
