@@ -132,13 +132,12 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.WYI_CLIENT_SECRET,
             async profile(profile, tokens) {
                 return {
-                    id: undefined,
+                    id: profile._id,
                     name: `${profile.firstName} ${profile.lastName}`,
                     username: profile.username,
                     email: profile.email,
                     image: `https://whatsyour.info/api/v1/avatar/${profile.username}`,
-                    emailVerified: profile.emailVerified,
-                    wyiId: profile._id
+                    emailVerified: profile.emailVerified
                 };
             },
         },
