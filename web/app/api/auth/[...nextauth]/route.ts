@@ -226,29 +226,34 @@ export const authOptions: NextAuthOptions = {
         },
 
         async session({ session, token }) {
-            // Map all properties from the enriched token to the session.
-            session.user.id = token.id;
-            session.user.name = token.name;
-            session.user.username = token.username;
-            session.user.email = token.email;
-            session.user.role = token.role;
-            session.user.org_id = token.org_id;
-            session.user.mailboxAccess = token.mailboxAccess;
-            session.user.onboarding = token.onboarding;
-            session.user.plan = token.plan;
-            session.user.nextDueDate = token.nextDueDate;
-            // Encode the entire token object into a secure, verifiable JWT string.
-            session.user.accessToken = await encode({
-                secret: process.env.NEXTAUTH_SECRET!,
-                token: token,
-            });
+            try {
+                // Map all properties from the enriched token to the session.
+                session.user.id = token.id;
+                session.user.name = token.name;
+                session.user.username = token.username;
+                session.user.email = token.email;
+                session.user.role = token.role;
+                session.user.org_id = token.org_id;
+                session.user.mailboxAccess = token.mailboxAccess;
+                session.user.onboarding = token.onboarding;
+                session.user.plan = token.plan;
+                session.user.nextDueDate = token.nextDueDate;
+                // Encode the entire token object into a secure, verifiable JWT string.
+                session.user.accessToken = await encode({
+                    secret: process.env.NEXTAUTH_SECRET!,
+                    token: token,
+                });
 
 
-            if (token.picture) {
-                session.user.image = token.picture;
+                if (token.picture) {
+                    session.user.image = token.picture;
+                }
+
+                return session;
+            } catch (err) {
+                console.error("Session callback failed", err)
+                throw err
             }
-
-            return session;
         },
     },
     cookies: {
