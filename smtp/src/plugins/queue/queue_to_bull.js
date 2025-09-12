@@ -3,10 +3,7 @@ const { Queue } = require('bullmq');
 const { MongoClient, ObjectId, GridFSBucket } = require('mongodb');
 const { simpleParser, MailParser } = require('mailparser');
 const { Readable } = require('stream');
-const fs = require('fs');
 const os = require('os');
-const path = require('path');
-const os = require("os");
 
 let mongoClient = null;
 let mailQueue = null;
