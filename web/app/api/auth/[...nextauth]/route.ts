@@ -132,12 +132,13 @@ export const authOptions: NextAuthOptions = {
             clientSecret: process.env.WYI_CLIENT_SECRET,
             async profile(profile, tokens) {
                 return {
-                    id: profile._id,
+                    id: undefined,
                     name: `${profile.firstName} ${profile.lastName}`,
                     username: profile.username,
                     email: profile.email,
                     image: `https://whatsyour.info/api/v1/avatar/${profile.username}`,
                     emailVerified: profile.emailVerified,
+                    wyiId: profile._id
                 };
             },
         },
@@ -188,7 +189,7 @@ export const authOptions: NextAuthOptions = {
 
             // 1. Initial sign-in: Populate token with all data.
             if (user && account && profile) {
-                const dbUser = await User.findById(user.id).populate({
+                const dbUser = await User.findOne({ email: user.email }).populate({
                     path: 'org_id',
                     populate: { path: 'plan_id' }
                 });
