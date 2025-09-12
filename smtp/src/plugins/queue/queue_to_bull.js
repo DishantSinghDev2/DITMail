@@ -9,13 +9,9 @@ let mongoClient = null;
 let mailQueue = null;
 let ready = false;
 
-const WORKER_IPS = [
-  "127.0.0.1",
-  "::1",
-  ...Object.values(os.networkInterfaces())
-    .flat()
-    .map(n => n.address)
-];
+const WORKER_SUBNETS = ["172.16.0.0/12", "192.168.0.0/16", "10.0.0.0/8"];
+const ip = require("ip"); // npm install ip
+
 
 
 function getRawEmail(transaction) {
@@ -71,7 +67,7 @@ exports.intercept_for_worker = async function (next, connection) {
         return next(DENYSOFT, "Server temporarily unavailable.");
     }
 
-    if (WORKER_IPS.includes(connection.remote.ip)) {
+    if (WORKER_SUBNETS.some(subnet => ip.cidrSubnet(subnet).contains(connection.remote.ip))) {
         const headerLines = transaction.header_lines || [];
         const internalMsgIdHeader = headerLines.find(h =>
             h.toLowerCase().startsWith("x-internal-message-id:")
