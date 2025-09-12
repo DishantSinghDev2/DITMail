@@ -146,7 +146,6 @@ export const authOptions: NextAuthOptions = {
     // Events callbacks
     events: {
         async createUser({ user }) {
-            await connectDB();
             await handleNewUserOnboarding(user);
         }
     },
@@ -154,8 +153,6 @@ export const authOptions: NextAuthOptions = {
 
     callbacks: {
         async signIn({ user, account, profile }) {
-            // This callback is triggered on a successful sign-in.
-            await connectDB();
 
             const existingUser = await User.findOne({ email: user.email });
 
@@ -187,7 +184,6 @@ export const authOptions: NextAuthOptions = {
         },
 
         async jwt({ token, user, profile, account, trigger, session }) {
-            await connectDB();
 
             // 1. Initial sign-in: Populate token with all data.
             if (user && account && profile) {
