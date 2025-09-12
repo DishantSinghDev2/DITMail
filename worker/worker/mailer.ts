@@ -192,24 +192,39 @@ const mailProcessor = async (job: Job) => {
     throw error;
   }
 };
+// Create an async function to start the worker
+const startWorker = async () => {
+  try {
+    // Wait for the MongoDB connection to be established
+    await mongoose.connect(process.env.MONGO_URI!);
+    console.log('MongoDB connection successful.');
 
-// --- INITIALIZE AND RUN THE WORKER ---
-const worker = new Worker('mail-delivery-queue', mailProcessor, {
-  connection: redisConnection,
-  concurrency: 5,
-  limiter: { max: 100, duration: 10000 },
-});
+    // Now that the DB is connected, initialize the worker
+    const worker = new Worker('mail-delivery-queue', mailProcessor, {
+      connection: redisConnection,
+      concurrency: 5,
+      limiter: { max: 100, duration: 10000 },
+    });
 
-console.log('Mail worker started...');
+    worker.on('completed', (job: Job) => {
+      console.log(`Job ${job.id} has completed!`);
+    });
 
-worker.on('completed', (job: Job) => {
-  console.log(`Job ${job.id} has completed!`);
-});
+    worker.on('failed', (job: Job | undefined, err: Error) => {
+      if (job) {
+        console.error(`Job ${job.id} has failed with ${err.message}`, err.stack); // Log the stack for more details
+      } else {
+        console.error(`A job has failed with ${err.message}`, err.stack);
+      }
+    });
 
-worker.on('failed', (job: Job | undefined, err: Error) => {
-  if (job) {
-    console.log(`Job ${job.id} has failed with ${err.message}`);
-  } else {
-    console.log(`A job has failed with ${err.message}`);
+    console.log('Mail worker started and listening for jobs...');
+
+  } catch (error) {
+    console.error('Failed to start the mail worker:', error);
+    process.exit(1); // Exit if we can't connect to the DB
   }
-});
+};
+
+// Call the async function to start the process
+startWorker();
