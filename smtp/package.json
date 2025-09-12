@@ -23,6 +23,7 @@
     "haraka-plugin-mail_from.is_resolvable": "^1.1.0",
     "haraka-plugin-relay": "^1.0.1",
     "ioredis": "^5.7.0",
+    "ip": "^2.0.1",
     "mailparser": "^3.7.3",
     "maxmind": "^4.3.27",
     "mongodb": "^6.17.0",

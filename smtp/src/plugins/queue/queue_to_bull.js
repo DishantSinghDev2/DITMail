@@ -13,7 +13,6 @@ const WORKER_SUBNETS = ["172.16.0.0/12", "192.168.0.0/16", "10.0.0.0/8"];
 const ip = require("ip"); // npm install ip
 
 
-
 function getRawEmail(transaction) {
     return new Promise((resolve, reject) => {
         transaction.message_stream.get_data((data) => {
